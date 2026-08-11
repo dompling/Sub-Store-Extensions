@@ -1,7 +1,4 @@
-import {
-    ConfigGeneratorValidationError,
-    validateProject,
-} from '@/extensions/config-generator/validation';
+import { validateProject } from '@/extensions/config-generator/validation';
 import {
     parseProfileSections,
     serializeProfileSections,
@@ -10,6 +7,7 @@ import { resolvePolicyGroupCapability } from '@/extensions/config-generator/core
 import {
     policyGroupCapabilityDiagnostics,
     projectIncludedPolicyGroups,
+    projectPolicyGroupMembers,
 } from '@/extensions/config-generator/core/policy-group-projection';
 import {
     createRemoteProxySourceContext,
@@ -333,16 +331,16 @@ function generateGroups(
                 ...policyGroupCapabilityDiagnostics(group, capability),
             );
 
-            const members = [];
-            const conditionals = [];
-            (group.members || []).forEach((member) => {
-                if (member.kind === 'conditional') {
-                    const parsed = conditionalParts(member);
-                    if (parsed) conditionals.push(parsed);
-                    return;
-                }
-                members.push(member.value);
-            });
+            const memberProjection = projectPolicyGroupMembers(
+                group,
+                capability,
+                'loon',
+            );
+            const members = [...memberProjection.members];
+            const conditionals = memberProjection.conditionals
+                .map(conditionalParts)
+                .filter(Boolean);
+            warnings.push(...memberProjection.diagnostics);
 
             const includedGroups = projectIncludedPolicyGroups(
                 group,
@@ -382,8 +380,17 @@ function generateGroups(
                 });
             }
 
+            const projectedMembers = dedupe(members);
+            if (!projectedMembers.length && !conditionals.length) {
+                projectedMembers.push('DIRECT');
+                warnings.push({
+                    path: `groups.${group.name}.members`,
+                    message: `Loon ${capability.outputType} had no usable policy members or remote sources after target projection and fell back to DIRECT.`,
+                });
+            }
+
             const values = [capability.outputType];
-            dedupe(members).forEach((member) =>
+            projectedMembers.forEach((member) =>
                 values.push(serializeSurgeCsvValue(member)),
             );
 
@@ -439,18 +446,6 @@ function generateGroups(
             }
 
             warnUnsupportedGroupFields(group, capability, warnings);
-
-            const candidateCount =
-                dedupe(members).length +
-                (capability.outputType === 'ssid' ? conditionals.length : 0);
-            if (!candidateCount) {
-                throw new ConfigGeneratorValidationError([
-                    {
-                        path: `groups.${group.name}.members`,
-                        message: `Loon ${capability.outputType} has no usable policy members or remote sources after target projection`,
-                    },
-                ]);
-            }
 
             const lines = [];
             if (group.remark) lines.push(`# ${group.remark}`);

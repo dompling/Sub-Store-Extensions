@@ -7,6 +7,7 @@ import { resolvePolicyGroupCapability } from '@/extensions/config-generator/core
 import {
     policyGroupCapabilityDiagnostics,
     projectIncludedPolicyGroups,
+    projectPolicyGroupMembers,
 } from '@/extensions/config-generator/core/policy-group-projection';
 import {
     createRemoteProxySourceContext,
@@ -243,7 +244,13 @@ function generateGroups(project, localProxyNames, sourceContext, warnings) {
                 ...policyGroupCapabilityDiagnostics(group, capability),
             );
 
-            const values = (group.members || []).map((member) => member.value);
+            const memberProjection = projectPolicyGroupMembers(
+                group,
+                capability,
+                'clash',
+            );
+            const values = [...memberProjection.members];
+            warnings.push(...memberProjection.diagnostics);
             const includedGroups = projectIncludedPolicyGroups(
                 group,
                 capability,
@@ -375,16 +382,15 @@ function generateGroups(project, localProxyNames, sourceContext, warnings) {
                 type: capability.outputType,
             };
             const proxies = dedupe(values);
+            if (!proxies.length && !use.length) {
+                proxies.push('DIRECT');
+                warnings.push({
+                    path: `groups.${group.name}.members`,
+                    message: `Clash ${capability.outputType} had no usable policy members or providers after target projection and fell back to DIRECT.`,
+                });
+            }
             if (proxies.length) output.proxies = proxies;
             if (use.length) output.use = use;
-            if (!proxies.length && !use.length) {
-                throw new ConfigGeneratorValidationError([
-                    {
-                        path: `groups.${group.name}.members`,
-                        message: `Clash ${capability.outputType} has no usable policy members or providers after target projection`,
-                    },
-                ]);
-            }
             if (capability.outputType !== 'select') {
                 output.url = group.testUrl || DEFAULT_TEST_URL;
                 output.interval =

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   loadSingleExtension,
   readRepositoryConfig,
@@ -71,6 +72,7 @@ if (command === 'source:add') {
 } else if (command === 'install') {
   const extension = await loadSingleExtension(args);
   const reinstall = args.includes('--reinstall');
+  const operationId = randomUUID();
   if (reinstall) {
     try {
       await request('DELETE', `/api/admin/extensions/${encodeURIComponent(extension.id)}`, { purgeData: false });
@@ -82,13 +84,19 @@ if (command === 'source:add') {
     'POST',
     `/api/admin/extensions/${encodeURIComponent(extension.id)}/install`,
     {},
-    { 'x-idempotency-key': `source-install-${extension.id}-${extension.manifest.version}` },
+    {
+      'x-idempotency-key':
+        `source-install-${extension.id}-${extension.manifest.version}-${operationId}`,
+    },
   );
   await request(
     'POST',
     `/api/admin/extensions/${encodeURIComponent(extension.id)}/enable`,
     {},
-    { 'x-idempotency-key': `source-enable-${extension.id}-${extension.manifest.version}` },
+    {
+      'x-idempotency-key':
+        `source-enable-${extension.id}-${extension.manifest.version}-${operationId}`,
+    },
   );
   process.stdout.write(`Installed from collection source ${extension.id}@${installed.record?.version || extension.manifest.version}\n`);
 } else {

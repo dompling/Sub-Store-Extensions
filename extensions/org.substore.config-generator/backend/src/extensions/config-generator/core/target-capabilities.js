@@ -298,6 +298,18 @@ const POLICY_GROUP_FALLBACKS = {
             targetDefaults: { strategy: 'consistent-hashing' },
             lostSemantics: ['exact destination hashing behavior'],
         },
+        subnet: {
+            outputSharedType: 'select',
+            warning:
+                'Surge subnet was approximated as Clash select. Network conditions cannot be represented; the default and referenced policies were retained as manual choices.',
+            lostSemantics: ['automatic network-condition selection'],
+        },
+        ssid: {
+            outputSharedType: 'select',
+            warning:
+                'Quantumult X ssid was approximated as Clash select. SSID conditions cannot be represented; the default and referenced policies were retained as manual choices.',
+            lostSemantics: ['automatic SSID selection'],
+        },
     },
     loon: {
         smart: {
@@ -323,6 +335,12 @@ const POLICY_GROUP_FALLBACKS = {
                 'Quantumult X dest-hash was approximated as Loon load-balance with algorithm=PCC. Loon PCC affinity is similar but does not guarantee identical destination hashing behavior.',
             targetDefaults: { algorithm: 'PCC' },
             lostSemantics: ['exact destination hashing behavior'],
+        },
+        subnet: {
+            outputSharedType: 'select',
+            warning:
+                'Surge subnet was approximated as Loon select. Surge network conditions cannot be represented; the default and referenced policies were retained as manual choices.',
+            lostSemantics: ['automatic Surge network-condition selection'],
         },
     },
 };

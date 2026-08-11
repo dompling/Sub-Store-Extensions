@@ -66,6 +66,62 @@ test('keeps source, package, and repository versions on one extension identity',
   assert.equal(sourceManifest.frontend.style, 'frontend/style.css');
 });
 
+test('declares a Node-only remote execution contract', async () => {
+  const manifest = await readJson(extension.manifestPath);
+
+  assert.deepEqual(manifest.host.runtimes, ['node']);
+  assert.deepEqual(Object.keys(manifest.variants), ['node']);
+  assert.equal(manifest.variants.node.delivery, 'trusted-package');
+  assert.equal(manifest.variants.node.containsExecutableCode, true);
+  assert.equal('embeddedBasePath' in manifest.frontend, false);
+  assert.equal('scriptExecutionLanes' in manifest, false);
+  assert.deepEqual(
+    manifest.contributes.artifactSources[0].platforms,
+    ['Surge', 'QX', 'Clash', 'Loon'],
+  );
+});
+
+test('keeps every public config-generator route in the extension contribution', async () => {
+  const routes = await fs.readFile(
+    path.join(
+      extension.workspaceDirectory,
+      'frontend/src/extensions/config-generator/routes.ts',
+    ),
+    'utf8',
+  );
+
+  for (const route of [
+    {
+      path: '/extensions/config-generator',
+      surface: 'list',
+      backPath: '/extensions',
+    },
+    {
+      path: '/extensions/config-generator/edit/:name',
+      surface: 'editor',
+      backPath: '/extensions/config-generator',
+    },
+    {
+      path: '/extensions/config-generator/import',
+      surface: 'import',
+      backPath: '/extensions/config-generator',
+    },
+    {
+      path: '/extensions/config-generator/preview/:name',
+      surface: 'preview',
+      backPath: '/extensions/config-generator',
+    },
+  ]) {
+    assert.match(routes, new RegExp(`path: '${route.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'`));
+    assert.match(routes, new RegExp(`extensionSurfaceId: '${route.surface}'`));
+    assert.match(routes, new RegExp(`backPath: '${route.backPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'`));
+  }
+
+  assert.match(routes, /extensionId:\s*CONFIG_GENERATOR_EXTENSION_ID/g);
+  assert.match(routes, /needTabBar:\s*false/);
+  assert.match(routes, /needNavBack:\s*true/);
+});
+
 test('builds the Node entrypoint without unresolved Host-private imports', async () => {
   const entrypoint = extension.backend.entrypoint;
   const graph = await collectBackendGraph(entrypoint);

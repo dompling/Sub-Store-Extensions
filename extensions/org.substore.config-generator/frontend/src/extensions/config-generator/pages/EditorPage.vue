@@ -408,7 +408,6 @@ import {
   toRaw,
   useGlobalStore,
   useHostAPI,
-  useI18n,
   useRoute,
   useRouter,
   useSettingsStore,
@@ -416,6 +415,7 @@ import {
   useSystemStore,
   watch,
 } from '@/extensions/frontend-sdk-v1';
+import { useConfigGeneratorI18n } from '@/extensions/config-generator/i18n';
 import ConfigGeneratorActionBlock from '@/extensions/config-generator/components/editor/ConfigGeneratorActionBlock.vue';
 import PolicyGroupActionForm from '@/extensions/config-generator/components/editor/PolicyGroupActionForm.vue';
 import InlineRuleActionForm from '@/extensions/config-generator/components/editor/InlineRuleActionForm.vue';
@@ -431,7 +431,7 @@ import {
 } from '@/extensions/config-generator/domain/targets';
 import { useConfigGeneratorStore } from '@/extensions/config-generator/store';
 
-const { t } = useI18n();
+const { t } = useConfigGeneratorI18n();
 const route = useRoute();
 const router = useRouter();
 const configStore = useConfigGeneratorStore();

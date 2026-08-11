@@ -112,11 +112,11 @@ import {
   storeToRefs,
   useCodeStore,
   useGlobalStore,
-  useI18n,
   useRoute,
   useRouter,
   useSystemStore,
 } from '@/extensions/frontend-sdk-v1';
+import { useConfigGeneratorI18n } from '@/extensions/config-generator/i18n';
 import { useConfigGeneratorStore } from '@/extensions/config-generator/store';
 import {
   CONFIG_GENERATOR_TARGET_DEFINITIONS,
@@ -132,7 +132,7 @@ type PreviewDiagnostic = {
   message: string;
 };
 
-const { t } = useI18n();
+const { t } = useConfigGeneratorI18n();
 const route = useRoute();
 const router = useRouter();
 const codeStore = useCodeStore();

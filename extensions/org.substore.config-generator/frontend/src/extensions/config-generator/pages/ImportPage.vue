@@ -136,10 +136,10 @@ import {
   Toast,
   useGlobalStore,
   useHostAPI,
-  useI18n,
   useRouter,
   useSubsStore,
 } from '@/extensions/frontend-sdk-v1';
+import { useConfigGeneratorI18n } from '@/extensions/config-generator/i18n';
 import { useConfigGeneratorStore } from '@/extensions/config-generator/store';
 import {
   CONFIG_GENERATOR_IMPORT_TARGET_DEFINITIONS,
@@ -148,7 +148,7 @@ import {
   DEFAULT_CONFIG_GENERATOR_TARGET,
 } from '@/extensions/config-generator/domain/targets';
 
-const { t } = useI18n();
+const { t } = useConfigGeneratorI18n();
 const router = useRouter();
 const configStore = useConfigGeneratorStore();
 const globalStore = useGlobalStore();

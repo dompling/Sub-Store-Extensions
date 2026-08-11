@@ -13,6 +13,7 @@ import { projectIncludedPolicyGroups } from './core/policy-group-projection';
 import { resolveRuleSetSource } from './core/rule-set-source-resolver';
 
 const GROUP_TYPES = getKnownPolicyGroupTypes();
+const TARGETS_WITH_SAFE_GENERATION_FALLBACKS = new Set(['clash', 'loon']);
 const RULE_TYPES = [
     'DOMAIN',
     'DOMAIN-SUFFIX',
@@ -59,10 +60,53 @@ function hasTargetPolicyCandidates(group, capability, target) {
     if (group.includeAllProxies) return true;
     const included = projectIncludedPolicyGroups(group, capability, target);
     if (included.members.length || included.dependencies.length) return true;
-    if (target === 'surge' && group.type === 'subnet') {
-        return Boolean(group.targetOptions?.surge?.subnetDefault);
+    if (
+        group.type === 'subnet' &&
+        (target === 'surge' || capability?.outputSharedType !== 'subnet')
+    ) {
+        const surgeOptions = group.targetOptions?.surge || {};
+        return Boolean(
+            surgeOptions.subnetDefault || surgeOptions.subnetRules?.length,
+        );
     }
     return false;
+}
+
+function targetPolicyReferences(group, capability, target) {
+    const references = (group.members || []).flatMap((member, memberIndex) => {
+        const policy = memberPolicyReference(member);
+        return policy
+            ? [
+                  {
+                      policy,
+                      path: `members[${memberIndex}].${
+                          member.kind === 'conditional' ? 'policy' : 'value'
+                      }`,
+                  },
+              ]
+            : [];
+    });
+    if (
+        group.type !== 'subnet' ||
+        (target !== 'surge' && capability?.outputSharedType === 'subnet')
+    ) {
+        return references;
+    }
+    const surgeOptions = group.targetOptions?.surge || {};
+    if (surgeOptions.subnetDefault) {
+        references.push({
+            policy: surgeOptions.subnetDefault,
+            path: 'targetOptions.surge.subnetDefault',
+        });
+    }
+    (surgeOptions.subnetRules || []).forEach((rule, ruleIndex) => {
+        if (!rule.policy) return;
+        references.push({
+            policy: rule.policy,
+            path: `targetOptions.surge.subnetRules[${ruleIndex}].policy`,
+        });
+    });
+    return references;
 }
 
 function findGroupReferenceCycle(groups) {
@@ -74,6 +118,14 @@ function findGroupReferenceCycle(groups) {
                     .map(memberPolicyReference)
                     .filter(Boolean),
                 ...(group.includeOtherGroups || []),
+                ...(group.type === 'subnet'
+                    ? [
+                          group.targetOptions?.surge?.subnetDefault,
+                          ...(
+                              group.targetOptions?.surge?.subnetRules || []
+                          ).map((rule) => rule.policy),
+                      ]
+                    : []),
             ],
         ]),
     );
@@ -101,6 +153,8 @@ function validateTargetPolicyReferences(project, ruleSets, target, issues) {
         groups.map((group, index) => [group.name, { group, index }]),
     );
     const targetName = getTargetDisplayName(targetId);
+    const supportsSafeFallback =
+        TARGETS_WITH_SAFE_GENERATION_FALLBACKS.has(targetId);
     const sourceContext = createRemoteProxySourceContext(project);
     const ruleSetByName = new Map(
         (ruleSets || []).map((ruleSet) => [ruleSet.name, ruleSet]),
@@ -130,17 +184,11 @@ function validateTargetPolicyReferences(project, ruleSets, target, issues) {
     groups.forEach((group, index) => {
         const capability = resolvePolicyGroupCapability(targetId, group.type);
         if (group.disabled || !capability) return;
-        (group.members || []).forEach((member, memberIndex) => {
-            const policy = memberPolicyReference(member);
-            if (policy) {
-                validatePolicy(
-                    policy,
-                    `groups[${index}].members[${memberIndex}].${
-                        member.kind === 'conditional' ? 'policy' : 'value'
-                    }`,
-                );
-            }
-        });
+        targetPolicyReferences(group, capability, targetId).forEach(
+            ({ policy, path }) => {
+                validatePolicy(policy, `groups[${index}].${path}`);
+            },
+        );
         const includedGroups = projectIncludedPolicyGroups(
             group,
             capability,
@@ -152,21 +200,6 @@ function validateTargetPolicyReferences(project, ruleSets, target, issues) {
                 `groups[${index}].includeOtherGroups[${memberIndex}]`,
             );
         });
-        if (targetId === 'surge') {
-            if (group.type === 'subnet') {
-                const surgeOptions = group.targetOptions?.surge || {};
-                validatePolicy(
-                    surgeOptions.subnetDefault,
-                    `groups[${index}].targetOptions.surge.subnetDefault`,
-                );
-                (surgeOptions.subnetRules || []).forEach((rule, ruleIndex) => {
-                    validatePolicy(
-                        rule.policy,
-                        `groups[${index}].targetOptions.surge.subnetRules[${ruleIndex}].policy`,
-                    );
-                });
-            }
-        }
     });
 
     (project?.rules || []).forEach((rule, index) => {
@@ -189,25 +222,20 @@ function validateTargetPolicyReferences(project, ruleSets, target, issues) {
         if (requiredGroups.has(name)) continue;
         requiredGroups.add(name);
         const entry = groupByName.get(name);
-        if (
-            !entry ||
-            entry.group.disabled ||
-            !resolvePolicyGroupCapability(targetId, entry.group.type)
-        )
-            continue;
-        (entry.group.members || []).forEach((member) => {
-            const policy = memberPolicyReference(member);
-            if (
-                policy &&
-                groupByName.has(policy) &&
-                !requiredGroups.has(policy)
-            ) {
-                pendingGroups.push(policy);
-            }
-        });
-        const capability = resolvePolicyGroupCapability(
-            targetId,
-            entry.group.type,
+        const capability = entry
+            ? resolvePolicyGroupCapability(targetId, entry.group.type)
+            : null;
+        if (!entry || entry.group.disabled || !capability) continue;
+        targetPolicyReferences(entry.group, capability, targetId).forEach(
+            ({ policy }) => {
+                if (
+                    policy &&
+                    groupByName.has(policy) &&
+                    !requiredGroups.has(policy)
+                ) {
+                    pendingGroups.push(policy);
+                }
+            },
         );
         const includedGroups = projectIncludedPolicyGroups(
             entry.group,
@@ -219,24 +247,6 @@ function validateTargetPolicyReferences(project, ruleSets, target, issues) {
                 pendingGroups.push(groupName);
             }
         });
-        if (targetId === 'surge') {
-            if (entry.group.type === 'subnet') {
-                const surgeOptions = entry.group.targetOptions?.surge || {};
-                [
-                    surgeOptions.subnetDefault,
-                    ...(surgeOptions.subnetRules || []).map(
-                        (rule) => rule.policy,
-                    ),
-                ].forEach((groupName) => {
-                    if (
-                        groupByName.has(groupName) &&
-                        !requiredGroups.has(groupName)
-                    ) {
-                        pendingGroups.push(groupName);
-                    }
-                });
-            }
-        }
     }
 
     requiredGroups.forEach((name) => {
@@ -272,7 +282,7 @@ function validateTargetPolicyReferences(project, ruleSets, target, issues) {
             targetId,
         );
         if (sourceProjection.status === 'unsupported-field') {
-            if (!hasStaticCandidates) {
+            if (!hasStaticCandidates && !supportsSafeFallback) {
                 issues.push(
                     issue(
                         sourceProjection.path,
@@ -281,7 +291,10 @@ function validateTargetPolicyReferences(project, ruleSets, target, issues) {
                 );
             }
             return;
-        } else if (sourceProjection.status === 'missing') {
+        } else if (
+            sourceProjection.status === 'missing' &&
+            !supportsSafeFallback
+        ) {
             issues.push(
                 issue(
                     sourceProjection.path,
@@ -292,7 +305,7 @@ function validateTargetPolicyReferences(project, ruleSets, target, issues) {
             sourceProjection.status === 'incompatible' ||
             sourceProjection.status === 'disabled'
         ) {
-            if (hasStaticCandidates) return;
+            if (hasStaticCandidates || supportsSafeFallback) return;
             if (sourceProjection.status === 'disabled') {
                 issues.push(
                     issue(
@@ -345,7 +358,7 @@ function validateTargetPolicyReferences(project, ruleSets, target, issues) {
             return;
         }
         const resolution = resolveRuleSetSource(ruleSet, targetId);
-        if (resolution.kind === 'unsupported') {
+        if (resolution.kind === 'unsupported' && !supportsSafeFallback) {
             issues.push(
                 issue(
                     `rules[${index}].ruleSet`,

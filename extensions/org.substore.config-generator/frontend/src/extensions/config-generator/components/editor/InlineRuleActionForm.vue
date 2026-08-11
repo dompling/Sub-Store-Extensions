@@ -39,9 +39,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, useI18n } from '@/extensions/frontend-sdk-v1';
+import { computed, inject } from '@/extensions/frontend-sdk-v1';
+import { useConfigGeneratorI18n } from '@/extensions/config-generator/i18n';
 
-const { t } = useI18n();
+const { t } = useConfigGeneratorI18n();
 const { id } = defineProps<{ id: string }>();
 const context = inject<any>('configGeneratorActionContext');
 

@@ -1,4 +1,17 @@
-import { getTargetDisplayName } from './target-capabilities';
+import {
+    getTargetDisplayName,
+    normalizeTargetId,
+} from './target-capabilities';
+
+function dedupe(values) {
+    const seen = new Set();
+    return values.filter((value) => {
+        const normalized = `${value || ''}`.trim();
+        if (!normalized || seen.has(normalized)) return false;
+        seen.add(normalized);
+        return true;
+    });
+}
 
 export function policyGroupCapabilityDiagnostics(group, capability) {
     if (capability?.exact !== false || !capability.warning) return [];
@@ -51,5 +64,57 @@ export function projectIncludedPolicyGroups(group, capability, target) {
                 message: `${targetName} ${capability.outputType} cannot safely approximate flattened nodes from another policy group; includeOtherGroups was omitted.`,
             },
         ],
+    };
+}
+
+export function projectPolicyGroupMembers(group, capability, target) {
+    const targetId = normalizeTargetId(target);
+    const members = [];
+    const conditionals = [];
+    const diagnostics = [];
+    let rewroteConditionalMembers = false;
+
+    (group.members || []).forEach((member) => {
+        if (member?.kind !== 'conditional') {
+            members.push(member?.value);
+            return;
+        }
+        if (
+            capability?.outputSharedType === 'ssid' &&
+            ['qx', 'loon'].includes(targetId)
+        ) {
+            conditionals.push(member);
+            return;
+        }
+        members.push(member.policy);
+        rewroteConditionalMembers = true;
+    });
+
+    if (
+        group.type === 'subnet' &&
+        capability?.outputSharedType !== 'subnet'
+    ) {
+        const surgeOptions = group.targetOptions?.surge || {};
+        members.push(surgeOptions.subnetDefault);
+        (surgeOptions.subnetRules || []).forEach((rule) => {
+            members.push(rule.policy);
+        });
+    }
+
+    if (rewroteConditionalMembers) {
+        diagnostics.push({
+            path: `groups.${group.name}.members`,
+            message: `${getTargetDisplayName(
+                targetId,
+            )} cannot preserve conditional policy members for ${
+                capability.outputType
+            }; referenced policies were retained as ordinary members.`,
+        });
+    }
+
+    return {
+        members: dedupe(members),
+        conditionals,
+        diagnostics,
     };
 }

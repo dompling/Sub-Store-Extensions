@@ -23,6 +23,7 @@
     "typecheck": "node scripts/command.mjs typecheck",
     "package": "node scripts/command.mjs package",
     "package:assemble": "node scripts/command.mjs package:assemble",
+    "release:sign": "node scripts/sign-trusted-release.mjs",
     "repository": "node scripts/command.mjs repository",
     "repository:serve": "node scripts/serve-repository.mjs",
     "source:add": "node scripts/manage-host.mjs source:add",

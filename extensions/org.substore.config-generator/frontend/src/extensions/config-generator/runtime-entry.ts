@@ -5,10 +5,11 @@ import ListPage from './pages/ListPage.vue';
 import EditorPage from './pages/EditorPage.vue';
 import ImportPage from './pages/ImportPage.vue';
 import PreviewPage from './pages/PreviewPage.vue';
+import { disposeConfigGeneratorMessages } from './i18n';
 
 const definition: FrontendExtensionDefinition = {
   id: CONFIG_GENERATOR_EXTENSION_ID,
-  version: '1.1.0',
+  version: '1.2.0',
   implementationAbi: 'config-generator-ui@1',
   openPath: '/extensions/config-generator',
   routes: configGeneratorRoutes,
@@ -18,6 +19,7 @@ const definition: FrontendExtensionDefinition = {
     import: async () => ImportPage,
     preview: async () => PreviewPage,
   },
+  dispose: disposeConfigGeneratorMessages,
 };
 
 type ExtensionRegistrationHost = typeof globalThis & {

@@ -71,12 +71,12 @@ import {
   Toast,
   useGlobalStore,
   useHostAPI,
-  useI18n,
   useListViewMode,
   useMethodStore,
   useRouter,
   useSettingsStore,
 } from '@/extensions/frontend-sdk-v1';
+import { useConfigGeneratorI18n } from '@/extensions/config-generator/i18n';
 import { useConfigGeneratorStore } from '@/extensions/config-generator/store';
 import ConfigGeneratorListItem from '@/extensions/config-generator/components/ConfigGeneratorListItem.vue';
 import {
@@ -86,7 +86,7 @@ import {
 } from '@/extensions/config-generator/domain/targets';
 import { CONFIG_GENERATOR_COMMANDS } from '@/extensions/config-generator/constants';
 
-const { t } = useI18n();
+const { t } = useConfigGeneratorI18n();
 const router = useRouter();
 const configStore = useConfigGeneratorStore();
 const globalStore = useGlobalStore();

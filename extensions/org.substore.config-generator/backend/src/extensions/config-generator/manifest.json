@@ -5,7 +5,7 @@
     "distribution": "store",
     "name": "配置生成器",
     "description": "生成 Surge、Quantumult X、Clash 和 Loon 配置",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "publisher": {
         "id": "org.substore",
         "name": "Sub-Store",
@@ -24,13 +24,7 @@
         "backend": ">=2.36.31",
         "implementationAbi": "config-generator@1",
         "runtimes": [
-            "node",
-            "qx",
-            "loon",
-            "surge",
-            "stash",
-            "shadowrocket",
-            "egern"
+            "node"
         ]
     },
     "frontend": {
@@ -41,7 +35,6 @@
         "implementationAbi": "config-generator-ui@1",
         "routeBase": "/extensions/config-generator",
         "openPath": "/extensions/config-generator",
-        "embeddedBasePath": "extensions/org.substore.config-generator/1.1.0",
         "assets": {
             "entrypoint": {
                 "path": "frontend/index.js",
@@ -68,34 +61,6 @@
             "frontendAssetId": "org.substore.config-generator-ui@1",
             "entrypoint": "backend/index.cjs",
             "containsExecutableCode": true
-        },
-        "qx": {
-            "delivery": "embedded-receipt",
-            "implementationId": "org.substore.config-generator@1/qx",
-            "implementationAbi": "config-generator@1",
-            "frontendAssetId": "org.substore.config-generator-ui@1",
-            "containsExecutableCode": false
-        },
-        "loon": {
-            "delivery": "embedded-receipt",
-            "implementationId": "org.substore.config-generator@1/loon",
-            "implementationAbi": "config-generator@1",
-            "frontendAssetId": "org.substore.config-generator-ui@1",
-            "containsExecutableCode": false
-        },
-        "surge": {
-            "delivery": "embedded-receipt",
-            "implementationId": "org.substore.config-generator@1/surge",
-            "implementationAbi": "config-generator@1",
-            "frontendAssetId": "org.substore.config-generator-ui@1",
-            "containsExecutableCode": false
-        },
-        "default-script-runtime": {
-            "delivery": "embedded-receipt",
-            "implementationId": "org.substore.config-generator@1/script",
-            "implementationAbi": "config-generator@1",
-            "frontendAssetId": "org.substore.config-generator-ui@1",
-            "containsExecutableCode": false
         }
     },
     "permissions": [
@@ -150,28 +115,6 @@
             "org.substore.config-generator.add",
             "org.substore.config-generator.import"
         ]
-    },
-    "scriptExecutionLanes": {
-        "simple": {
-            "product": "sub-store-0",
-            "implementationId": "org.substore.config-generator@1/simple",
-            "routes": [
-                "projects",
-                "projects/:name",
-                "project/:name",
-                "rule-sets",
-                "rule-set/:name"
-            ]
-        },
-        "parser": {
-            "product": "sub-store-1",
-            "implementationId": "org.substore.config-generator@1/parser",
-            "routes": [
-                "preview/:target",
-                "import/:target",
-                "download/config-project/**"
-            ]
-        }
     },
     "storage": {
         "schemaVersion": 1,

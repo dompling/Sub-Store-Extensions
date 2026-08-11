@@ -62,7 +62,8 @@ release/config-generator-public-key.pem
 
 ## Runtime
 
-- Node：从已安装、已验证 package 加载 backend/frontend bundle；
-- Quantumult X、Loon、Surge、Stash、Shadowrocket、Egern：使用 Sub-Store Host 构建内嵌的匹配 implementation，不远程执行 Node bundle。
+- 插件只在 Node Host 中从已安装、已验证的远程 package 加载 backend/frontend bundle；
+- 插件运行时与输出格式彼此独立：Node 插件仍可生成 Surge、Quantumult X、Clash 和 Loon 配置；
+- 脚本 Host 不再内嵌或同步配置生成器实现，未安装集合源时不会由本仓库之外的 Host 代码暴露该插件。
 
 完整开发、安装和发布流程见仓库根 [README](../../README.md) 与 [发布指南](../../docs/RELEASING.md)。

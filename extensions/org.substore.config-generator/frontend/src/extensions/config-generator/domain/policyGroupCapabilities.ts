@@ -73,8 +73,8 @@ export const POLICY_GROUP_TYPE_DEFINITIONS: PolicyGroupTypeDefinition[] = [
     support: {
       surge: { level: 'exact', output: 'subnet' },
       qx: { level: 'unsupported' },
-      clash: { level: 'unsupported' },
-      loon: { level: 'unsupported' },
+      clash: { level: 'fallback', output: 'select' },
+      loon: { level: 'fallback', output: 'select' },
     },
   },
   {
@@ -106,7 +106,7 @@ export const POLICY_GROUP_TYPE_DEFINITIONS: PolicyGroupTypeDefinition[] = [
     support: {
       surge: { level: 'unsupported' },
       qx: { level: 'exact', output: 'ssid' },
-      clash: { level: 'unsupported' },
+      clash: { level: 'fallback', output: 'select' },
       loon: { level: 'exact', output: 'ssid' },
     },
   },
