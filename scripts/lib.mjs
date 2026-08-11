@@ -142,7 +142,11 @@ export const loadExtension = async extensionId => {
     assert(file?.source && file?.package, `${extensionId} contentFiles[${index}] is incomplete`);
     const packagePath = `${file.package}`.split(path.sep).join('/');
     assert(
-      packagePath && !packagePath.startsWith('/') && !packagePath.split('/').includes('..'),
+      packagePath &&
+        !packagePath.startsWith('/') &&
+        !packagePath.includes('\\') &&
+        !/[\u0000-\u001f\u007f]/.test(packagePath) &&
+        packagePath.split('/').every(segment => segment && segment !== '.' && segment !== '..'),
       `${extensionId} contentFiles[${index}] has an unsafe package path`,
     );
     return {
@@ -151,7 +155,7 @@ export const loadExtension = async extensionId => {
     };
   });
   assert(
-    new Set(contentFiles.map(file => file.package)).size === contentFiles.length,
+    new Set(contentFiles.map(file => file.package.normalize('NFC').toLowerCase())).size === contentFiles.length,
     `${extensionId} declares duplicate content package paths`,
   );
 

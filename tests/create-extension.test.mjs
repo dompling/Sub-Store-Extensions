@@ -92,4 +92,13 @@ test('rejects reserved ids and attempts to scaffold executable variants', () => 
     }),
     /disable executable code/,
   );
+  const safeManifest = buildContentExtensionScaffold(options).manifest;
+  assert.throws(
+    () => createDigestContentPackage({
+      manifest: safeManifest,
+      files: { 'manifest.json': '{}\n' },
+      createdAt: options.createdAt,
+    }),
+    /Unsafe or reserved/,
+  );
 });

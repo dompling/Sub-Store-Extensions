@@ -7,6 +7,21 @@ import {
   writeJson,
 } from './lib.mjs';
 
+const metadataFiles = new Set(['manifest.json', 'package.json', 'receipt.json']);
+
+const assertContentFileName = name => {
+  assert(
+    typeof name === 'string' &&
+      name.length > 0 &&
+      !name.startsWith('/') &&
+      !name.includes('\\') &&
+      !/[\u0000-\u001f\u007f]/.test(name) &&
+      name.split('/').every(segment => segment && segment !== '.' && segment !== '..') &&
+      !metadataFiles.has(name),
+    `Unsafe or reserved content package file: ${name || '(empty)'}`,
+  );
+};
+
 export const createDigestContentPackage = ({
   manifest,
   files,
@@ -24,8 +39,13 @@ export const createDigestContentPackage = ({
   );
   assert(files && typeof files === 'object' && !Array.isArray(files), 'Content package files are required');
   for (const [name, value] of Object.entries(files)) {
-    assert(name && typeof value === 'string', `Invalid content package file: ${name || '(empty)'}`);
+    assertContentFileName(name);
+    assert(typeof value === 'string', `Invalid content package file: ${name}`);
   }
+  assert(
+    new Set(Object.keys(files).map(name => name.normalize('NFC').toLowerCase())).size === Object.keys(files).length,
+    'Content package contains colliding file names',
+  );
 
   const fileDigests = Object.fromEntries(
     Object.entries(files)

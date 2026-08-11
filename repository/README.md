@@ -1,38 +1,41 @@
-# Static extension repository
+# Sub-Store Extensions collection repository
 
-This directory is the transport surface for the signed
-`org.substore.config-generator` package. It can be published directly from
-this independent Git repository without adding a new executable trust root.
+此目录是整个 Git 仓库的静态集合订阅源，不属于某一个插件。
 
-Generate and verify it from the repository root:
-
-```bash
-corepack pnpm repository
-corepack pnpm verify
+```text
+repository/
+├── catalog.json
+└── packages/<extension-id>/<version>/<variant>.json
 ```
 
-For GitHub Raw, add a catalog URL pinned to a release tag or commit:
+用户只添加一次：
 
 ```text
 https://raw.githubusercontent.com/<owner>/<repository>/<tag-or-commit>/repository/catalog.json
 ```
 
-For loopback development:
+catalog 会展示仓库中的所有插件；每个 entry 保留自己的 ID、版本、作者、publisher、package digest 和 envelope URL。
+
+从仓库根生成并校验：
+
+```bash
+corepack pnpm package
+corepack pnpm repository
+corepack pnpm verify
+```
+
+本地服务：
 
 ```bash
 corepack pnpm repository:serve
 ```
 
-Then add:
-
 ```text
 http://127.0.0.1:8765/catalog.json
 ```
 
-The catalog uses relative package URLs, so `catalog.json` and `packages/`
-must be hosted beneath the same directory. Do not edit the envelope by hand.
-The Sub-Store Host rechecks the official manifest and package digest,
-per-file SHA-256 values, receipt, frontend assets, and Ed25519 signature before
-it stores or executes the package.
+`catalog.json` 使用相对 package URL，因此必须与整个 `packages/` 子目录一起托管。不要手工编辑 catalog 或 envelope；根生成器会清理 stale package、聚合全部 workspace 并验证摘要闭包。
 
-See `../docs/CATALOG.md` for the complete trust and provenance model.
+集合来源不是可执行代码信任根。trusted-official mirror 仍由 Host 官方授权和 Ed25519 签名控制，community entry 只能是 content-only 完整性包。
+
+完整说明见 [集合源文档](../docs/CATALOG.md)。

@@ -295,7 +295,7 @@ receipt 将包绑定到运行实现，包含：
 - implementation ID、ABI、frontend asset ID；
 - executable entrypoint（仅 executable package）；
 - execution lanes；
--稳定的 package 时间；
+- 稳定的 package 时间；
 - receipt digest。
 
 Host 会重新计算 receipt，不信任上传值。community receipt 不得声明 executable entrypoint。

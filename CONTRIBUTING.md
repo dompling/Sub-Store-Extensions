@@ -2,79 +2,118 @@
 
 ## 开发原则
 
-1. 保持扩展与 Host 的边界清晰。业务实现放在本仓库；Host API、信任策略、路由挂载和运行时生命周期由 Sub-Store Host 拥有。
-2. 优先复用现有 core、target capability 和 SDK 门面，不直接导入兄弟仓库的私有源码。
-3. 不为方便开发而关闭摘要、receipt、签名或官方 catalog 授权检查。
-4. 不新增依赖，除非现有工具链确实无法完成需求并且变更经过明确评审。
-5. 修改行为时先增加或更新回归测试；修复应覆盖最小复现和失败回滚路径。
-6. 保持 manifest、root package version、签名目录包和 repository catalog 的版本一致。
+1. 一个仓库可以包含多个插件，但一个插件必须对应一个 `extensions/<id>` workspace、一个 `packages/<id>` 和一个独立 catalog entry。
+2. 共享构建工具和集合订阅源，不共享插件身份、作者、权限、数据 namespace 或可执行代码信任。
+3. 优先复用现有脚本和 SDK 契约，不把插件重新耦合到 Sub-Store 私有源码路径。
+4. 不为方便开发关闭 manifest、receipt、摘要、签名或 Host official authorization。
+5. 行为变更先增加回归测试；清理和重构先锁定现有行为。
+6. 不新增依赖，除非现有工具无法完成且已明确评审。
+7. 保持 diff 小、可审查、可回滚。
 
-## 环境准备
+## 新增插件
+
+content-only 插件：
+
+```bash
+corepack pnpm extension:create -- \
+  --id com.example.my-extension \
+  --name "My Extension" \
+  --publisher-id com.example \
+  --publisher-name "Example"
+```
+
+然后：
 
 ```bash
 corepack pnpm install
+corepack pnpm package -- --extension com.example.my-extension
+corepack pnpm repository
+corepack pnpm verify
+```
+
+需要 executable frontend/backend 的插件不要从 content 模板直接改 flag。先提交架构与安全设计，至少说明：
+
+- Host SDK 与 ABI；
+- 权限和生命周期；
+- 插件独立签名密钥；
+- official authorization；
+- 脚本 runtime fallback；
+- 卸载、保留数据、失败回滚和兼容性测试。
+
+## 修改现有插件
+
+只处理一个插件：
+
+```bash
+corepack pnpm typecheck -- --extension <id>
+corepack pnpm build -- --extension <id>
+corepack pnpm test -- --extension <id>
+corepack pnpm package -- --extension <id>
+```
+
+提交前仍运行全仓：
+
+```bash
 corepack pnpm check
+git diff --check
 ```
 
-pnpm 11 默认阻止依赖生命周期脚本。本仓库只允许经过审查的 `esbuild`、`vue-demi` 与 `@parcel/watcher` 运行安装脚本，配置位于 `pnpm-workspace.yaml`。不要把它改成允许所有依赖执行脚本。
+原因是 catalog、共享脚本和 workspace discovery 是集合级能力；单插件通过不能证明其他插件没有从最终 catalog 中丢失。
 
-## 推荐开发流程
+## 版本与交付物
 
-1. 从失败测试或明确验收场景开始。
-2. 修改 `frontend/src/extensions/config-generator`、`backend/src/extensions/config-generator` 或相应独立依赖。
-3. 运行 `corepack pnpm typecheck`。
-4. 运行目标测试；完成前运行 `corepack pnpm check`。
-5. 检查 `package/` 是否被意外修改。普通功能开发不应直接改写已签名文件。
-6. 如果产物字节发生变化，按 `docs/RELEASING.md` 准备正式新版本，不要手工更新摘要或伪造签名。
+content 插件发布时同步：
 
-## 代码边界
+- workspace package version；
+- manifest version；
+- content 中的版本字段；
+- `extension.config.json.package.createdAt`；
+- `packages/<id>`；
+- 完整 `repository/`。
 
-Node bundle 的入口是：
+trusted-official executable 插件发生字节变化时，必须生成新版本和正式签名，并同步 Sub-Store Host catalog 授权。不要修改旧 package 中的 digest 或 signature 来让测试通过。
 
-```text
-backend/src/extensions/config-generator/package-entry.js
-```
+## 作者与来源
 
-前端 bundle 的入口是：
+新增 entry 必须显式填写：
 
-```text
-frontend/src/extensions/config-generator/runtime-entry.ts
-```
+- manifest publisher；
+- `repository.author`；
+- distribution。
 
-前端只能通过 `@/extensions/frontend-sdk-v1` 使用 Host 能力。该模块在构建时被 externalize 到 Host 提供的 `__SUBSTORE_EXTENSION_FRONTEND_SDK_V1__`，不能把第二套 Vue、Pinia、Router 或 i18n runtime 打入 bundle。
-
-后端通过 `sdk.js` 获取 Host services。不要直接读取 Sub-Store 全局 storage、内部 registry 或 Node 主进程对象。为了让 bundle 独立构建，配置生成器使用到的 YAML 门面和 MD5 实现已经复制到本仓库的明确边界中。
-
-`embedded.js` 是非 Node runtime 在 Sub-Store Host 中装配时使用的桥接源码，不属于独立 Node package entry 的导入图。脚本 runtime 的完整发布仍需要与 Host 构建协调。
+不要从 GitHub owner、仓库 publisher 或 URL 猜作者。集合仓库可以收录不同作者的多个插件。
 
 ## 测试要求
 
-`corepack pnpm check` 必须完成：
+`corepack pnpm check` 应覆盖：
 
-- Vue/TypeScript 类型检查；
-- 前端 IIFE 与 CSS 构建；
-- Node CJS bundle 构建；
-- RULE-SET 名称行为回归；
-- 后端 activate/deactivate 与失败回滚测试；
-- 包目录、导入图、版本和文件清单契约测试；
-- 已签名目录包、静态 catalog、Ed25519 签名与三个构建摘要验证。
+- 所有声明前端的 Vue/TypeScript 检查；
+- 所有声明前后端的构建；
+- 插件级行为测试；
+- 仓库级双插件 catalog 聚合测试；
+- 重复 ID 与路径穿越拒绝；
+- stale envelope 清理；
+- content package digest 闭包；
+- trusted package 签名和构建摘要；
+- catalog entry 与 workspace 数量一致。
 
-涉及配置转换时，还应在 Sub-Store Host 仓库运行相应 target generator/importer 和 Extension Host 集成测试。涉及 UI 时，还应在 Sub-Store-Front-End 中检查桌面端和移动端布局。
+涉及 UI 时，还需在 Sub-Store-Front-End 检查桌面、移动和不同内容长度。涉及 Host 生命周期时，还需从集合 source 完成安装、启用、停用、卸载和重装。
 
 ## Commit
 
-提交信息使用项目的 Lore protocol：首行说明“为什么”，正文记录约束、舍弃方案、风险和验证证据。例如：
+提交信息遵循 Lore protocol。首行说明为什么，正文记录约束、舍弃方案、风险和验证证据。例如：
 
 ```text
-Preserve the executable trust boundary while externalizing development
+Allow one trusted source to distribute multiple extensions
 
-The extension now owns its deterministic build and verification workflow,
-while the Host remains the authority for executable package admission.
+The repository now preserves per-extension identity while publishing one
+aggregate catalog that users subscribe to once.
 
-Constraint: Executable packages require the Sub-Store official trust root
-Rejected: Accept arbitrary community JavaScript | no sandboxed runtime exists
+Constraint: Executable extensions remain authorized by the Host trust root
+Rejected: One Git repository per extension | duplicates tooling and source management
 Confidence: high
 Scope-risk: moderate
-Tested: typecheck, build, tests, signed package verification
-Not-tested: remote installation before a repository URL exists
+Directive: Keep package identity and signing material isolated per extension
+Tested: all-workspace build, catalog aggregation, source install lifecycle
+Not-tested: GitHub Raw installation until a remote is configured
 ```
