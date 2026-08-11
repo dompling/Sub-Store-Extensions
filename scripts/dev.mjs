@@ -1,25 +1,44 @@
-import { spawn } from 'node:child_process';
-import { repoRoot } from './lib.mjs';
+import { context } from 'esbuild';
+import { build as viteBuild } from 'vite';
+import { loadSelectedExtensions } from './lib.mjs';
+import { backendBuildOptions } from './tasks.mjs';
 
-const children = [
-  spawn('pnpm', ['exec', 'vite', 'build', '--config', 'frontend/vite.config.ts', '--watch'], {
-    cwd: repoRoot,
-    stdio: 'inherit',
-  }),
-  spawn(process.execPath, ['scripts/build-backend.mjs', '--watch'], {
-    cwd: repoRoot,
-    stdio: 'inherit',
-  }),
-];
+const extensions = await loadSelectedExtensions(process.argv.slice(2));
+const closers = [];
 
-const stop = signal => {
-  for (const child of children) child.kill(signal);
+for (const extension of extensions) {
+  if (extension.frontend) {
+    const key = 'SUB_STORE_EXTENSION_BUILD_DIR';
+    const previous = process.env[key];
+    process.env[key] = extension.buildDirectory;
+    try {
+      const watcher = await viteBuild({
+        configFile: extension.frontend.config,
+        mode: 'production',
+        build: { watch: {} },
+      });
+      closers.push(() => watcher.close());
+    } finally {
+      if (previous === undefined) delete process.env[key];
+      else process.env[key] = previous;
+    }
+  }
+  if (extension.backend) {
+    const buildContext = await context(backendBuildOptions(extension));
+    await buildContext.watch();
+    closers.push(() => buildContext.dispose());
+  }
+  process.stdout.write(`Watching ${extension.id}\n`);
+}
+
+let stopping = false;
+const stop = async signal => {
+  if (stopping) return;
+  stopping = true;
+  await Promise.allSettled(closers.map(close => close()));
+  process.kill(process.pid, signal);
 };
-process.on('SIGINT', () => stop('SIGINT'));
-process.on('SIGTERM', () => stop('SIGTERM'));
 
-const result = await Promise.race(
-  children.map(child => new Promise(resolve => child.once('exit', code => resolve(code ?? 1)))),
-);
-stop('SIGTERM');
-process.exitCode = result;
+process.once('SIGINT', () => void stop('SIGINT'));
+process.once('SIGTERM', () => void stop('SIGTERM'));
+await new Promise(() => {});

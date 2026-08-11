@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "source": "sub-store-config-generator-repository",
+  "source": "org.substore.extensions",
   "manifest": {
     "schemaVersion": 1,
     "id": "org.substore.config-generator",

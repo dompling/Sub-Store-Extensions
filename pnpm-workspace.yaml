@@ -1,9 +1,9 @@
 packages:
-  - .
+  - 'extensions/*'
 
 # pnpm 11 blocks dependency lifecycle scripts unless they are explicitly
 # reviewed. These three packages are transitive/direct build tools used by the
-# pinned frontend toolchain; application dependencies remain blocked.
+# pinned shared toolchain; extension dependencies remain blocked by default.
 allowBuilds:
   '@parcel/watcher': true
   esbuild: true

@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "id": "org.substore.config-generator",
+  "manifest": "backend/src/extensions/config-generator/manifest.json",
+  "packageDirectory": "packages/org.substore.config-generator",
+  "signature": {
+    "algorithm": "ed25519",
+    "publicKey": "release/config-generator-public-key.pem"
+  },
+  "backend": {
+    "sourceRoot": "backend/src",
+    "entrypoint": "backend/src/extensions/config-generator/package-entry.js",
+    "output": "backend/index.cjs"
+  },
+  "frontend": {
+    "config": "frontend/vite.config.ts",
+    "tsconfig": "frontend/tsconfig.json",
+    "outputs": [
+      "frontend/index.js",
+      "frontend/style.css"
+    ]
+  },
+  "artifacts": [
+    {
+      "build": "backend/index.cjs",
+      "package": "backend/index.cjs"
+    },
+    {
+      "build": "frontend/index.js",
+      "package": "frontend/index.js"
+    },
+    {
+      "build": "frontend/style.css",
+      "package": "frontend/style.css"
+    }
+  ],
+  "repository": {
+    "distribution": "trusted-official-mirror",
+    "author": {
+      "id": "org.substore",
+      "name": "Sub-Store"
+    }
+  }
+}

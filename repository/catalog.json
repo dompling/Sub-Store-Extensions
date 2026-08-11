@@ -1,5 +1,8 @@
 {
   "schemaVersion": 1,
+  "id": "org.substore.extensions",
+  "name": "Sub-Store Extensions",
+  "description": "Sub-Store 扩展集合订阅源",
   "sequence": 1,
   "generatedAt": "2026-08-10T00:00:00.000Z",
   "publisher": {
@@ -233,8 +236,12 @@
       "packageDigests": {
         "node": "c9dced66d67dc80e22587e719a71fe140c9036e71cfacee0c5c4735b962d7ba0"
       },
-      "source": "sub-store-config-generator-repository",
-      "sourceName": "Sub-Store Config Generator"
+      "source": "org.substore.extensions",
+      "sourceName": "Sub-Store Extensions",
+      "author": {
+        "id": "org.substore",
+        "name": "Sub-Store"
+      }
     }
   ]
 }

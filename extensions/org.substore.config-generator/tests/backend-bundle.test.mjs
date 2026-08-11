@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import path from 'node:path';
 import { test } from 'node:test';
+import { loadExtension } from '../../../scripts/lib.mjs';
 
 const require = createRequire(import.meta.url);
-const extension = require('../build/backend/index.cjs');
-
 const extensionId = 'org.substore.config-generator';
+const workspace = await loadExtension(extensionId);
+const extension = require(path.join(workspace.buildDirectory, 'backend/index.cjs'));
 
 function createHost({ failActivation = false } = {}) {
   let storedValue = null;

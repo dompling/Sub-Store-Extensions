@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "org.substore.extensions",
+  "name": "Sub-Store Extensions",
+  "description": "Sub-Store 扩展集合订阅源",
+  "sequence": 1,
+  "publisher": {
+    "id": "org.substore",
+    "name": "Sub-Store"
+  }
+}

@@ -1,102 +1,196 @@
-# Sub-Store Config Generator Extension
+# Sub-Store Extensions
 
-Sub-Store 配置生成器的独立源码与交付仓库。它负责生成和导入 Surge、Quantumult X、Clash 与 Loon 配置，并通过 Sub-Store Extension Host 提供前端页面、后端路由和配置项目产物。
+Sub-Store 的多扩展集合仓库。一个 Git 仓库可以维护多个彼此独立的插件，并发布一个仓库级集合订阅源。用户只需要添加一次：
 
-这个仓库已经具备完整的独立开发闭环：源码、类型检查、前后端构建、回归测试、已签名目录包校验、本地安装工具和可托管的静态扩展源都在同一个 Git 仓库中。
+```text
+https://raw.githubusercontent.com/<owner>/<repo>/<tag-or-commit>/repository/catalog.json
+```
 
-> “独立扩展仓库”不等于“任意第三方 JavaScript 可以进入 Host”。配置生成器仍是 `trusted-official` 可执行扩展。Sub-Store Host 会校验官方扩展 ID、发布者、清单摘要、包摘要、Ed25519 签名、receipt 和每个文件摘要。普通社区扩展目前只能是无执行代码的 content extension。
+扩展商店会从这个 catalog 发现仓库中的全部插件，再按插件 ID 下载各自的安装包。正常安装不要求用户下载或上传文件夹；文件夹安装仅保留给本地开发、离线环境和故障恢复。
+
+当前仓库已经包含：
+
+- `org.substore.config-generator`：配置生成器，支持 Surge、Quantumult X、Clash 与 Loon；
+- 多插件 workspace、构建、测试、组包和聚合 catalog 工具；
+- 集合源添加、刷新、安装、重装和本地回退工具；
+- 安全的 content 扩展脚手架；
+- 配置生成器 v1.1.0 的已签名、可安装包。
+
+## 仓库模型
+
+```text
+Sub-Store-Extensions/
+├── extensions/
+│   ├── org.substore.config-generator/   # 插件源码、配置、测试和公钥
+│   └── <extension-id>/                  # 其他插件各占一个目录
+├── packages/
+│   ├── org.substore.config-generator/   # 插件独立目录包
+│   └── <extension-id>/
+├── repository/
+│   ├── catalog.json                     # 整个仓库唯一的集合订阅源
+│   └── packages/<id>/<version>/<variant>.json
+├── scripts/                              # 全仓共享开发与发布工具
+├── tests/                                # 仓库级、多插件回归
+├── repository.config.json               # 集合源身份与发布者
+├── pnpm-workspace.yaml
+└── package.json
+```
+
+三层含义不要混淆：
+
+- `extensions/<id>`：该插件的开发 workspace；
+- `packages/<id>`：该插件可安装、可验证的独立交付物；
+- `repository/catalog.json`：把所有插件聚合到同一个订阅源的索引。
+
+仓库共享工具，不共享插件身份。每个插件仍拥有自己的 ID、版本、作者、manifest、receipt、包摘要和签名配置。
 
 ## 快速开始
 
-需要 Node.js 20 或更高版本；仓库推荐使用 `.node-version` 中的版本和 `packageManager` 声明的 pnpm。
+需要 Node.js 20 或更高版本、Corepack 和仓库声明的 pnpm 版本。
 
 ```bash
+corepack pnpm install
+corepack pnpm extension:list
+corepack pnpm check
+```
+
+不传 `--extension` 时，命令处理仓库里的全部插件；只处理一个插件时：
+
+```bash
+corepack pnpm build -- --extension org.substore.config-generator
+corepack pnpm test -- --extension org.substore.config-generator
+corepack pnpm package -- --extension org.substore.config-generator
+```
+
+## 创建新插件
+
+安全的默认脚手架会创建 content-only 扩展：
+
+```bash
+corepack pnpm extension:create -- \
+  --id com.example.my-extension \
+  --name "My Extension" \
+  --publisher-id com.example \
+  --publisher-name "Example"
+
 corepack pnpm install
 corepack pnpm check
 ```
 
-常用开发命令：
+它会同时创建：
+
+```text
+extensions/com.example.my-extension/
+packages/com.example.my-extension/
+```
+
+content 扩展使用插件独立的 SHA-256 完整性闭包，不包含可执行代码，也不需要私钥。若插件需要动态 Vue 页面或 Node 后端代码，不能把 `containsExecutableCode` 手工改成 `true`；必须单独设计 Host SDK 权限、插件签名密钥、官方授权和发布流程。详见 [扩展规范](docs/EXTENSION-SPEC.md)。
+
+## 生成集合订阅源
 
 ```bash
-# 同时监听前端扩展和 Node 后端 bundle
-corepack pnpm dev
-
-# 单独检查或构建
-corepack pnpm typecheck
-corepack pnpm build
-corepack pnpm test
-
-# 组装并验证当前已签名目录包
 corepack pnpm package
 corepack pnpm repository
 corepack pnpm verify
+```
 
-# 启动兄弟目录中的 Sub-Store Node 后端，并把本仓库 package/ 设为种子目录
+`repository` 每次都会重新聚合全部 `extensions/*` workspace，并清理已经删除插件遗留的 envelope。正式发布时提交整个 `repository/`，用户订阅其中唯一的 `catalog.json`。
+
+本地预览集合源：
+
+```bash
+corepack pnpm repository:serve
+```
+
+默认地址：
+
+```text
+http://127.0.0.1:8765/catalog.json
+```
+
+## 从集合源安装
+
+先启动本机 Sub-Store Node Host，然后添加一次仓库源：
+
+```bash
 corepack pnpm host:start
+corepack pnpm source:add
 ```
 
-`pnpm dev` 只负责快速重建，不会绕过扩展签名，也不会热替换 Host 中已经安装的代码。交互式 Host 验证必须安装一个受 Host 授权的目录包；修改 manifest、版本或任意 bundle 字节后，当前 v1.1.0 签名立即失效，必须进入正式签名发布流程。
-
-## 本地安装
-
-Node Host 运行在默认的 `http://127.0.0.1:3000` 时：
+安装集合中的指定插件：
 
 ```bash
-corepack pnpm install:local
+corepack pnpm extension:install -- \
+  --extension org.substore.config-generator
 ```
 
-卸载现有代码但保留配置数据，然后重新安装并启用：
+卸载旧代码但保留用户数据，再从同一个集合源重新安装并启用：
 
 ```bash
-corepack pnpm install:local -- --reinstall
-```
-
-如果 Host 配置了管理令牌：
-
-```bash
-corepack pnpm install:local -- \
-  --host http://127.0.0.1:3000 \
-  --token '<admin-token>' \
+corepack pnpm extension:install -- \
+  --extension org.substore.config-generator \
   --reinstall
 ```
 
-也可以在扩展管理界面选择文件夹：
+远程仓库使用固定 tag 或 commit 的 Raw URL：
 
-```text
-package/org.substore.config-generator
+```bash
+corepack pnpm source:add -- \
+  --url https://raw.githubusercontent.com/<owner>/<repo>/<tag-or-commit>/repository/catalog.json
 ```
 
-完整说明见 [安装文档](docs/INSTALLING.md)。
+完整流程见 [安装文档](docs/INSTALLING.md) 和 [集合源文档](docs/CATALOG.md)。
 
-## 仓库结构
+## 本地文件夹回退
 
-```text
-backend/                 配置生成器后端源码和独立化后的私有依赖
-frontend/                配置生成器前端源码、SDK 类型门面和构建配置
-package/                 当前已签名、可安装的目录包；不要手工修改
-repository/              可放在 GitHub Raw 或任意 HTTPS 静态站点的扩展源
-release/                 仅用于验证的官方公钥，不包含私钥
-scripts/                 构建、组包、校验、安装和本地服务工具
-tests/                   独立仓库回归与包契约测试
-docs/                    扩展开发、规范、安装、发布和兼容性文档
-build/                   本地构建产物，不提交
-dist/                    本地组装结果，不提交
+本地开发或无法访问仓库源时，可以安装单个目录包：
+
+```bash
+corepack pnpm extension:install-local -- \
+  --extension org.substore.config-generator \
+  --reinstall
 ```
 
-`package/` 和 `repository/` 是已签名版本的交付物；`build/` 与 `dist/` 是可删除、可重建的本地产物。`pnpm verify` 会确认构建结果与当前签名版本逐字节一致。
+也可以在扩展管理 UI 中选择完整的：
 
-## 信任模型摘要
+```text
+packages/org.substore.config-generator
+```
 
-- Node runtime：安装并执行 `backend/index.cjs`，加载 `frontend/index.js` 与 `frontend/style.css`。
-- Quantumult X、Loon、Surge 及其他脚本 runtime：使用 Sub-Store Host 构建时包含的 embedded implementation，不从扩展源下载并执行 Node bundle。
-- `trusted-official-mirror`：可以从独立 GitHub/HTTPS 仓库交付官方包，但不会引入第二个信任根。
-- community source：可以提供内容型扩展，不能声明前后端可执行代码、entrypoint 或 install hook。
-- 安装 hook：当前一律禁止。
-- 管理 API：Node Host 未设置令牌时是 `open`；对外部署必须配置 `SUB_STORE_EXTENSION_ADMIN_TOKEN` 或其哈希形式。
+本地文件夹只是传输方式，不会绕过 manifest、receipt、摘要、签名、Host 兼容性或可执行代码准入检查。
 
-更完整的格式和生命周期见 [扩展规范](docs/EXTENSION-SPEC.md) 与 [安全说明](SECURITY.md)。
+## 常用命令
 
-## 当前版本
+| 命令 | 作用 |
+| --- | --- |
+| `extension:list` | 列出仓库内全部插件 |
+| `extension:create` | 创建安全的 content 扩展 workspace 与初始包 |
+| `dev` | watch 选中或全部可构建插件 |
+| `typecheck` | 检查全部前端插件类型 |
+| `build` | 构建全部插件前后端产物 |
+| `test` | 构建后运行插件级与仓库级测试 |
+| `package` | 组装插件包；content 包自动重建完整性闭包 |
+| `repository` | 生成一个包含全部插件的 catalog 和 envelope |
+| `verify` | 验证源码、包、构建产物和集合源一致性 |
+| `check` | 提交前完整门禁 |
+| `source:add` | 向 Host 添加仓库级集合订阅源 |
+| `source:refresh` | 刷新已添加的集合订阅源 |
+| `extension:install` | 从集合源安装并启用指定插件 |
+| `extension:install-local` | 从本地目录包安装，作为回退方式 |
+
+## 信任模型
+
+- 一个 catalog 可以同时包含多个插件，但 catalog 的来源元数据不等于插件代码信任。
+- `trusted-official-mirror` 可交付官方可执行包；Host 仍要求其 ID、publisher、manifest digest、package digest 和 Ed25519 签名与官方授权一致。
+- `community` 目前只能交付 `kind: content` 且 `containsExecutableCode: false` 的完整性包。
+- 每个可执行插件应有独立签名配置；不要让一个插件的私钥成为其他插件的通用执行授权。
+- Node 可加载已验证的后端和前端 bundle；QX、Loon、Surge 等脚本 runtime 使用 Host 构建中内嵌的实现，不从第三方源执行 Node JavaScript。
+- 安装 hook 当前一律禁止。
+- 对外部署必须配置 `SUB_STORE_EXTENSION_ADMIN_TOKEN` 或其哈希形式。
+
+详见 [安全策略](SECURITY.md)。
+
+## 配置生成器当前签名版本
 
 ```text
 Extension ID:  org.substore.config-generator
@@ -106,16 +200,16 @@ Payload SHA:   1a6a2c22e8243de10dd47e6bc1c5d48245503390c48f43ce0465caf03a55c280
 Signing key:   substore-release-root-2026-08-config-generator-v4
 ```
 
-当前签名清单的 `homepage` 仍指向 Sub-Store 主仓库。修改它也会改变 manifest digest，因此应在下一次正式签名发布时再更新为本仓库的远程地址。
+修改配置生成器源码、manifest、receipt 或任意 bundle 字节都会使这个签名版本失效。不要手工改摘要；应按 [发布指南](docs/RELEASING.md) 生成新版本并同步 Host 授权。
 
-## 文档导航
+## 文档
 
 - [开发指南](docs/DEVELOPMENT.md)
-- [新扩展与包格式规范](docs/EXTENSION-SPEC.md)
-- [安装与重装](docs/INSTALLING.md)
-- [扩展源与 GitHub Raw](docs/CATALOG.md)
-- [正式发布流程](docs/RELEASING.md)
-- [运行环境兼容性](docs/COMPATIBILITY.md)
+- [扩展与仓库规范](docs/EXTENSION-SPEC.md)
+- [安装、卸载与重装](docs/INSTALLING.md)
+- [集合订阅源与 GitHub 托管](docs/CATALOG.md)
+- [发布指南](docs/RELEASING.md)
+- [兼容性](docs/COMPATIBILITY.md)
 - [贡献指南](CONTRIBUTING.md)
 - [安全策略](SECURITY.md)
 

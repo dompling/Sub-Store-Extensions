@@ -4,20 +4,21 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import {
-  buildDirectory,
   canonicalJson,
-  extensionId,
+  loadExtension,
   readJson,
   repoRoot,
   sha256Hex,
-  sourcePackageDirectory,
   verifyPackageDirectory,
-} from '../scripts/lib.mjs';
+} from '../../../scripts/lib.mjs';
+
+const extensionId = 'org.substore.config-generator';
+const extension = await loadExtension(extensionId);
 
 const resolveModule = async (importer, specifier) => {
   if (!specifier.startsWith('.') && !specifier.startsWith('@/')) return null;
   const base = specifier.startsWith('@/')
-    ? path.join(repoRoot, 'backend/src', specifier.slice(2))
+    ? path.join(extension.backend.sourceRoot, specifier.slice(2))
     : path.resolve(path.dirname(importer), specifier);
   for (const candidate of [base, `${base}.js`, `${base}.json`, path.join(base, 'index.js')]) {
     try {
@@ -49,15 +50,13 @@ const collectBackendGraph = async entrypoint => {
 };
 
 test('keeps source, package, and repository versions on one extension identity', async () => {
-  const rootPackage = await readJson(path.join(repoRoot, 'package.json'));
-  const sourceManifest = await readJson(
-    path.join(repoRoot, 'backend/src/extensions/config-generator/manifest.json'),
-  );
-  const signedManifest = await readJson(path.join(sourcePackageDirectory, 'manifest.json'));
+  const workspacePackage = await readJson(path.join(extension.workspaceDirectory, 'package.json'));
+  const sourceManifest = await readJson(extension.manifestPath);
+  const signedManifest = await readJson(path.join(extension.packageDirectory, 'manifest.json'));
   const repository = await readJson(path.join(repoRoot, 'repository/catalog.json'));
   const entry = repository.entries.find(value => value.id === extensionId);
 
-  assert.equal(rootPackage.version, sourceManifest.version);
+  assert.equal(workspacePackage.version, sourceManifest.version);
   assert.equal(sourceManifest.id, extensionId);
   assert.equal(canonicalJson(sourceManifest), canonicalJson(signedManifest));
   assert.equal(entry.version, sourceManifest.version);
@@ -68,32 +67,29 @@ test('keeps source, package, and repository versions on one extension identity',
 });
 
 test('builds the Node entrypoint without unresolved Host-private imports', async () => {
-  const entrypoint = path.join(
-    repoRoot,
-    'backend/src/extensions/config-generator/package-entry.js',
-  );
+  const entrypoint = extension.backend.entrypoint;
   const graph = await collectBackendGraph(entrypoint);
 
   assert.deepEqual([...graph.externals].sort(), ['yaml']);
   assert.equal(
-    [...graph.visited].every(file => file.startsWith(path.join(repoRoot, 'backend/src'))),
+    [...graph.visited].every(file => file.startsWith(extension.backend.sourceRoot)),
     true,
   );
 
-  const bundle = await fs.readFile(path.join(buildDirectory, 'backend/index.cjs'), 'utf8');
+  const bundle = await fs.readFile(path.join(extension.buildDirectory, 'backend/index.cjs'), 'utf8');
   assert.equal(bundle.includes("require('@/"), false);
   assert.equal(bundle.includes('../backend-sdk-v1'), false);
   assert.equal(bundle.includes('../registry'), false);
 });
 
 test('reproduces every signed executable asset byte-for-byte', async () => {
-  const verified = await verifyPackageDirectory(sourcePackageDirectory);
+  const verified = await verifyPackageDirectory(extension.packageDirectory, extension);
   for (const relative of [
     'backend/index.cjs',
     'frontend/index.js',
     'frontend/style.css',
   ]) {
-    const built = await fs.readFile(path.join(buildDirectory, relative), 'utf8');
+    const built = await fs.readFile(path.join(extension.buildDirectory, relative), 'utf8');
     assert.equal(sha256Hex(built), verified.fileDigests[relative], relative);
   }
 });
@@ -102,10 +98,10 @@ test('rejects undeclared files in an otherwise signed directory', async () => {
   const temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'substore-extension-test-'));
   const copiedPackage = path.join(temporaryRoot, extensionId);
   try {
-    await fs.cp(sourcePackageDirectory, copiedPackage, { recursive: true });
+    await fs.cp(extension.packageDirectory, copiedPackage, { recursive: true });
     await fs.writeFile(path.join(copiedPackage, 'undeclared.txt'), 'not signed\n', 'utf8');
     await assert.rejects(
-      verifyPackageDirectory(copiedPackage),
+      verifyPackageDirectory(copiedPackage, extension),
       /missing, undeclared, or non-regular files/,
     );
   } finally {

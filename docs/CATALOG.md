@@ -1,21 +1,90 @@
-# 扩展源、作者与 GitHub 托管
+# 集合订阅源、作者与 GitHub 托管
 
-## 目录结构
+## 1. 一个仓库只有一个正常订阅入口
+
+本仓库采用 collection catalog：
+
+```text
+repository/catalog.json
+```
+
+用户不需要分别订阅：
+
+```text
+extensions/plugin-a/catalog.json
+extensions/plugin-b/catalog.json
+```
+
+正确模型是：
+
+```text
+一个 Git 仓库
+→ 一个 repository/catalog.json
+→ 多个 catalog entries
+→ 每个 entry 指向自己的 package envelope
+```
+
+这让用户只管理一次来源，同时保证插件包、作者、版本和签名彼此独立。
+
+## 2. 静态目录
 
 ```text
 repository/
 ├── catalog.json
 └── packages/
-    └── org.substore.config-generator/
-        └── 1.1.0/
+    ├── org.substore.config-generator/
+    │   └── 1.1.0/
+    │       └── node.json
+    └── com.example.my-extension/
+        └── 1.0.0/
             └── node.json
 ```
 
-`catalog.json` 负责发现和展示，`node.json` 是包含 manifest、receipt、payload 与 signature 的安装 envelope。
+生成：
 
-## Catalog entry
+```bash
+corepack pnpm package
+corepack pnpm repository
+corepack pnpm verify
+```
 
-配置生成器 entry 的关键字段：
+`repository` 会扫描全部插件 workspace，不接受“只发布当前插件”的局部 catalog。它会删除旧的 `repository/packages/` 后重新写入当前集合，避免已经删除插件的 envelope 残留。
+
+## 3. 顶层 catalog
+
+示意：
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "org.substore.extensions",
+  "name": "Sub-Store Extensions",
+  "description": "Sub-Store 扩展集合订阅源",
+  "sequence": 1,
+  "generatedAt": "2026-08-10T00:00:00.000Z",
+  "publisher": {
+    "id": "org.substore",
+    "name": "Sub-Store"
+  },
+  "entries": []
+}
+```
+
+字段含义：
+
+- `id`：来源稳定 ID；
+- `name`：扩展页面显示的集合源名称；
+- `description`：集合说明；
+- `sequence`：发布方显式递增的集合序号；
+- `generatedAt`：集合内最新 package 稳定时间；
+- `publisher`：仓库维护者；
+- `entries`：该仓库全部可发现插件。
+
+当前 `sequence` 和 `generatedAt` 用于解析、展示和审计，但尚不是完整 TUF/防回滚体系。不要把它们描述成已实现的供应链时间证明。
+
+## 4. Catalog entry
+
+每个插件 entry 独立：
 
 ```json
 {
@@ -23,90 +92,123 @@ repository/
   "version": "1.1.0",
   "manifest": {},
   "distribution": "trusted-official-mirror",
+  "packageUrl": "./packages/org.substore.config-generator/1.1.0/node.json",
   "packageUrls": {
     "node": "./packages/org.substore.config-generator/1.1.0/node.json"
   },
+  "packageDigest": "c9dced66...",
   "packageDigests": {
     "node": "c9dced66..."
   },
-  "source": "sub-store-config-generator-repository",
-  "sourceName": "Sub-Store Config Generator"
+  "source": "org.substore.extensions",
+  "sourceName": "Sub-Store Extensions",
+  "author": {
+    "id": "org.substore",
+    "name": "Sub-Store"
+  }
 }
 ```
 
-`packageUrls` 应优先使用相对 URL，便于整个 `repository/` 在 GitHub Raw、GitLab Pages、对象存储或本地 loopback server 中移动。
+`packageUrl` 可以相对 catalog URL。Host 会按最终 catalog URL 解析为绝对地址。
 
-## 作者、发布者与来源
+每个 package digest 必须是该 envelope 对应 package projection 的不可变 SHA-256。catalog、envelope 或实际 payload 任意一处不一致都会拒绝安装。
 
-三个概念应分开：
+## 5. 作者、发布者与来源
 
-- publisher：对扩展身份和签名负责的主体，来自 manifest；
-- source author/operator：维护 catalog 或 mirror 的主体；
-- source URL：用户实际添加的 catalog 地址。
+三个概念必须分开：
 
-对于 `trusted-official-mirror`，mirror 可以由独立 Git 仓库托管，但不能改写官方 publisher、manifest 或 package digest。Host 会把 mirror entry 与内置官方 catalog 比较。
+| 字段 | 表示 |
+| --- | --- |
+| catalog `publisher` | 谁维护这个集合仓库 |
+| manifest `publisher` | 谁发布这个插件身份 |
+| entry `author` | 商店向用户展示的插件作者 |
+| entry `source/sourceName` | 插件从哪个集合源被发现 |
 
-第三方 community catalog 应在顶层和 entry 中提供清晰的 publisher/source name，UI 可以据此显示“来自谁、由谁发布、从哪里订阅”。来源信息不是信任证明；实际准入仍由 content-only contract 和摘要校验决定。
+Host 不应该根据 GitHub owner、域名、URL 路径或顶层 publisher 自动推断插件作者。第三方仓库可以收录多个不同作者的插件。
 
-## GitHub Raw
+来源 publisher 也不等于可执行代码信任：
 
-远程仓库配置后，推荐 URL：
+- community content 包依靠 immutable digest 保证完整性；
+- trusted-official mirror 仍依赖 Host 内置官方授权和 Ed25519 签名；
+- 未来第三方 executable publisher 需要 scoped key/certificate，而不是复用 catalog publisher 字段。
+
+## 6. GitHub Raw
+
+正式 URL：
 
 ```text
-https://raw.githubusercontent.com/<owner>/<repository>/<tag-or-commit>/repository/catalog.json
+https://raw.githubusercontent.com/<owner>/<repo>/<tag-or-commit>/repository/catalog.json
 ```
 
-开发阶段可以使用：
+推荐：
 
-```text
-https://raw.githubusercontent.com/<owner>/<repository>/main/repository/catalog.json
-```
+- 对外版本使用 immutable tag 或 commit；
+- release 前确认 catalog 与所有相对 package URL 都实际存在；
+- GitHub Actions 只上传公开构建物，私钥来自受保护 secret provider；
+- 不把私钥、管理 token 或 `.env` 提交到仓库；
+- 不只提交 catalog 而漏掉 `repository/packages/`。
 
-发布阶段优先 tag/commit，因为它能把 catalog、package envelope 和 Git 历史固定到同一版本。
+分支 URL 适合开发订阅，但可能随 force-push 或后续提交变化，不应被当作不可变 release。
 
-不要在 URL 中加入需要暴露的 GitHub token。私有仓库需要由受控代理或 Host credential handle 解决，不能把长期凭证写进扩展 source。
-
-## 本地服务
+## 7. 本地服务
 
 ```bash
-corepack pnpm repository
 corepack pnpm repository:serve
 ```
 
-服务地址：
+默认：
 
 ```text
 http://127.0.0.1:8765/catalog.json
 ```
 
-Server 只暴露 `repository/` 下的普通文件，拒绝路径逃逸。它适合 source 解析回归，不是生产服务器。
-
-## Host 校验流程
-
-添加 trusted official mirror 时，Host 会：
-
-1. 规范化并检查 source URL；
-2. 获取 catalog，限制重定向、响应大小和网络目标；
-3. 确认 entry ID 没有与其他 source 冲突；
-4. 确认 manifest 与 Host official manifest canonical equal；
-5. 确认 package digest 得到 official catalog 授权；
-6. 安装时重新下载 envelope；
-7. 重新验证文件摘要、receipt 和 Ed25519 签名；
-8. 验证 entrypoint 后才写入/激活 package。
-
-因此 source operator 不能只改 `packageUrl` 或 `packageDigest` 来替换官方代码。
-
-## 发布命令的边界
+然后：
 
 ```bash
-corepack pnpm repository
+corepack pnpm source:add
+corepack pnpm extension:install -- \
+  --extension org.substore.config-generator \
+  --reinstall
 ```
 
-该命令从 `package/org.substore.config-generator` 读取现有签名包，确定性重建 catalog 和 envelope。它不会：
+HTTP 仅允许 loopback 本地来源。远程来源必须 HTTPS，并且不能从公网重定向进入 loopback/private network。
 
-- 生成或读取私钥；
-- 更新签名；
-- 授权新的 manifest/package digest；
-- 修改 Sub-Store Host 的 official catalog。
+## 8. Host 校验
 
-如果 package 已经变更但未正式签名，命令应在验证阶段失败，而不是产生一个看似可安装的 catalog。
+### 集合源
+
+Host 会检查：
+
+- schema 与 entry 数量上限；
+- source URL、重定向、协议和网络边界；
+- manifest 是否可规范化；
+- ID、kind、variant 与 package URL；
+- immutable package digest；
+- trusted-official mirror 是否得到本机官方 catalog 授权。
+
+### 下载插件
+
+Host 会继续检查：
+
+- catalog entry 与 envelope manifest 相同；
+- package digest、payload digest 和 receipt 闭合；
+- 每个文件摘要；
+- executable/install-hook flag；
+- signature algorithm 与 trusted key；
+- runtime、Host API、backend version 和 implementation ABI；
+- community 包确实 content-only。
+
+添加集合源成功不代表其中每个插件都一定能安装；具体插件仍需通过自己的兼容性和信任门禁。
+
+## 9. 当前限制
+
+- catalog 最大约 4 MiB；
+- 最多约 128 个 entry；
+- 最多 3 次重定向；
+- 外部来源只允许 HTTPS；
+- loopback 开发来源可使用 HTTP；
+- URL 禁止 credentials；
+- 原生自动更新、rollback 和 data purge 尚未实现；
+- community executable code 尚未开放。
+
+具体数值由 Host 版本控制；发布文档应以目标 Host 的实际常量为准。

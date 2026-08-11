@@ -3,6 +3,8 @@ import path from 'node:path';
 import { defineConfig } from 'vite';
 
 const frontendRoot = __dirname;
+const extensionBuildRoot = process.env.SUB_STORE_EXTENSION_BUILD_DIR
+  || path.resolve(frontendRoot, '../build');
 const sdkId = '@/extensions/frontend-sdk-v1';
 const sdkGlobal = '__SUBSTORE_EXTENSION_FRONTEND_SDK_V1__';
 const isSdkExternal = (id: string) => id === sdkId
@@ -25,7 +27,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: path.resolve(frontendRoot, '../build/frontend'),
+    outDir: path.resolve(extensionBuildRoot, 'frontend'),
     emptyOutDir: true,
     cssCodeSplit: false,
     sourcemap: false,
