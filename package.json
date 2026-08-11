@@ -1,0 +1,48 @@
+{
+  "name": "@sub-store/config-generator-extension",
+  "version": "1.1.0",
+  "private": true,
+  "description": "External Sub-Store configuration generator extension",
+  "license": "GPL-3.0",
+  "type": "module",
+  "packageManager": "pnpm@11.0.9",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "pnpm run build:frontend && pnpm run build:backend",
+    "build:frontend": "vite build --config frontend/vite.config.ts",
+    "build:backend": "node scripts/build-backend.mjs",
+    "typecheck": "vue-tsc --noEmit -p frontend/tsconfig.json",
+    "package": "pnpm run build && pnpm run package:assemble",
+    "package:assemble": "node scripts/assemble-package.mjs",
+    "repository": "node scripts/publish-repository.mjs",
+    "repository:serve": "node scripts/serve-repository.mjs",
+    "verify": "node scripts/verify.mjs",
+    "test": "pnpm run build && pnpm run test:built",
+    "test:built": "node --test tests/*.test.mjs",
+    "check": "pnpm run typecheck && pnpm run build && pnpm run test:built && pnpm run package:assemble && pnpm run repository && pnpm run verify",
+    "install:local": "node scripts/install-local.mjs",
+    "host:start": "node scripts/run-host.mjs"
+  },
+  "dependencies": {
+    "yaml": "2.9.0"
+  },
+  "devDependencies": {
+    "@nutui/nutui": "3.3.8",
+    "@vitejs/plugin-vue": "3.2.0",
+    "axios": "0.27.2",
+    "esbuild": "0.19.8",
+    "pinia": "2.3.1",
+    "sass": "1.101.0",
+    "terser": "5.48.0",
+    "typescript": "4.9.5",
+    "vite": "3.2.11",
+    "vue": "3.5.38",
+    "vue-i18n": "9.14.5",
+    "vue-router": "4.6.4",
+    "vue-tsc": "0.35.2",
+    "vuedraggable": "4.1.0"
+  }
+}
