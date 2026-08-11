@@ -219,7 +219,24 @@ export const readRepositoryConfig = async () => {
   assert(config.schemaVersion === 1, 'Unsupported repository config schema');
   assert(config.id && config.name, 'Repository config requires id and name');
   assert(config.publisher?.id && config.publisher?.name, 'Repository config requires publisher');
+  if (config.catalogUrl) {
+    const catalogUrl = new URL(config.catalogUrl);
+    assert(catalogUrl.protocol === 'https:', 'Repository catalogUrl must use HTTPS');
+  }
   return config;
+};
+
+export const resolveRepositorySourceUrl = (
+  config,
+  { explicitUrl, environmentUrl } = {},
+) => {
+  const value = explicitUrl
+    || environmentUrl
+    || config?.catalogUrl
+    || 'http://127.0.0.1:8765/catalog.json';
+  const url = new URL(value);
+  assert(url.protocol === 'https:' || url.protocol === 'http:', 'Collection source URL must use HTTP(S)');
+  return url.toString();
 };
 
 export const readPackage = async packageDirectory => {

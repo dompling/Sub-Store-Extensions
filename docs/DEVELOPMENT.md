@@ -219,7 +219,9 @@ watch 只生成本地 `build/<id>`，不会绕过签名，也不会热替换 Hos
 corepack pnpm repository
 corepack pnpm repository:serve
 corepack pnpm host:start
-corepack pnpm source:add
+corepack pnpm source:add -- \
+  --url http://127.0.0.1:8765/catalog.json \
+  --name "Sub-Store Extensions (Local)"
 corepack pnpm extension:install -- \
   --extension org.substore.config-generator \
   --reinstall

@@ -3,6 +3,7 @@
   "id": "org.substore.extensions",
   "name": "Sub-Store Extensions",
   "description": "Sub-Store 扩展集合订阅源",
+  "catalogUrl": "https://raw.githubusercontent.com/dompling/Sub-Store-Extensions/main/repository/catalog.json",
   "sequence": 1,
   "publisher": {
     "id": "org.substore",

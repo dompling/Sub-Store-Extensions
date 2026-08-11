@@ -4,9 +4,13 @@
 
 用户安装的是仓库级订阅源，不是某个插件专用 catalog。远程地址应为：
 
+当前仓库默认地址：
+
 ```text
-https://raw.githubusercontent.com/<owner>/<repo>/<tag-or-commit>/repository/catalog.json
+https://raw.githubusercontent.com/dompling/Sub-Store-Extensions/main/repository/catalog.json
 ```
+
+正式 release 推荐把 `main` 换成不可变 tag 或 commit。
 
 添加后，扩展商店展示 catalog 的全部 entry。用户选择其中一个插件时，Host 再读取：
 
@@ -50,7 +54,9 @@ corepack pnpm host:start
 添加集合源：
 
 ```bash
-corepack pnpm source:add
+corepack pnpm source:add -- \
+  --url http://127.0.0.1:8765/catalog.json \
+  --name "Sub-Store Extensions (Local)"
 ```
 
 输出应包含集合源名称、URL 和发现的插件数量，例如：
@@ -64,7 +70,8 @@ http://127.0.0.1:8765/catalog.json
 以后内容变化只需刷新：
 
 ```bash
-corepack pnpm source:refresh
+corepack pnpm source:refresh -- \
+  --url http://127.0.0.1:8765/catalog.json
 ```
 
 ## 3. 从集合源安装插件
@@ -103,6 +110,14 @@ SUB_STORE_EXTENSION_ADMIN_TOKEN
 ## 4. 远程 GitHub 集合源
 
 添加固定 tag 或 commit：
+
+本仓库已经把远程 collection URL 写入 `repository.config.json`，因此正常安装只需：
+
+```bash
+corepack pnpm source:add
+```
+
+其他 fork 或固定 release 可以覆盖：
 
 ```bash
 corepack pnpm source:add -- \

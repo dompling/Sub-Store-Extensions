@@ -167,8 +167,11 @@ corepack pnpm verify
 corepack pnpm check
 corepack pnpm repository:serve
 corepack pnpm host:start
-corepack pnpm source:add
-corepack pnpm source:refresh
+corepack pnpm source:add -- \
+  --url http://127.0.0.1:8765/catalog.json \
+  --name "Sub-Store Extensions (Local)"
+corepack pnpm source:refresh -- \
+  --url http://127.0.0.1:8765/catalog.json
 corepack pnpm extension:install -- \
   --extension <extension-id> \
   --reinstall
@@ -207,7 +210,7 @@ git status --short
 推送后使用固定 tag 或 commit URL：
 
 ```text
-https://raw.githubusercontent.com/<owner>/<repo>/<tag-or-commit>/repository/catalog.json
+https://raw.githubusercontent.com/dompling/Sub-Store-Extensions/<tag-or-commit>/repository/catalog.json
 ```
 
 必须再用这个真实远程 URL 完成一次 source add、install、enable、uninstall 和 reinstall 回归。GitHub Raw 文件只有 commit 并 push 后才存在；本地文件不能冒充远程回归。

@@ -136,8 +136,16 @@ Host 不应该根据 GitHub owner、域名、URL 路径或顶层 publisher 自�
 
 正式 URL：
 
+当前仓库滚动地址：
+
 ```text
-https://raw.githubusercontent.com/<owner>/<repo>/<tag-or-commit>/repository/catalog.json
+https://raw.githubusercontent.com/dompling/Sub-Store-Extensions/main/repository/catalog.json
+```
+
+不可变 release 地址：
+
+```text
+https://raw.githubusercontent.com/dompling/Sub-Store-Extensions/<tag-or-commit>/repository/catalog.json
 ```
 
 推荐：
@@ -165,7 +173,9 @@ http://127.0.0.1:8765/catalog.json
 然后：
 
 ```bash
-corepack pnpm source:add
+corepack pnpm source:add -- \
+  --url http://127.0.0.1:8765/catalog.json \
+  --name "Sub-Store Extensions (Local)"
 corepack pnpm extension:install -- \
   --extension org.substore.config-generator \
   --reinstall

@@ -1,6 +1,7 @@
 import {
   loadSingleExtension,
   readRepositoryConfig,
+  resolveRepositorySourceUrl,
 } from './lib.mjs';
 
 const [command, ...args] = process.argv.slice(2);
@@ -35,9 +36,10 @@ const request = async (method, pathname, body, extraHeaders = {}) => {
   return payload.data;
 };
 
-const sourceUrl = () => valueAfter('--url')
-  || process.env.SUB_STORE_EXTENSION_SOURCE_URL
-  || 'http://127.0.0.1:8765/catalog.json';
+const sourceUrl = config => resolveRepositorySourceUrl(config, {
+  explicitUrl: valueAfter('--url'),
+  environmentUrl: process.env.SUB_STORE_EXTENSION_SOURCE_URL,
+});
 
 const findSource = async url => {
   const sources = await request('GET', '/api/extensions/sources');
@@ -46,7 +48,7 @@ const findSource = async url => {
 
 if (command === 'source:add') {
   const config = await readRepositoryConfig();
-  const url = sourceUrl();
+  const url = sourceUrl(config);
   const source = await request(
     'POST',
     '/api/admin/extensions/sources',
@@ -55,7 +57,8 @@ if (command === 'source:add') {
   );
   process.stdout.write(`Added collection source ${source.name}\n${source.url}\n${source.entryCount} extensions\n`);
 } else if (command === 'source:refresh') {
-  const url = sourceUrl();
+  const config = await readRepositoryConfig();
+  const url = sourceUrl(config);
   const source = await findSource(url);
   if (!source) throw new Error(`Collection source is not installed: ${url}`);
   const refreshed = await request(

@@ -3,7 +3,11 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { listRegularFiles, readJson } from '../scripts/lib.mjs';
+import {
+  listRegularFiles,
+  readJson,
+  resolveRepositorySourceUrl,
+} from '../scripts/lib.mjs';
 import {
   buildRepositoryCatalog,
   writeRepositoryDocuments,
@@ -122,4 +126,23 @@ test('rejects duplicate extension identities and envelope path traversal', async
   } finally {
     await fs.rm(temporaryRoot, { recursive: true, force: true });
   }
+});
+
+test('uses the repository collection URL by default while allowing local development overrides', async () => {
+  const config = await readJson(new URL('../repository.config.json', import.meta.url));
+  assert.equal(
+    resolveRepositorySourceUrl(config),
+    'https://raw.githubusercontent.com/dompling/Sub-Store-Extensions/main/repository/catalog.json',
+  );
+  assert.equal(
+    resolveRepositorySourceUrl(config, { explicitUrl: 'http://127.0.0.1:8765/catalog.json' }),
+    'http://127.0.0.1:8765/catalog.json',
+  );
+  assert.equal(
+    resolveRepositorySourceUrl(config, {
+      explicitUrl: 'https://example.com/explicit.json',
+      environmentUrl: 'https://example.com/environment.json',
+    }),
+    'https://example.com/explicit.json',
+  );
 });

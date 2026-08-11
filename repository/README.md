@@ -10,8 +10,16 @@ repository/
 
 用户只添加一次：
 
+当前滚动地址：
+
 ```text
-https://raw.githubusercontent.com/<owner>/<repository>/<tag-or-commit>/repository/catalog.json
+https://raw.githubusercontent.com/dompling/Sub-Store-Extensions/main/repository/catalog.json
+```
+
+正式版本推荐固定 tag 或 commit：
+
+```text
+https://raw.githubusercontent.com/dompling/Sub-Store-Extensions/<tag-or-commit>/repository/catalog.json
 ```
 
 catalog 会展示仓库中的所有插件；每个 entry 保留自己的 ID、版本、作者、publisher、package digest 和 envelope URL。

@@ -2,9 +2,13 @@
 
 Sub-Store 的多扩展集合仓库。一个 Git 仓库可以维护多个彼此独立的插件，并发布一个仓库级集合订阅源。用户只需要添加一次：
 
+当前滚动集合源：
+
 ```text
-https://raw.githubusercontent.com/<owner>/<repo>/<tag-or-commit>/repository/catalog.json
+https://raw.githubusercontent.com/dompling/Sub-Store-Extensions/main/repository/catalog.json
 ```
+
+正式版本发布后，建议把 `main` 换成不可变 tag 或 commit。
 
 扩展商店会从这个 catalog 发现仓库中的全部插件，再按插件 ID 下载各自的安装包。正常安装不要求用户下载或上传文件夹；文件夹安装仅保留给本地开发、离线环境和故障恢复。
 
@@ -114,7 +118,9 @@ http://127.0.0.1:8765/catalog.json
 
 ```bash
 corepack pnpm host:start
-corepack pnpm source:add
+corepack pnpm source:add -- \
+  --url http://127.0.0.1:8765/catalog.json \
+  --name "Sub-Store Extensions (Local)"
 ```
 
 安装集合中的指定插件：
@@ -135,9 +141,10 @@ corepack pnpm extension:install -- \
 远程仓库使用固定 tag 或 commit 的 Raw URL：
 
 ```bash
-corepack pnpm source:add -- \
-  --url https://raw.githubusercontent.com/<owner>/<repo>/<tag-or-commit>/repository/catalog.json
+corepack pnpm source:add
 ```
+
+默认 URL 来自 `repository.config.json.catalogUrl`，当前即本仓库 GitHub collection catalog。也可用 `--url` 或 `SUB_STORE_EXTENSION_SOURCE_URL` 覆盖；正式 release 推荐固定 tag/commit。
 
 完整流程见 [安装文档](docs/INSTALLING.md) 和 [集合源文档](docs/CATALOG.md)。
 
