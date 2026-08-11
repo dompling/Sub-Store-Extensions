@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { build } from 'esbuild';
-import { importConfig, preview } from './helpers/backend-runtime.mjs';
+import { importConfig, parseYaml, preview } from './helpers/backend-runtime.mjs';
 
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
 const sourceRoot = path.resolve(testDirectory, '../backend/src');
@@ -586,4 +586,233 @@ test('does not provider-rewrite a blackmatrix7 URL whose ref is named rule and u
   );
   assert.equal(resolution.provider, undefined);
   assert.equal(resolution.forceOptParser, true);
+});
+
+test('projects process paths and RULE-SET no-resolve with documented Clash syntax', async () => {
+  const result = await preview(
+    'clash',
+    projectFor('clash', {
+      name: 'clash-documented-rules',
+      groups: [
+        {
+          name: 'Main',
+          type: 'select',
+          members: [{ kind: 'builtin', value: 'DIRECT' }],
+        },
+      ],
+      rules: [
+        {
+          kind: 'inline',
+          type: 'PROCESS-NAME',
+          value: '/Applications/TestFlight.app/Contents/MacOS/TestFlight',
+          policy: 'Main',
+        },
+        {
+          kind: 'inline',
+          type: 'PROCESS-NAME',
+          value: String.raw`C:\Program Files\Example\example.exe`,
+          policy: 'Main',
+        },
+        {
+          kind: 'inline',
+          type: 'PROCESS-NAME',
+          value: 'nc',
+          policy: 'Main',
+        },
+        {
+          kind: 'remote',
+          name: 'Documented',
+          ruleSet: 'documented-provider',
+          policy: 'Main',
+          noResolve: true,
+        },
+        { kind: 'final', policy: 'Main' },
+      ],
+    }),
+    [
+      {
+        name: 'documented-provider',
+        source: {
+          kind: 'url',
+          url: 'https://example.com/documented.yaml',
+          target: 'clash',
+        },
+      },
+    ],
+  );
+  const clash = parseYaml(result.body);
+
+  assert.ok(clash.rules.includes(
+    'PROCESS-PATH,/Applications/TestFlight.app/Contents/MacOS/TestFlight,Main',
+  ));
+  assert.ok(clash.rules.includes(
+    String.raw`PROCESS-PATH,C:\Program Files\Example\example.exe,Main`,
+  ));
+  assert.ok(clash.rules.includes('PROCESS-NAME,nc,Main'));
+  assert.ok(clash.rules.includes('RULE-SET,Documented,Main,no-resolve'));
+  assert.equal(
+    result.warnings.some(warning =>
+      warning.message.includes('RULE-SET rules do not support')
+    ),
+    false,
+  );
+});
+
+test('converts documented Clash rules from a cached Surge rule-list fallback', async () => {
+  const result = await preview(
+    'clash',
+    projectFor('clash', {
+      name: 'clash-surge-list-projection',
+      groups: [
+        {
+          name: 'Main',
+          type: 'select',
+          members: [{ kind: 'builtin', value: 'DIRECT' }],
+        },
+      ],
+      rules: [
+        { kind: 'remote', ruleSet: 'custom-surge-list', policy: 'Main' },
+        { kind: 'final', policy: 'Main' },
+      ],
+    }),
+    [
+      {
+        name: 'custom-surge-list',
+        source: {
+          kind: 'url',
+          url: 'https://example.com/custom.list',
+          target: 'surge',
+        },
+      },
+    ],
+    {
+      networkGet: async () => ({
+        statusCode: 200,
+        body: [
+          'SRC-IP-CIDR,192.168.1.0/24',
+          'DST-PORT,443',
+          'SRC-PORT,12345',
+          'PROCESS-NAME,/bin/sh',
+        ].join('\n'),
+      }),
+    },
+  );
+  const clash = parseYaml(result.body);
+
+  assert.ok(clash.rules.includes('SRC-IP-CIDR,192.168.1.0/24,Main'));
+  assert.ok(clash.rules.includes('DST-PORT,443,Main'));
+  assert.ok(clash.rules.includes('SRC-PORT,12345,Main'));
+  assert.ok(clash.rules.includes('PROCESS-PATH,/bin/sh,Main'));
+});
+
+test('round-trips documented Clash PROCESS-PATH rules through the shared project', async () => {
+  const imported = await importConfig(
+    'clash',
+    [
+      'mode: rule',
+      'proxy-groups:',
+      '  - name: Main',
+      '    type: select',
+      '    proxies:',
+      '      - DIRECT',
+      'rules:',
+      '  - PROCESS-PATH,/Applications/TestFlight.app/Contents/MacOS/TestFlight,Main',
+      '  - MATCH,Main',
+    ].join('\n'),
+  );
+  imported.project.name = 'clash-process-path-round-trip';
+
+  assert.deepEqual(imported.project.rules[0], {
+    kind: 'inline',
+    type: 'PROCESS-NAME',
+    value: '/Applications/TestFlight.app/Contents/MacOS/TestFlight',
+    policy: 'Main',
+  });
+
+  const generated = parseYaml((await preview(
+    'clash',
+    imported.project,
+    imported.ruleSets,
+  )).body);
+  assert.ok(generated.rules.includes(
+    'PROCESS-PATH,/Applications/TestFlight.app/Contents/MacOS/TestFlight,Main',
+  ));
+});
+
+test('flattens provider-only included groups while combining direct and inherited Clash sources', async () => {
+  const result = await preview('clash', projectFor('clash', {
+    name: 'clash-provider-group-flattening',
+    remoteProxySources: [
+      {
+        name: 'Inherited Nodes',
+        source: {
+          kind: 'url',
+          url: 'https://example.com/inherited.yaml',
+          mode: 'passthrough',
+          target: 'clash',
+        },
+      },
+      {
+        name: 'Direct Nodes',
+        source: {
+          kind: 'url',
+          url: 'https://example.com/direct.yaml',
+          mode: 'passthrough',
+          target: 'clash',
+        },
+      },
+    ],
+    groups: [
+      {
+        name: 'Nodes',
+        type: 'select',
+        members: [],
+        remoteProxySource: 'Inherited Nodes',
+      },
+      {
+        name: 'Japan',
+        type: 'fallback',
+        members: [],
+        includeOtherGroups: ['Nodes'],
+        nodeNameRegex: 'JP|Japan|日本',
+      },
+      {
+        name: 'Mixed',
+        type: 'select',
+        members: [],
+        includeOtherGroups: ['Nodes'],
+        remoteProxySource: 'Direct Nodes',
+        nodeNameRegex: 'JP|Japan|日本',
+      },
+      {
+        name: 'Other',
+        type: 'fallback',
+        members: [],
+        includeOtherGroups: ['Nodes'],
+        nodeNameRegex: '^((?!JP|Japan|日本).)*$',
+      },
+    ],
+    rules: [{ kind: 'final', policy: 'Mixed' }],
+  }));
+  const clash = parseYaml(result.body);
+  const group = name => clash['proxy-groups'].find(item => item.name === name);
+
+  assert.equal(group('Japan').proxies?.includes('Nodes') || false, false);
+  assert.equal(group('Japan').use.length, 1);
+  assert.equal(group('Mixed').proxies?.includes('Nodes') || false, false);
+  assert.equal(group('Mixed').use.length, 2);
+  group('Japan').use.forEach(providerName => {
+    assert.equal(
+      clash['proxy-providers'][providerName].filter,
+      'JP|Japan|日本',
+    );
+  });
+  assert.equal(group('Other').use.length, 1);
+  group('Other').use.forEach(providerName => {
+    assert.equal(clash['proxy-providers'][providerName].filter, undefined);
+  });
+  assert.ok(result.warnings.some(warning =>
+    warning.path === 'groups.Other.nodeNameRegex'
+      && warning.message.includes('Go regular expression')
+  ));
 });

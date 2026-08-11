@@ -575,6 +575,26 @@ function importRules(config, providers, groups, warnings) {
                 },
             ];
         }
+        if (type === 'PROCESS-PATH' && values[0] && values[1]) {
+            const policy = importedPolicy(
+                values[1],
+                groupNames,
+                `rules[${index}]`,
+                warnings,
+            );
+            if (!policy) return [];
+            return [
+                {
+                    kind: 'inline',
+                    // The shared model keeps legacy process rules under one
+                    // type. Clash generation projects path-shaped values back
+                    // to PROCESS-PATH without changing stored projects.
+                    type: 'PROCESS-NAME',
+                    value: values[0],
+                    policy,
+                },
+            ];
+        }
         if (PORTABLE_RULE_TYPES.has(type) && values[0] && values[1]) {
             const policy = importedPolicy(
                 values[1],

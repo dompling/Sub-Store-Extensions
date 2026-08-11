@@ -34,9 +34,21 @@ const CLASH_RULE_TYPES = new Set([
     'IP-CIDR',
     'IP-CIDR6',
     'GEOIP',
+    'SRC-IP-CIDR',
+    'SRC-PORT',
+    'DST-PORT',
     'PROCESS-NAME',
+    'PROCESS-PATH',
+    'IPSET',
+    'SCRIPT',
 ]);
-const NO_RESOLVE_RULE_TYPES = new Set(['IP-CIDR', 'IP-CIDR6', 'GEOIP']);
+const NO_RESOLVE_RULE_TYPES = new Set([
+    'IP-CIDR',
+    'IP-CIDR6',
+    'GEOIP',
+    'IPSET',
+    'SCRIPT',
+]);
 const CLASSIC_PROXY_TYPES = new Set([
     'ss',
     'ssr',
@@ -110,6 +122,12 @@ function compileRegex(value, path, warnings) {
         });
         return null;
     }
+}
+
+function clashProcessRuleType(type, value) {
+    if (type !== 'PROCESS-NAME') return type;
+    const process = `${value || ''}`.trim();
+    return /[\\/]/.test(process) ? 'PROCESS-PATH' : 'PROCESS-NAME';
 }
 
 function dedupe(values) {
@@ -449,17 +467,18 @@ function parseSurgeRuleList(content, path, warnings) {
             return;
         }
 
-        const type = `${values[0] || ''}`.trim().toUpperCase();
+        const sourceType = `${values[0] || ''}`.trim().toUpperCase();
         const value = `${values[1] || ''}`.trim();
-        if (!CLASH_RULE_TYPES.has(type) || !value) {
+        if (!CLASH_RULE_TYPES.has(sourceType) || !value) {
             warnings.push({
                 path: `${path}.lines[${lineIndex}]`,
                 message: `Classic Clash cannot represent the Surge rule-list entry ${
-                    type || '(empty)'
+                    sourceType || '(empty)'
                 }; it was omitted from the inline fallback.`,
             });
             return;
         }
+        const type = clashProcessRuleType(sourceType, value);
 
         const requestedNoResolve = values
             .slice(2)
@@ -509,16 +528,17 @@ async function generateRules(project, ruleSets, warnings, downloadRuleSet) {
                 });
                 continue;
             }
+            const type = clashProcessRuleType(rule.type, rule.value);
             const noResolve = Boolean(
-                rule.noResolve && NO_RESOLVE_RULE_TYPES.has(rule.type),
+                rule.noResolve && NO_RESOLVE_RULE_TYPES.has(type),
             );
             if (rule.noResolve && !noResolve) {
                 warnings.push({
                     path: `rules[${index}].noResolve`,
-                    message: `Clash no-resolve is not valid for ${rule.type}; it was omitted.`,
+                    message: `Clash no-resolve is not valid for ${type}; it was omitted.`,
                 });
             }
-            rules.push(ruleLine(rule.type, rule.value, rule.policy, noResolve));
+            rules.push(ruleLine(type, rule.value, rule.policy, noResolve));
             continue;
         }
         if (rule.kind !== 'remote') continue;
@@ -546,12 +566,16 @@ async function generateRules(project, ruleSets, warnings, downloadRuleSet) {
         if (resolution.kind === 'inline-rules') {
             resolution.rules.forEach((item) => {
                 if (!CLASH_RULE_TYPES.has(item.type)) return;
+                const type = clashProcessRuleType(item.type, item.value);
                 rules.push(
                     ruleLine(
-                        item.type,
+                        type,
                         item.value,
                         rule.policy,
-                        Boolean(item.noResolve),
+                        Boolean(
+                            item.noResolve &&
+                                NO_RESOLVE_RULE_TYPES.has(type),
+                        ),
                     ),
                 );
             });
@@ -649,14 +673,14 @@ async function generateRules(project, ruleSets, warnings, downloadRuleSet) {
             };
             providersByRuleSet.set(ruleSet.name, providerName);
         }
-        if (rule.noResolve) {
-            warnings.push({
-                path: `rules[${index}].noResolve`,
-                message:
-                    'Clash RULE-SET rules do not support the shared no-resolve option; it was omitted.',
-            });
-        }
-        rules.push(`RULE-SET,${providerName},${rule.policy}`);
+        rules.push(
+            [
+                'RULE-SET',
+                providerName,
+                rule.policy,
+                ...(rule.noResolve ? ['no-resolve'] : []),
+            ].join(','),
+        );
     }
 
     return { ruleProviders, rules };
