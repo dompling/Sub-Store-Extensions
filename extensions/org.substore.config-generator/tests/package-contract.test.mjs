@@ -52,13 +52,13 @@ const collectBackendGraph = async entrypoint => {
 test('keeps source, package, and repository versions on one extension identity', async () => {
   const workspacePackage = await readJson(path.join(extension.workspaceDirectory, 'package.json'));
   const sourceManifest = await readJson(extension.manifestPath);
-  const signedManifest = await readJson(path.join(extension.packageDirectory, 'manifest.json'));
+  const packagedManifest = await readJson(path.join(extension.packageDirectory, 'manifest.json'));
   const repository = await readJson(path.join(repoRoot, 'repository/catalog.json'));
   const entry = repository.entries.find(value => value.id === extensionId);
 
   assert.equal(workspacePackage.version, sourceManifest.version);
   assert.equal(sourceManifest.id, extensionId);
-  assert.equal(canonicalJson(sourceManifest), canonicalJson(signedManifest));
+  assert.equal(canonicalJson(sourceManifest), canonicalJson(packagedManifest));
   assert.equal(entry.version, sourceManifest.version);
   assert.equal(canonicalJson(entry.manifest), canonicalJson(sourceManifest));
   assert.equal(sourceManifest.entrypoints.backend.path, 'backend/index.cjs');
@@ -69,9 +69,13 @@ test('keeps source, package, and repository versions on one extension identity',
 test('declares a Node-only remote execution contract', async () => {
   const manifest = await readJson(extension.manifestPath);
 
+  assert.equal(manifest.kind, 'executable');
+  assert.equal(manifest.distribution, 'source-executable');
+  assert.equal(extension.config.signature.algorithm, 'sha256-digest');
+  assert.equal(extension.config.repository.distribution, 'source-executable');
+  assert.equal('trust' in manifest, false);
   assert.deepEqual(manifest.host.runtimes, ['node']);
   assert.deepEqual(Object.keys(manifest.variants), ['node']);
-  assert.equal(manifest.variants.node.delivery, 'trusted-package');
   assert.equal(manifest.variants.node.containsExecutableCode, true);
   assert.equal('embeddedBasePath' in manifest.frontend, false);
   assert.equal('scriptExecutionLanes' in manifest, false);
@@ -138,7 +142,7 @@ test('builds the Node entrypoint without unresolved Host-private imports', async
   assert.equal(bundle.includes('../registry'), false);
 });
 
-test('reproduces every signed executable asset byte-for-byte', async () => {
+test('reproduces every packaged executable asset byte-for-byte', async () => {
   const verified = await verifyPackageDirectory(extension.packageDirectory, extension);
   for (const relative of [
     'backend/index.cjs',
@@ -150,7 +154,7 @@ test('reproduces every signed executable asset byte-for-byte', async () => {
   }
 });
 
-test('rejects undeclared files in an otherwise signed directory', async () => {
+test('rejects undeclared files in an otherwise valid package directory', async () => {
   const temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'substore-extension-test-'));
   const copiedPackage = path.join(temporaryRoot, extensionId);
   try {

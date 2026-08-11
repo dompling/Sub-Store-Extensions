@@ -1,0 +1,157 @@
+name: Publish extension
+
+run-name: Publish ${{ inputs.extension_id }} from ${{ inputs.base_branch }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      extension_id:
+        description: Extension ID beneath extensions/
+        required: true
+        default: org.substore.config-generator
+        type: string
+      base_branch:
+        description: Branch containing the reviewed release source
+        required: true
+        default: main
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: publish-extension-${{ inputs.extension_id }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Verify package and open release PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.base_branch }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install locked dependencies
+        run: corepack pnpm install --frozen-lockfile
+
+      - name: Prepare release metadata
+        id: metadata
+        shell: bash
+        run: |
+          release_time="$(git show -s --format=%cI HEAD)"
+          corepack pnpm release:prepare -- \
+            --extension "${{ inputs.extension_id }}" \
+            --installed-at "$release_time" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Type-check extension
+        run: >-
+          corepack pnpm typecheck --
+          --extension "${{ steps.metadata.outputs.extension_id }}"
+
+      - name: Build extension
+        run: >-
+          corepack pnpm build --
+          --extension "${{ steps.metadata.outputs.extension_id }}"
+
+      - name: Test built extension
+        run: >-
+          corepack pnpm test:built --
+          --extension "${{ steps.metadata.outputs.extension_id }}"
+
+      - name: Assemble SHA-256 package
+        run: >-
+          corepack pnpm package:assemble --
+          --extension "${{ steps.metadata.outputs.extension_id }}"
+
+      - name: Publish and verify collection catalog
+        run: |
+          corepack pnpm repository
+          corepack pnpm verify
+          git diff --check
+
+      - name: Upload release candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.metadata.outputs.branch_slug }}-v${{ steps.metadata.outputs.version }}
+          path: |
+            packages/${{ steps.metadata.outputs.extension_id }}
+            repository/catalog.json
+            repository/packages/${{ steps.metadata.outputs.extension_id }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Commit release candidate
+        id: commit
+        shell: bash
+        env:
+          EXTENSION_ID: ${{ steps.metadata.outputs.extension_id }}
+          EXTENSION_VERSION: ${{ steps.metadata.outputs.version }}
+          BRANCH_SLUG: ${{ steps.metadata.outputs.branch_slug }}
+          REPOSITORY_SEQUENCE: ${{ steps.metadata.outputs.repository_sequence }}
+        run: |
+          if git diff --quiet; then
+            echo "Release produced no tracked changes." >&2
+            exit 1
+          fi
+          release_branch="automation/publish-${BRANCH_SLUG}-v${EXTENSION_VERSION}-${GITHUB_RUN_ID}"
+          git switch -c "$release_branch"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+          commit_message="$RUNNER_TEMP/extension-release-commit.txt"
+          printf '%s\n' \
+            "Make ${EXTENSION_ID}@${EXTENSION_VERSION} installable from the collection source" \
+            "" \
+            "Generate the SHA-256 package and collection catalog for ${EXTENSION_ID}@${EXTENSION_VERSION}." \
+            "" \
+            "Constraint: Adding a source and installing its extension are explicit user trust decisions" \
+            "Confidence: high" \
+            "Scope-risk: moderate" \
+            "Directive: Do not edit generated package or repository files by hand" \
+            "Tested: Extension typecheck, build, tests, package assembly, catalog verification, and diff validation" \
+            "Not-tested: Installation from GitHub Raw before this PR is merged" \
+            > "$commit_message"
+          git commit --file "$commit_message"
+          git push --set-upstream origin "$release_branch"
+          echo "branch=$release_branch" >> "$GITHUB_OUTPUT"
+
+      - name: Open release pull request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXTENSION_ID: ${{ steps.metadata.outputs.extension_id }}
+          EXTENSION_VERSION: ${{ steps.metadata.outputs.version }}
+          REPOSITORY_SEQUENCE: ${{ steps.metadata.outputs.repository_sequence }}
+          RELEASE_BRANCH: ${{ steps.commit.outputs.branch }}
+          BASE_BRANCH: ${{ inputs.base_branch }}
+        run: |
+          pr_body="$RUNNER_TEMP/extension-release-pr.md"
+          printf '%s\n' \
+            "Publishes the verified **${EXTENSION_ID} v${EXTENSION_VERSION}** package in collection sequence **${REPOSITORY_SEQUENCE}**." \
+            "" \
+            "The workflow completed type checking, build, tests, SHA-256 package verification, and catalog verification. Merge this PR to publish through the configured GitHub Raw collection URL." \
+            > "$pr_body"
+          pr_url="$(gh pr create \
+            --base "$BASE_BRANCH" \
+            --head "$RELEASE_BRANCH" \
+            --title "release: ${EXTENSION_ID} v${EXTENSION_VERSION}" \
+            --body-file "$pr_body")"
+          echo "### Release candidate ready" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Extension: \`${EXTENSION_ID}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version: \`${EXTENSION_VERSION}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Collection sequence: \`${REPOSITORY_SEQUENCE}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Pull request: ${pr_url}" >> "$GITHUB_STEP_SUMMARY"

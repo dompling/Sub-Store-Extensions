@@ -3,8 +3,8 @@
   "id": "org.substore.extensions",
   "name": "Sub-Store Extensions",
   "description": "Sub-Store 扩展集合订阅源",
-  "sequence": 1,
-  "generatedAt": "2026-08-10T00:00:00.000Z",
+  "sequence": 2,
+  "generatedAt": "2026-08-11T07:09:03.000Z",
   "publisher": {
     "id": "org.substore",
     "name": "Sub-Store"
@@ -12,40 +12,28 @@
   "entries": [
     {
       "id": "org.substore.config-generator",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "manifest": {
         "schemaVersion": 1,
         "id": "org.substore.config-generator",
-        "kind": "trusted-official",
-        "distribution": "store",
+        "kind": "executable",
+        "distribution": "source-executable",
         "name": "配置生成器",
         "description": "生成 Surge、Quantumult X、Clash 和 Loon 配置",
-        "version": "1.1.0",
+        "version": "1.2.0",
         "publisher": {
           "id": "org.substore",
-          "name": "Sub-Store",
-          "verified": true
+          "name": "Sub-Store"
         },
         "license": "GPL-3.0",
-        "homepage": "https://github.com/sub-store-org/Sub-Store",
-        "trust": {
-          "level": "official-root",
-          "allowedPublisher": "org.substore",
-          "allowlistedId": true
-        },
+        "homepage": "https://github.com/dompling/Sub-Store-Extensions",
         "host": {
           "apiVersion": "1.0.0",
           "frontendApiVersion": "1.0.0",
           "backend": ">=2.36.31",
           "implementationAbi": "config-generator@1",
           "runtimes": [
-            "node",
-            "qx",
-            "loon",
-            "surge",
-            "stash",
-            "shadowrocket",
-            "egern"
+            "node"
           ]
         },
         "frontend": {
@@ -56,61 +44,29 @@
           "implementationAbi": "config-generator-ui@1",
           "routeBase": "/extensions/config-generator",
           "openPath": "/extensions/config-generator",
-          "embeddedBasePath": "extensions/org.substore.config-generator/1.1.0",
           "assets": {
             "entrypoint": {
               "path": "frontend/index.js",
-              "digest": "4c998eff193e05588e5600510a5080fe07cad24f0b87bb87f6ea83d1c87f685c"
+              "digest": "64a8ba8fbf10a7588f2ca50a56c41177f09cbebc9014909f4102286dc2e04707"
             },
             "style": {
               "path": "frontend/style.css",
-              "digest": "099ed896b683b1e71ecffb6d427c4071b4a12683f74a7be4477c91415d4ead32"
+              "digest": "5b66c7e43d70df56147a7d8eb88bc0dbcdb673e556beb308b6771b6ee4841caf"
             }
           }
         },
         "entrypoints": {
           "backend": {
-            "mode": "trusted-package",
             "path": "backend/index.cjs"
           }
         },
         "variants": {
           "node": {
-            "delivery": "trusted-package",
-            "packageKind": "local-official-receipt",
             "implementationId": "org.substore.config-generator@1/node",
             "implementationAbi": "config-generator@1",
             "frontendAssetId": "org.substore.config-generator-ui@1",
             "entrypoint": "backend/index.cjs",
             "containsExecutableCode": true
-          },
-          "qx": {
-            "delivery": "embedded-receipt",
-            "implementationId": "org.substore.config-generator@1/qx",
-            "implementationAbi": "config-generator@1",
-            "frontendAssetId": "org.substore.config-generator-ui@1",
-            "containsExecutableCode": false
-          },
-          "loon": {
-            "delivery": "embedded-receipt",
-            "implementationId": "org.substore.config-generator@1/loon",
-            "implementationAbi": "config-generator@1",
-            "frontendAssetId": "org.substore.config-generator-ui@1",
-            "containsExecutableCode": false
-          },
-          "surge": {
-            "delivery": "embedded-receipt",
-            "implementationId": "org.substore.config-generator@1/surge",
-            "implementationAbi": "config-generator@1",
-            "frontendAssetId": "org.substore.config-generator-ui@1",
-            "containsExecutableCode": false
-          },
-          "default-script-runtime": {
-            "delivery": "embedded-receipt",
-            "implementationId": "org.substore.config-generator@1/script",
-            "implementationAbi": "config-generator@1",
-            "frontendAssetId": "org.substore.config-generator-ui@1",
-            "containsExecutableCode": false
           }
         },
         "permissions": [
@@ -190,28 +146,6 @@
             "org.substore.config-generator.import"
           ]
         },
-        "scriptExecutionLanes": {
-          "simple": {
-            "product": "sub-store-0",
-            "implementationId": "org.substore.config-generator@1/simple",
-            "routes": [
-              "projects",
-              "projects/:name",
-              "project/:name",
-              "rule-sets",
-              "rule-set/:name"
-            ]
-          },
-          "parser": {
-            "product": "sub-store-1",
-            "implementationId": "org.substore.config-generator@1/parser",
-            "routes": [
-              "preview/:target",
-              "import/:target",
-              "download/config-project/**"
-            ]
-          }
-        },
         "storage": {
           "schemaVersion": 1,
           "legacyKeys": [
@@ -227,14 +161,14 @@
           ]
         }
       },
-      "distribution": "trusted-official-mirror",
-      "packageUrl": "./packages/org.substore.config-generator/1.1.0/node.json",
+      "distribution": "source-executable",
+      "packageUrl": "./packages/org.substore.config-generator/1.2.0/node.json",
       "packageUrls": {
-        "node": "./packages/org.substore.config-generator/1.1.0/node.json"
+        "node": "./packages/org.substore.config-generator/1.2.0/node.json"
       },
-      "packageDigest": "c9dced66d67dc80e22587e719a71fe140c9036e71cfacee0c5c4735b962d7ba0",
+      "packageDigest": "5dfe4491e5116e6971354de200e11d46a2247d2309d5149ad7ee1ce3df2a5970",
       "packageDigests": {
-        "node": "c9dced66d67dc80e22587e719a71fe140c9036e71cfacee0c5c4735b962d7ba0"
+        "node": "5dfe4491e5116e6971354de200e11d46a2247d2309d5149ad7ee1ce3df2a5970"
       },
       "source": "org.substore.extensions",
       "sourceName": "Sub-Store Extensions",

@@ -1,34 +1,26 @@
 # 配置生成器扩展
 
-插件 ID：
-
 ```text
 org.substore.config-generator
 ```
 
-这是 `Sub-Store-Extensions` 集合仓库中的一个独立 trusted-official executable 插件。它不是仓库本身；仓库以后可以继续增加其他 `extensions/<id>` workspace，并通过同一个 `repository/catalog.json` 发布。
+这是 `Sub-Store-Extensions` 集合中的独立 Node executable 扩展，支持生成和导入 Surge、Quantumult X、Clash 与 Loon 配置。它不属于 Host 内置功能；没有添加包含它的集合源时，不应被发现或按 ID 安装。
 
 ## 目录
 
 ```text
-backend/                 Surge/QX/Clash/Loon 生成、导入与 Host adapter
-frontend/                Vue 页面、组件、图标和 frontend SDK 类型门面
-tests/                   插件级行为与 package 契约测试
-release/                 只包含公开验证密钥
-extension.config.json    构建、package、签名和 catalog 配置
+backend/                 生成器、导入器、校验和 Host adapter
+frontend/                Vue 页面、组件、图标、locale 和 SDK 类型
+tests/                   插件行为与 package 契约
+extension.config.json    构建、SHA-256 package 和 catalog 配置
 package.json             workspace 身份与版本
 ```
 
-已签名安装包位于仓库根：
+生成物：
 
 ```text
-packages/org.substore.config-generator
-```
-
-集合 envelope 位于：
-
-```text
-repository/packages/org.substore.config-generator/1.1.0/node.json
+packages/org.substore.config-generator/
+repository/packages/org.substore.config-generator/<version>/node.json
 ```
 
 ## 开发
@@ -37,33 +29,31 @@ repository/packages/org.substore.config-generator/1.1.0/node.json
 
 ```bash
 corepack pnpm typecheck -- --extension org.substore.config-generator
-corepack pnpm build -- --extension org.substore.config-generator
 corepack pnpm test -- --extension org.substore.config-generator
 corepack pnpm package -- --extension org.substore.config-generator
+corepack pnpm repository
+corepack pnpm verify
 ```
 
-最后仍需运行全仓门禁：
+## Package 边界
 
-```bash
-corepack pnpm check
-```
+- manifest `kind: executable`，runtime 只有 Node；
+- backend entrypoint、frontend JS/CSS 都在文件摘要闭包；
+- receipt 绑定 implementation ID、ABI、entrypoint 和 package digest；
+- `sha256-digest` 检测内容漂移，不认证发布者；
+- 添加集合源并点击安装，是用户对该来源代码的显式信任；
+- executable 运行在 Host 主上下文中，不是沙箱；
+- install hook 禁止。
 
-## 信任边界
+frontend asset digest 会在 package 生成时从实际 build artifacts 更新，不要手工编辑。
 
-配置生成器 Node 包包含可执行后端和原生前端资源，因此必须同时通过 Host allowlist、官方 manifest/package digest 授权、Ed25519 签名、receipt、文件摘要和 ABI 校验。
+## Runtime 与兼容性
 
-当前公钥：
+- Node Host 从已安装 package 加载 backend/frontend；
+- 输出 target 和运行 runtime 独立，Node 插件仍能生成四种客户端配置；
+- 脚本 Host 不内嵌或远程执行本插件的 Node bundle；
+- Host API、frontend API、backend version 或 ABI 不匹配时必须拒绝启用。
 
-```text
-release/config-generator-public-key.pem
-```
+Clash/Loon 对目标不支持的策略组会选择近似类型并给出 warning；无可用成员时回退 `DIRECT`；不能映射的远程 RULE-SET 会 warning 后过滤；真实策略组循环仍会阻断预览。
 
-仓库不包含正式私钥。不要用 content 插件的 `sha256-digest` 替代配置生成器的官方签名，也不要把这把插件密钥扩展成其他插件的通用授权。
-
-## Runtime
-
-- 插件只在 Node Host 中从已安装、已验证的远程 package 加载 backend/frontend bundle；
-- 插件运行时与输出格式彼此独立：Node 插件仍可生成 Surge、Quantumult X、Clash 和 Loon 配置；
-- 脚本 Host 不再内嵌或同步配置生成器实现，未安装集合源时不会由本仓库之外的 Host 代码暴露该插件。
-
-完整开发、安装和发布流程见仓库根 [README](../../README.md) 与 [发布指南](../../docs/RELEASING.md)。
+完整流程见仓库根 [README](../../README.md) 和 [发布指南](../../docs/RELEASING.md)。

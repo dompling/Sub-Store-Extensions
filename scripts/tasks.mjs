@@ -4,7 +4,10 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { build as esbuildBuild } from 'esbuild';
 import { build as viteBuild } from 'vite';
-import { writeDigestContentPackage } from './content-package.mjs';
+import {
+  updateFrontendAssetDigests,
+  writeDigestPackage,
+} from './content-package.mjs';
 import {
   assert,
   buildRoot,
@@ -114,6 +117,7 @@ export const buildBackendExtensions = async extensions => {
 
 export const buildExtensions = async extensions => {
   await buildFrontendExtensions(extensions);
+  for (const extension of extensions) await updateFrontendAssetDigests(extension);
   await buildBackendExtensions(extensions);
 };
 
@@ -147,16 +151,8 @@ export const testExtensions = async extensions => {
 export const assembleExtensions = async extensions => {
   for (const extension of extensions) {
     heading('package', extension);
-    if (extension.config.signature?.algorithm === 'sha256-digest') {
-      await writeDigestContentPackage(extension);
-    }
+    await writeDigestPackage(extension);
     await copyDirectory(extension.packageDirectory, extension.distPackageDirectory);
-    for (const artifact of extension.artifacts) {
-      const source = path.join(extension.buildDirectory, artifact.build);
-      const destination = path.join(extension.distPackageDirectory, artifact.package);
-      await fs.mkdir(path.dirname(destination), { recursive: true });
-      await fs.copyFile(source, destination);
-    }
     const verified = await verifyPackageDirectory(extension.distPackageDirectory, extension);
     process.stdout.write(`Assembled ${extension.id}@${verified.manifest.version} ${verified.packageDigest}\n`);
   }
@@ -256,7 +252,7 @@ export const publishRepository = async () => {
 const verifyBuildAndDist = async (extension, source) => {
   assert(
     canonicalJson(extension.manifest) === canonicalJson(source.manifest),
-    `${extension.id} source manifest differs from its signed package`,
+    `${extension.id} source manifest differs from its package`,
   );
   const workspacePackagePath = path.join(extension.workspaceDirectory, 'package.json');
   if (await pathExists(workspacePackagePath)) {
@@ -272,7 +268,7 @@ const verifyBuildAndDist = async (extension, source) => {
       const digest = sha256Hex(await fs.readFile(builtPath, 'utf8'));
       assert(
         digest === source.fileDigests[artifact.package],
-        `${extension.id} build output differs from the signed release: ${artifact.build}`,
+        `${extension.id} build output differs from the packaged release: ${artifact.build}`,
       );
     }
   }

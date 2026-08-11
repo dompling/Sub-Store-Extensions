@@ -1,4 +1,4 @@
-import { createHash, verify as verifySignature } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -119,9 +119,6 @@ export const loadExtension = async extensionId => {
   );
   const buildDirectory = path.join(buildRoot, extensionId);
   const distPackageDirectory = path.join(distPackagesDirectory, extensionId);
-  const publicKeyPath = config.signature?.publicKey
-    ? resolveInside(workspaceDirectory, config.signature.publicKey, `${extensionId} public key`)
-    : null;
   const backend = config.backend
     ? {
         sourceRoot: resolveInside(workspaceDirectory, config.backend.sourceRoot, `${extensionId} backend sourceRoot`),
@@ -169,7 +166,6 @@ export const loadExtension = async extensionId => {
     manifest,
     buildDirectory,
     distPackageDirectory,
-    publicKeyPath,
     backend,
     frontend,
     testsDirectory: path.join(workspaceDirectory, 'tests'),
@@ -311,26 +307,11 @@ export const verifyPackageDirectory = async (packageDirectory, extension) => {
   const payloadDigest = sha256Hex(canonicalJson(payload));
   const signature = value.metadata.signature;
   const expectedAlgorithm = selectedExtension.config.signature?.algorithm;
-  assert(payloadDigest === value.metadata.payloadDigest, 'Signed payload digest is stale');
-  assert(signature?.digest === payloadDigest, 'Signature digest is stale');
-  assert(signature?.algorithm === expectedAlgorithm, 'Unexpected package signature algorithm');
-  if (expectedAlgorithm === 'ed25519') {
-    assert(selectedExtension.publicKeyPath, `Missing public key for ${selectedExtension.id}`);
-    const publicKey = await fs.readFile(selectedExtension.publicKeyPath, 'utf8');
-    assert(
-      verifySignature(
-        null,
-        Buffer.from(canonicalJson(payload)),
-        publicKey,
-        Buffer.from(signature.value, 'base64'),
-      ),
-      'Ed25519 package signature is invalid',
-    );
-  } else if (expectedAlgorithm === 'sha256-digest') {
-    assert(signature.value === payloadDigest, 'Digest-only package signature is stale');
-  } else {
-    throw new Error(`Unsupported signature algorithm: ${expectedAlgorithm}`);
-  }
+  assert(payloadDigest === value.metadata.payloadDigest, 'Package payload digest is stale');
+  assert(signature?.digest === payloadDigest, 'Package integrity digest is stale');
+  assert(signature?.algorithm === expectedAlgorithm, 'Unexpected package integrity algorithm');
+  assert(expectedAlgorithm === 'sha256-digest', `Unsupported integrity algorithm: ${expectedAlgorithm}`);
+  assert(signature.value === payloadDigest, 'Package integrity value is stale');
 
   return {
     ...value,

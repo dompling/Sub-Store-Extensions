@@ -1,46 +1,35 @@
-# 集合订阅源、作者与 GitHub 托管
+# 集合订阅源与 GitHub 托管
 
-## 1. 一个仓库只有一个正常订阅入口
+## 1. 一个仓库，一个集合入口
 
-本仓库采用 collection catalog：
+本仓库发布一个聚合 catalog：
 
 ```text
 repository/catalog.json
 ```
 
-用户不需要分别订阅：
+它可以包含多个插件。用户添加一次来源，商店即可发现该 catalog 当前列出的插件；插件仍各自拥有 ID、版本、作者和 package。
+
+当前滚动地址：
 
 ```text
-extensions/plugin-a/catalog.json
-extensions/plugin-b/catalog.json
+https://raw.githubusercontent.com/dompling/Sub-Store-Extensions/main/repository/catalog.json
 ```
 
-正确模型是：
+正式部署建议使用 tag 或 commit URL，避免同一 URL 的内容无提示变化。
 
-```text
-一个 Git 仓库
-→ 一个 repository/catalog.json
-→ 多个 catalog entries
-→ 每个 entry 指向自己的 package envelope
-```
-
-这让用户只管理一次来源，同时保证插件包、作者、版本和签名彼此独立。
-
-## 2. 静态目录
+## 2. 目录结构
 
 ```text
 repository/
 ├── catalog.json
 └── packages/
-    ├── org.substore.config-generator/
-    │   └── 1.1.0/
-    │       └── node.json
-    └── com.example.my-extension/
-        └── 1.0.0/
-            └── node.json
+    └── <extension-id>/<version>/<variant>.json
 ```
 
-生成：
+catalog 负责发现，variant envelope 负责交付完整 package payload。
+
+## 3. 生成
 
 ```bash
 corepack pnpm package
@@ -48,60 +37,36 @@ corepack pnpm repository
 corepack pnpm verify
 ```
 
-`repository` 会扫描全部插件 workspace，不接受“只发布当前插件”的局部 catalog。它会删除旧的 `repository/packages/` 后重新写入当前集合，避免已经删除插件的 envelope 残留。
+`repository` 会：
 
-## 3. 顶层 catalog
+- 扫描全部 `extensions/*/extension.config.json`；
+- 验证每个 `packages/<id>`；
+- 按 ID 稳定排序；
+- 重建全部 envelope；
+- 删除 stale envelope；
+- 生成一个全集合 catalog。
 
-示意：
-
-```json
-{
-  "schemaVersion": 1,
-  "id": "org.substore.extensions",
-  "name": "Sub-Store Extensions",
-  "description": "Sub-Store 扩展集合订阅源",
-  "sequence": 1,
-  "generatedAt": "2026-08-10T00:00:00.000Z",
-  "publisher": {
-    "id": "org.substore",
-    "name": "Sub-Store"
-  },
-  "entries": []
-}
-```
-
-字段含义：
-
-- `id`：来源稳定 ID；
-- `name`：扩展页面显示的集合源名称；
-- `description`：集合说明；
-- `sequence`：发布方显式递增的集合序号；
-- `generatedAt`：集合内最新 package 稳定时间；
-- `publisher`：仓库维护者；
-- `entries`：该仓库全部可发现插件。
-
-当前 `sequence` 和 `generatedAt` 用于解析、展示和审计，但尚不是完整 TUF/防回滚体系。不要把它们描述成已实现的供应链时间证明。
+不能只发布当前插件的局部 catalog，也不要手工编辑生成物。
 
 ## 4. Catalog entry
 
-每个插件 entry 独立：
+示例：
 
 ```json
 {
   "id": "org.substore.config-generator",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "manifest": {},
-  "distribution": "trusted-official-mirror",
-  "packageUrl": "./packages/org.substore.config-generator/1.1.0/node.json",
+  "distribution": "source-executable",
+  "packageUrl": "./packages/org.substore.config-generator/1.2.0/node.json",
   "packageUrls": {
-    "node": "./packages/org.substore.config-generator/1.1.0/node.json"
+    "node": "./packages/org.substore.config-generator/1.2.0/node.json"
   },
-  "packageDigest": "c9dced66...",
+  "packageDigest": "<sha256>",
   "packageDigests": {
-    "node": "c9dced66..."
+    "node": "<sha256>"
   },
   "source": "org.substore.extensions",
-  "sourceName": "Sub-Store Extensions",
   "author": {
     "id": "org.substore",
     "name": "Sub-Store"
@@ -109,116 +74,97 @@ corepack pnpm verify
 }
 ```
 
-`packageUrl` 可以相对 catalog URL。Host 会按最终 catalog URL 解析为绝对地址。
+`distribution` 表示交付类别：
 
-每个 package digest 必须是该 envelope 对应 package projection 的不可变 SHA-256。catalog、envelope 或实际 payload 任意一处不一致都会拒绝安装。
+- `community`：content-only；
+- `source-executable`：由用户已信任的来源交付 Node executable package。
 
-## 5. 作者、发布者与来源
+它不是发布者身份证明。
 
-三个概念必须分开：
+## 5. 来源就是显式信任边界
 
-| 字段 | 表示 |
-| --- | --- |
-| catalog `publisher` | 谁维护这个集合仓库 |
-| manifest `publisher` | 谁发布这个插件身份 |
-| entry `author` | 商店向用户展示的插件作者 |
-| entry `source/sourceName` | 插件从哪个集合源被发现 |
+当前轻量模型下：
 
-Host 不应该根据 GitHub owner、域名、URL 路径或顶层 publisher 自动推断插件作者。第三方仓库可以收录多个不同作者的插件。
+- 添加来源前，Host 不应暴露该来源中的插件；
+- 添加来源后，Host 才缓存 catalog entry；
+- 用户点击安装后，Host 才下载 package；
+- 删除来源后，已安装记录可保留，但该来源不再提供新的发现、安装或更新；
+- SHA-256 只保证 catalog 声明和下载内容一致，不认证作者身份。
 
-来源 publisher 也不等于可执行代码信任：
+因此来源 UI 应清楚展示 URL、来源名称、集合 publisher 和每个 entry 的 author。用户不认识的来源不应添加。
 
-- community content 包依靠 immutable digest 保证完整性；
-- trusted-official mirror 仍依赖 Host 内置官方授权和 Ed25519 签名；
-- 未来第三方 executable publisher 需要 scoped key/certificate，而不是复用 catalog publisher 字段。
-
-## 6. GitHub Raw
-
-正式 URL：
-
-当前仓库滚动地址：
-
-```text
-https://raw.githubusercontent.com/dompling/Sub-Store-Extensions/main/repository/catalog.json
-```
-
-不可变 release 地址：
-
-```text
-https://raw.githubusercontent.com/dompling/Sub-Store-Extensions/<tag-or-commit>/repository/catalog.json
-```
-
-推荐：
-
-- 对外版本使用 immutable tag 或 commit；
-- release 前确认 catalog 与所有相对 package URL 都实际存在；
-- GitHub Actions 只上传公开构建物，私钥来自受保护 secret provider；
-- 不把私钥、管理 token 或 `.env` 提交到仓库；
-- 不只提交 catalog 而漏掉 `repository/packages/`。
-
-分支 URL 适合开发订阅，但可能随 force-push 或后续提交变化，不应被当作不可变 release。
-
-## 7. 本地服务
+## 6. 本地来源
 
 ```bash
 corepack pnpm repository:serve
 ```
 
-默认：
+默认地址：
 
 ```text
 http://127.0.0.1:8765/catalog.json
 ```
 
-然后：
+然后显式添加：
 
 ```bash
 corepack pnpm source:add -- \
   --url http://127.0.0.1:8765/catalog.json \
   --name "Sub-Store Extensions (Local)"
-corepack pnpm extension:install -- \
-  --extension org.substore.config-generator \
-  --reinstall
 ```
 
-HTTP 仅允许 loopback 本地来源。远程来源必须 HTTPS，并且不能从公网重定向进入 loopback/private network。
+HTTP 只用于 loopback 开发。外部来源应使用 HTTPS。
+
+`corepack pnpm host:start` 默认不注入 `packages/` seed；本地 package 不能在未添加来源时自动出现在商店。需要测试 seed 时必须显式设置 `SUB_STORE_EXTENSION_PACKAGE_SEED_PATH`。
+
+## 7. GitHub 发布
+
+GitHub Actions 的 `Publish extension` workflow 会生成 package、全集合 catalog 和 artifact，并创建 release PR。它不需要私钥或 Environment Secret。
+
+发布 PR 应包含：
+
+- 目标插件源码与版本；
+- `packages/<id>`；
+- 完整 `repository/catalog.json`；
+- 完整 `repository/packages/`；
+- 必要测试和文档。
+
+合并后再用真实 GitHub Raw URL 做 source add / refresh / install 回归。
 
 ## 8. Host 校验
 
-### 集合源
+集合阶段：
 
-Host 会检查：
+- schema、entry 数量和大小上限；
+- source/package URL、协议、重定向和网络边界；
+- manifest ID、kind、variant；
+- immutable package digest。
 
-- schema 与 entry 数量上限；
-- source URL、重定向、协议和网络边界；
-- manifest 是否可规范化；
-- ID、kind、variant 与 package URL；
-- immutable package digest；
-- trusted-official mirror 是否得到本机官方 catalog 授权。
-
-### 下载插件
-
-Host 会继续检查：
+下载阶段：
 
 - catalog entry 与 envelope manifest 相同；
-- package digest、payload digest 和 receipt 闭合；
-- 每个文件摘要；
-- executable/install-hook flag；
-- signature algorithm 与 trusted key；
-- runtime、Host API、backend version 和 implementation ABI；
-- community 包确实 content-only。
+- package、payload、receipt 和文件摘要闭合；
+- frontend asset、entrypoint 与 executable flag 一致；
+- 路径安全且没有未声明文件；
+- install hook 禁止；
+- runtime、Host API、backend version 和 ABI 兼容。
 
-添加集合源成功不代表其中每个插件都一定能安装；具体插件仍需通过自己的兼容性和信任门禁。
+添加来源成功不代表所有插件都一定兼容当前 Host。
 
-## 9. 当前限制
+## 9. 常见错误
 
-- catalog 最大约 4 MiB；
-- 最多约 128 个 entry；
-- 最多 3 次重定向；
-- 外部来源只允许 HTTPS；
-- loopback 开发来源可使用 HTTP；
-- URL 禁止 credentials；
-- 原生自动更新、rollback 和 data purge 尚未实现；
-- community executable code 尚未开放。
+### 未添加来源也能看到插件
 
-具体数值由 Host 版本控制；发布文档应以目标 Host 的实际常量为准。
+检查 Host 启动环境是否设置了 `SUB_STORE_EXTENSION_PACKAGE_SEED_PATH`，以及 Host 是否残留 legacy adoption 数据。正常启动默认不得 seed 本仓库 package。
+
+### `EXTENSION_SOURCE_NOT_FOUND`
+
+目标插件不在任何已添加并刷新成功的来源中。先添加/刷新集合源。
+
+### digest mismatch
+
+catalog、envelope 和 package 不属于同一次生成。重新运行 `package`、`repository`、`verify`，并完整发布相关目录。
+
+### catalog 少插件
+
+确认每个 workspace 都有 `extension.config.json`，再重新生成全集合。

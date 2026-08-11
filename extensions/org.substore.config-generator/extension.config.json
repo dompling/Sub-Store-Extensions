@@ -4,8 +4,12 @@
   "manifest": "backend/src/extensions/config-generator/manifest.json",
   "packageDirectory": "packages/org.substore.config-generator",
   "signature": {
-    "algorithm": "ed25519",
-    "publicKey": "release/config-generator-public-key.pem"
+    "algorithm": "sha256-digest"
+  },
+  "package": {
+    "variant": "node",
+    "source": "org.substore.extensions",
+    "createdAt": "2026-08-11T07:09:03.000Z"
   },
   "backend": {
     "sourceRoot": "backend/src",
@@ -35,7 +39,7 @@
     }
   ],
   "repository": {
-    "distribution": "trusted-official-mirror",
+    "distribution": "source-executable",
     "author": {
       "id": "org.substore",
       "name": "Sub-Store"

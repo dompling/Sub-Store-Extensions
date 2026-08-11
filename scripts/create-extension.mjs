@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createDigestContentPackage } from './content-package.mjs';
+import { createDigestPackage } from './content-package.mjs';
 import {
   assert,
   pathExists,
@@ -80,13 +80,12 @@ export const buildContentExtensionScaffold = ({
     },
   };
   const contentText = jsonText(content);
-  const packageValue = createDigestContentPackage({
+  const packageValue = createDigestPackage({
     manifest,
     files: { 'content/extension.json': contentText },
     selectedVariant: 'node',
     source: 'community-repository',
     createdAt: stableCreatedAt,
-    keyId: `community-${id}`,
   });
   const extensionConfig = {
     schemaVersion: 1,
@@ -95,7 +94,6 @@ export const buildContentExtensionScaffold = ({
     packageDirectory: `packages/${id}`,
     signature: {
       algorithm: 'sha256-digest',
-      keyId: `community-${id}`,
     },
     package: {
       variant: 'node',
@@ -120,7 +118,7 @@ export const buildContentExtensionScaffold = ({
     description: description.trim(),
     type: 'module',
   };
-  const readme = `# ${name.trim()}\n\n${description.trim()}\n\n该目录是集合仓库中的一个独立 content 扩展。源码位于 \`content/\`，生成后的完整性包位于根目录 \`packages/${id}/\`。\n\n常用命令：\n\n\`\`\`bash\ncorepack pnpm package -- --extension ${id}\ncorepack pnpm repository\ncorepack pnpm verify\n\`\`\`\n\ncontent 扩展不能执行前端或后端 JavaScript。若需要可执行能力，必须为该扩展单独设计 Host SDK 权限、签名密钥和官方授权。\n`;
+  const readme = `# ${name.trim()}\n\n${description.trim()}\n\n该目录是集合仓库中的一个独立 content 扩展。源码位于 \`content/\`，生成后的完整性包位于根目录 \`packages/${id}/\`。\n\n常用命令：\n\n\`\`\`bash\ncorepack pnpm package -- --extension ${id}\ncorepack pnpm repository\ncorepack pnpm verify\n\`\`\`\n\ncontent 扩展不能执行前端或后端 JavaScript。用户添加集合源并点击安装是显式信任动作；SHA-256 只用于发现下载内容是否漂移。若需要可执行能力，还必须明确 Host SDK、权限、ABI、入口和生命周期边界。\n`;
   return {
     manifest,
     extensionConfig,

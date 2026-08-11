@@ -7,7 +7,7 @@ import {
   buildContentExtensionScaffold,
   createContentExtension,
 } from '../scripts/create-extension.mjs';
-import { createDigestContentPackage } from '../scripts/content-package.mjs';
+import { createDigestPackage } from '../scripts/content-package.mjs';
 import { canonicalJson, readJson, sha256Hex } from '../scripts/lib.mjs';
 
 const options = {
@@ -77,6 +77,51 @@ test('creates one isolated workspace and package directory and refuses overwrite
   }
 });
 
+test('creates an executable package from declared build artifacts without a release key', () => {
+  const manifest = {
+    schemaVersion: 1,
+    id: 'com.example.executable',
+    kind: 'executable',
+    version: '1.0.0',
+    publisher: { id: 'com.example', name: 'Example' },
+    frontend: {
+      assets: {
+        entrypoint: { path: 'frontend/index.js', digest: 'stale' },
+      },
+    },
+    variants: {
+      node: {
+        implementationId: 'com.example.executable@1/node',
+        implementationAbi: 'example@1',
+        entrypoint: 'backend/index.cjs',
+        containsExecutableCode: true,
+      },
+    },
+  };
+  const files = {
+    'backend/index.cjs': "module.exports = {};\n",
+    'frontend/index.js': 'window.example = true;\n',
+  };
+  const packageValue = createDigestPackage({
+    manifest,
+    files,
+    source: 'com.example.extensions',
+    createdAt: options.createdAt,
+  });
+
+  assert.equal(packageValue.metadata.containsExecutableCode, true);
+  assert.equal(packageValue.receipt.implementation.entrypoint, 'backend/index.cjs');
+  assert.equal(
+    packageValue.manifest.frontend.assets.entrypoint.digest,
+    sha256Hex(files['frontend/index.js']),
+  );
+  assert.deepEqual(packageValue.metadata.signature, {
+    algorithm: 'sha256-digest',
+    digest: packageValue.metadata.payloadDigest,
+    value: packageValue.metadata.payloadDigest,
+  });
+});
+
 test('rejects reserved ids and attempts to scaffold executable variants', () => {
   assert.throws(
     () => buildContentExtensionScaffold({ ...options, id: 'com.example.catalog.demo' }),
@@ -85,7 +130,7 @@ test('rejects reserved ids and attempts to scaffold executable variants', () => 
   const scaffold = buildContentExtensionScaffold(options);
   scaffold.manifest.variants.node.containsExecutableCode = true;
   assert.throws(
-    () => createDigestContentPackage({
+    () => createDigestPackage({
       manifest: scaffold.manifest,
       files: { 'content/extension.json': scaffold.contentText },
       createdAt: options.createdAt,
@@ -94,7 +139,7 @@ test('rejects reserved ids and attempts to scaffold executable variants', () => 
   );
   const safeManifest = buildContentExtensionScaffold(options).manifest;
   assert.throws(
-    () => createDigestContentPackage({
+    () => createDigestPackage({
       manifest: safeManifest,
       files: { 'manifest.json': '{}\n' },
       createdAt: options.createdAt,

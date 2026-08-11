@@ -1,146 +1,107 @@
 # 安全策略
 
-## 1. 集合源不是通用代码信任根
+## 1. 当前模型：来源信任
 
-用户添加一次 `repository/catalog.json`，可以发现仓库里的多个插件，但“来源已添加”只说明 Host 接受了 catalog 格式和网络边界，不代表其中任何 JavaScript 都可以执行。
+用户主动添加集合源，表示信任该来源当前提供的扩展。Host 只有在用户点击安装后才下载和执行 executable package。
 
-每个插件仍单独验证：
+当前仓库中的扩展由同一维护方开发，因此使用轻量模型，不维护每插件私钥、发布者公钥白名单或 Host 内置 package 授权表。
 
-- extension ID 与 publisher；
-- manifest digest；
-- package digest；
-- receipt closure；
-- variant、ABI 和 entrypoint；
-- 每个 payload 文件摘要；
-- signature algorithm 与 key ID；
-- Host/runtime 兼容性；
-- executable/install-hook flag。
+SHA-256 负责发现传输或生成结果是否漂移，不能证明发布者身份，也不能把恶意代码变安全。
 
-集合仓库 publisher、GitHub owner、域名和 entry author 都不能代替这些校验。
+## 2. 必要校验
 
-## 2. 可执行插件
+每个 package 仍必须检查：
 
-`trusted-official` Node bundle 和原生前端 surface 属于 Sub-Store TCB，不是进程沙箱或浏览器隔离域。签名证明来源和完整性，但不会把恶意官方代码变安全。
+- extension ID、版本、kind 和 publisher 字段一致；
+- manifest、package、payload 和 receipt digest 闭合；
+- 每个文件和 frontend asset SHA-256；
+- variant、executable flag、ABI 和 entrypoint；
+- 安全相对路径、大小写/Unicode 冲突和未声明文件；
+- Host/runtime/API/backend 兼容性；
+- `containsInstallHook: false`。
 
-配置生成器可执行包需要：
+目录安装和 loopback catalog 不能绕过这些检查。
 
-- Host allowlist 中的固定 ID/publisher；
-- Host 官方签名 catalog 授权的 manifest/package digest；
-- 插件 package 的 Ed25519 签名；
-- receipt 与 package/payload digest 闭包；
-- 入口文件和所有资源的 SHA-256；
-- Node runtime 与匹配的 implementation ABI。
+## 3. Executable 不是沙箱
 
-推荐每个可执行插件使用独立、可撤销、作用域明确的签名密钥。不要把一个插件的私钥作为整个仓库所有插件的通用授权，也不要把配置生成器的私钥交给第三方仓库维护者。
+`kind: executable` 的 Node backend 和 frontend surface 当前运行在 Host 主进程/主页面上下文，属于 Host 的可信计算基，不具备进程、iframe 或 capability sandbox。
 
-正式私钥不得进入：
+因此：
 
-- Git 历史；
-- package 或 catalog；
-- 构建日志；
-- `.env` 示例；
-- 浏览器前端；
-- 普通开发机脚手架。
+- 不认识的来源不要添加；
+- UI 应展示来源 URL、集合维护者和插件作者；
+- 删除来源后不应继续从该来源发现、安装或更新；
+- 未添加来源时，不应通过 ID、legacy adoption 或本地 seed 自动暴露扩展；
+- permission 声明仍是契约和审计信息，不能宣称已经形成完整隔离。
 
-## 3. Community content 插件
+## 4. Content 扩展
 
-第三方集合源当前只能安装 `kind: content` 的无执行代码包：
+content 包必须满足：
 
 ```text
+kind = content
 containsExecutableCode = false
 containsInstallHook = false
-无 backend/frontend entrypoint
-receipt 无 executable entrypoint
+无 executable entrypoint
 ```
 
-脚手架使用 `sha256-digest`，它提供不可变完整性，不证明发布者持有私钥。Host 必须以 `community-integrity` 而不是 `trusted-signature` 展示这类包。
+只改 `containsExecutableCode` 不能把 content 模板升级成 executable；manifest、workspace build、receipt 和 Host 兼容性必须形成完整一致的 executable 契约。
 
-任何 community 包只要声明可执行代码、install hook 或官方保留身份，都应 fail closed。
-
-## 4. 远程来源与 SSRF
+## 5. 远程来源与 SSRF
 
 远程 source：
 
-- 必须使用 HTTPS；
-- URL 禁止用户名和密码；
-- 重定向次数受限；
+- 外部来源使用 HTTPS；
+- URL 禁止 credentials；
+- 重定向、catalog/package 大小和 entry 数量受限；
 - 公网来源不得重定向到 loopback/private network；
-- catalog 和 package 大小受限；
-- entry 数量受限；
 - package URL 必须由 catalog URL 安全解析。
 
-HTTP 只用于显式 loopback 本地开发来源，例如：
+HTTP 只用于显式 loopback 开发：
 
 ```text
 http://127.0.0.1:8765/catalog.json
 ```
 
-GitHub 应优先使用固定 tag 或 commit 的 Raw URL。
+正式来源优先使用固定 tag 或 commit Raw URL。
 
-## 5. 目录上传
+## 6. 本地开发入口
 
-本地文件夹安装只是 transport，不是 trust bypass。浏览器和后端都必须拒绝：
+`corepack pnpm host:start` 默认不设置 `SUB_STORE_EXTENSION_PACKAGE_SEED_PATH`。这保证无集合源时不会因本仓库存在 `packages/` 而发现配置生成器。
 
-- 多个根目录；
-- 绝对路径、`..`、反斜杠和控制字符；
-- 符号链接语义；
-- 大小写或 Unicode 归一化路径冲突；
-- 未声明、重复或超限文件；
-- 非 UTF-8 内容；
-- manifest/receipt/package 不一致；
-- 摘要、签名或 Host 授权失败。
+需要测试 seed 时必须显式设置环境变量；需要本地目录安装时必须显式执行 `extension:install-local`。二者都不应成为生产发现路径。
 
-安装后 Host 应从托管版本目录加载代码，而不是从用户选择的原始本机路径运行。
+## 7. 管理接口
 
-## 6. 管理接口
-
-Node Host 支持：
-
-```text
-SUB_STORE_EXTENSION_ADMIN_TOKEN
-SUB_STORE_EXTENSION_ADMIN_TOKEN_HASH
-```
-
-没有 token 时当前本地 Node Host 可能处于 open 管理模式。只要服务暴露到局域网、反向代理或公网，就必须配置令牌，并限制管理 API 的网络访问。
-
-CLI 可通过：
+对外部署必须配置：
 
 ```text
 SUB_STORE_EXTENSION_ADMIN_TOKEN
 ```
 
-或 `--token` 传入。不要在 shell 历史、日志、截图或提交中泄露真实 token。
+或其哈希形式，并限制管理 API 的网络访问。不要在 shell 历史、日志、截图、issue 或提交中泄露真实 token。
 
-## 7. 开发开关
+## 8. 未来开放第三方作者
 
-`SUB_STORE_EXTENSION_ALLOW_DIGEST_ONLY=true` 只能用于受控开发测试。它不能：
+如果仓库或 Host 将来允许不受信作者发布 executable code，应在开放前设计并实现：
 
-- 把 community digest 变成发布者签名；
-- 绕过 official ID/publisher allowlist；
-- 授权新的 executable manifest/package digest；
-- 用于生产部署。
+- 发布者签名与可撤销密钥；
+- 来源/作者身份展示和变更审计；
+- 权限强制；
+- 进程或 iframe 隔离；
+- CPU、内存、网络和存储限额；
+- 更新、防回滚和紧急撤销。
 
-普通扩展开发文档不应指导用户通过关闭校验来测试新可执行字节。
-
-## 8. 已知边界
-
-- permission scope 尚未全部细粒度执行；
-- frontend API、SDK specifier 和 UI kit ABI 还不是所有路径上的硬隔离边界；
-- trusted-official bundle 在 Node 主进程和主页面上下文运行；
-- update、rollback 和 transactional data purge 尚未实现；
-- catalog sequence/expiry 尚不是完整 TUF 防回滚设计；
-- package v1 只支持受限 UTF-8 文本，不支持 native module 或任意二进制；
-- QX、Loon、Surge 等脚本 runtime 使用 Host 内嵌实现，不能把远程 Node package 当作同等动态插件。
+这些能力尚未实现；不要把当前 SHA-256 integrity 字段当成签名系统。
 
 ## 9. 漏洞报告
 
-报告应包括：
+报告请包括：
 
-- 受影响 Host、前端和插件版本；
+- Host、前端和插件版本；
 - extension ID、source URL 和 distribution；
 - manifest/package/payload digest；
-- 复现步骤与最小恶意包；
-- 预期与实际信任判定；
-- 是否涉及 token、私钥、路径穿越、SSRF 或执行边界。
+- 最小复现和预期/实际行为；
+- 是否涉及 token、路径穿越、SSRF、未声明文件或执行边界。
 
-不要在公开 issue 中附上真实管理 token、私钥或仍可利用的生产 URL。维护者应优先撤销受影响 source/key、保留审计材料，并发布新的不可变修复版本。
+不要在公开 issue 中附真实管理 token 或仍可利用的生产 URL。
