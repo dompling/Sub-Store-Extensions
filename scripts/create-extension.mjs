@@ -100,6 +100,9 @@ export const buildContentExtensionScaffold = ({
       source: 'community-repository',
       createdAt: stableCreatedAt,
     },
+    release: {
+      versionFiles: ['content/extension.json'],
+    },
     contentFiles: [
       {
         source: 'content/extension.json',

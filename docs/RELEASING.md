@@ -5,18 +5,20 @@
 Actions 中手动运行 `Publish extension`：
 
 ```text
-版本检查与 sequence 准备
+选择 patch / minor / major
+→ 从 catalog 生成版本并准备 sequence
 → typecheck
 → build
-→ test
 → 生成 SHA-256 package
-→ 生成并验证全集合 catalog
+→ 生成全集合 catalog
+→ test
+→ 验证 package 与 catalog
 → git diff --check
-→ 上传候选 artifact
+→ 上传 build / dist / package 候选 artifact
 → 创建发布 PR
 ```
 
-输入目标 extension ID 和基础分支即可。workflow 使用 Node 22 与锁定的 pnpm，不需要私钥、发布者公钥或 GitHub Environment Secret。
+输入目标 extension ID、基础分支和版本增量即可。workflow 使用 Node 22 与锁定的 pnpm，不需要私钥、发布者公钥或 GitHub Environment Secret。
 
 它不会直接修改主分支：候选 package 和 catalog 会进入自动 release PR，合并后 GitHub Raw 集合地址才发布新版本。
 
@@ -31,12 +33,9 @@ Actions 中手动运行 `Publish extension`：
 
 ## 3. 发布前
 
-同步：
+已有扩展的 workspace `package.json` 和 manifest version 应保持为 catalog 当前已发布版本。不要在日常功能提交中手工升版；发布 workflow 会根据所选 patch、minor 或 major 增量同时更新二者。构建代码需要版本时，应从 manifest 注入；业务 JSON 必须通过 `extension.config.json` 的 `release.versionFiles` 显式声明，避免维护未受控的版本常量。
 
-- workspace `package.json` version；
-- manifest version；
-- 业务数据中显式记录的 version（如有）；
-- 新行为对应的最小回归。
+新行为仍需带上对应的最小回归测试。首次发布的扩展没有 catalog entry，workflow 会沿用脚手架中的初始版本。
 
 检查：
 
@@ -55,16 +54,20 @@ workflow 使用当前提交时间作为稳定 receipt 时间：
 ```bash
 corepack pnpm release:prepare -- \
   --extension org.substore.config-generator \
+  --bump patch \
   --installed-at 2026-08-11T07:09:03.000Z
 ```
 
 该命令会：
 
-- 拒绝无效、重复或降级版本；
-- 确认 workspace 与 manifest version 一致；
+- 确认 workspace、manifest 与 catalog 当前版本一致；
+- 根据 catalog 自动计算 patch、minor 或 major 版本；
+- 首次发布时沿用源码初始版本；
+- 拒绝无效增量以及绕过 workflow 的手工版本漂移；
+- 同步 workspace 与 manifest version；
 - 把 repository `sequence` 提升到已发布 catalog 的下一位；
 - 更新该插件 `package.createdAt`；
-- 为 workflow 输出插件 ID、版本、时间、branch slug 和 sequence。
+- 为 workflow 输出插件 ID、新旧版本、增量、时间、branch slug 和 sequence。
 
 同一 release 重建时应使用同一时间，否则 receipt 和 payload digest 会改变。
 
@@ -73,16 +76,20 @@ corepack pnpm release:prepare -- \
 配置生成器示例：
 
 ```bash
+corepack pnpm release:prepare -- \
+  --extension org.substore.config-generator \
+  --bump patch \
+  --installed-at "$(git show -s --format=%cI HEAD)"
 corepack pnpm typecheck -- --extension org.substore.config-generator
 corepack pnpm build -- --extension org.substore.config-generator
-corepack pnpm test:built -- --extension org.substore.config-generator
 corepack pnpm package:assemble -- --extension org.substore.config-generator
 corepack pnpm repository
+corepack pnpm test:built -- --extension org.substore.config-generator
 corepack pnpm verify
 git diff --check
 ```
 
-也可以用较短的等价路径：
+未执行升版、只验证当前已发布版本的日常开发可以使用较短路径：
 
 ```bash
 corepack pnpm typecheck -- --extension org.substore.config-generator
@@ -91,6 +98,8 @@ corepack pnpm package -- --extension org.substore.config-generator
 corepack pnpm repository
 corepack pnpm verify
 ```
+
+执行过 `release:prepare` 后，必须先重建 package 和 catalog，再运行包含 package 契约的 `test:built`。也可以直接运行 `corepack pnpm check -- --extension <id>`；完整门禁采用相同顺序。
 
 ## 6. Package 生成内容
 
@@ -114,12 +123,16 @@ SHA-256 能检测内容漂移，但不认证发布者。添加来源和安装是
 extensions/org.substore.config-generator/package.json
 extensions/org.substore.config-generator/extension.config.json
 extensions/org.substore.config-generator/backend/src/extensions/config-generator/manifest.json
+build/org.substore.config-generator/
+dist/packages/org.substore.config-generator/
 packages/org.substore.config-generator/
 repository/catalog.json
 repository/packages/org.substore.config-generator/<version>/node.json
 ```
 
-frontend bundle、CSS 和 locale 都随扩展 package 发布，不需要同步写入 Host 前端。Host 也不应内置配置生成器业务代码。
+workflow 自动更新 workspace 与 manifest 版本；frontend runtime version 由 Vite 从 manifest 注入，不再单独维护。frontend bundle、CSS 和 locale 都随扩展 package 发布，不需要同步写入 Host 前端。Host 也不应内置配置生成器业务代码。
+
+`build/` 和 `dist/` 被 Git 忽略，只上传为 Actions 候选 artifact。`packages/` 与 `repository/` 是 GitHub Raw 集合源的可安装内容，会和源码版本变更一起进入 release PR。
 
 ## 8. 来源回归
 
@@ -156,7 +169,8 @@ corepack pnpm extension:install -- \
 
 自动 PR 应包含：
 
-- 目标插件源码、测试与版本；
+- workflow 生成的 workspace 与 manifest 版本；
+- 目标插件源码与测试；
 - `packages/<id>`；
 - 完整 `repository/catalog.json`；
 - 完整 `repository/packages/`；
@@ -167,6 +181,7 @@ corepack pnpm extension:install -- \
 ## 10. 失败处理
 
 - build output mismatch：重新生成 package，不手改摘要；
+- source version differs from published：撤销手工升版，让 workflow 从 catalog 生成版本；
 - digest mismatch：确保 catalog、envelope、package 来自同一次生成；
 - catalog 少 entry：恢复 workspace 后重建全集合；
 - Host API/ABI incompatible：升级 Host 或提升扩展兼容要求；

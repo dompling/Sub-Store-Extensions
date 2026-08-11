@@ -46,6 +46,7 @@ test('creates a reproducible content-only package without executable trust', () 
   assert.equal(metadata.signature.value, metadata.payloadDigest);
   assert.equal(scaffold.extensionConfig.repository.distribution, 'community');
   assert.deepEqual(scaffold.extensionConfig.repository.author, manifest.publisher);
+  assert.deepEqual(scaffold.extensionConfig.release.versionFiles, ['content/extension.json']);
 });
 
 test('creates one isolated workspace and package directory and refuses overwrite', async () => {

@@ -135,6 +135,24 @@ export const loadExtension = async extensionId => {
     : null;
   const manifest = await readJson(manifestPath);
   assert(manifest.id === extensionId, `Source manifest id differs for ${extensionId}`);
+  const versionFiles = (config.release?.versionFiles || []).map((file, index) => {
+    assert(
+      typeof file === 'string'
+        && file
+        && !path.isAbsolute(file)
+        && path.extname(file).toLowerCase() === '.json',
+      `${extensionId} release.versionFiles[${index}] must be a relative JSON file`,
+    );
+    return resolveInside(
+      workspaceDirectory,
+      file,
+      `${extensionId} release version file`,
+    );
+  });
+  assert(
+    new Set(versionFiles.map(file => file.normalize('NFC').toLowerCase())).size === versionFiles.length,
+    `${extensionId} declares duplicate release version files`,
+  );
   const contentFiles = (config.contentFiles || []).map((file, index) => {
     assert(file?.source && file?.package, `${extensionId} contentFiles[${index}] is incomplete`);
     const packagePath = `${file.package}`.split(path.sep).join('/');
@@ -168,6 +186,7 @@ export const loadExtension = async extensionId => {
     distPackageDirectory,
     backend,
     frontend,
+    versionFiles,
     testsDirectory: path.join(workspaceDirectory, 'tests'),
     artifacts: [...(config.artifacts || [])],
     contentFiles,

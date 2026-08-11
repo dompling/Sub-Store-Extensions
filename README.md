@@ -128,15 +128,17 @@ corepack pnpm extension:install-local -- \
 GitHub Actions 中的 `Publish extension` workflow 会：
 
 ```text
-release:prepare
-→ typecheck / build / test
-→ package / repository / verify
+从 catalog 计算 patch / minor / major 版本
+→ release:prepare
+→ typecheck / build
+→ package / repository
+→ test / verify
 → git diff --check
-→ 上传候选 artifact
+→ 上传 build / dist / package 候选 artifact
 → 创建发布 PR
 ```
 
-workflow 不需要私钥或 GitHub Environment Secret。详见 [发布指南](docs/RELEASING.md)。
+开发提交不需要手工修改版本或提交 `build/`、`dist/`。workflow 会把源码版本、可发布 package 和 catalog 变更一起放进 release PR；`build/`、`dist/` 只作为 Actions artifact 保存。workflow 不需要私钥或 GitHub Environment Secret。详见 [发布指南](docs/RELEASING.md)。
 
 ## 常用命令
 

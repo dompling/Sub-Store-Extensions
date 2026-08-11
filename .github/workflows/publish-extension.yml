@@ -1,6 +1,6 @@
 name: Publish extension
 
-run-name: Publish ${{ inputs.extension_id }} from ${{ inputs.base_branch }}
+run-name: Publish ${{ inputs.extension_id }} (${{ inputs.version_bump }}) from ${{ inputs.base_branch }}
 
 on:
   workflow_dispatch:
@@ -15,6 +15,15 @@ on:
         required: true
         default: main
         type: string
+      version_bump:
+        description: Semantic version increment calculated from the published catalog entry
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
 
 permissions:
   contents: write
@@ -54,6 +63,7 @@ jobs:
           release_time="$(git show -s --format=%cI HEAD)"
           corepack pnpm release:prepare -- \
             --extension "${{ inputs.extension_id }}" \
+            --bump "${{ inputs.version_bump }}" \
             --installed-at "$release_time" \
             --github-output "$GITHUB_OUTPUT"
 
@@ -67,19 +77,21 @@ jobs:
           corepack pnpm build --
           --extension "${{ steps.metadata.outputs.extension_id }}"
 
-      - name: Test built extension
-        run: >-
-          corepack pnpm test:built --
-          --extension "${{ steps.metadata.outputs.extension_id }}"
-
       - name: Assemble SHA-256 package
         run: >-
           corepack pnpm package:assemble --
           --extension "${{ steps.metadata.outputs.extension_id }}"
 
-      - name: Publish and verify collection catalog
+      - name: Publish collection catalog
+        run: corepack pnpm repository
+
+      - name: Test assembled release candidate
+        run: >-
+          corepack pnpm test:built --
+          --extension "${{ steps.metadata.outputs.extension_id }}"
+
+      - name: Verify release candidate
         run: |
-          corepack pnpm repository
           corepack pnpm verify
           git diff --check
 
@@ -88,6 +100,8 @@ jobs:
         with:
           name: ${{ steps.metadata.outputs.branch_slug }}-v${{ steps.metadata.outputs.version }}
           path: |
+            build/${{ steps.metadata.outputs.extension_id }}
+            dist/packages/${{ steps.metadata.outputs.extension_id }}
             packages/${{ steps.metadata.outputs.extension_id }}
             repository/catalog.json
             repository/packages/${{ steps.metadata.outputs.extension_id }}
@@ -100,6 +114,8 @@ jobs:
         env:
           EXTENSION_ID: ${{ steps.metadata.outputs.extension_id }}
           EXTENSION_VERSION: ${{ steps.metadata.outputs.version }}
+          PREVIOUS_VERSION: ${{ steps.metadata.outputs.previous_version }}
+          VERSION_BUMP: ${{ steps.metadata.outputs.version_bump }}
           BRANCH_SLUG: ${{ steps.metadata.outputs.branch_slug }}
           REPOSITORY_SEQUENCE: ${{ steps.metadata.outputs.repository_sequence }}
         run: |
@@ -116,7 +132,7 @@ jobs:
           printf '%s\n' \
             "Make ${EXTENSION_ID}@${EXTENSION_VERSION} installable from the collection source" \
             "" \
-            "Generate the SHA-256 package and collection catalog for ${EXTENSION_ID}@${EXTENSION_VERSION}." \
+            "Generate the ${VERSION_BUMP} release from ${PREVIOUS_VERSION:-the initial source version}, including the SHA-256 package and collection catalog." \
             "" \
             "Constraint: Adding a source and installing its extension are explicit user trust decisions" \
             "Confidence: high" \
@@ -135,6 +151,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           EXTENSION_ID: ${{ steps.metadata.outputs.extension_id }}
           EXTENSION_VERSION: ${{ steps.metadata.outputs.version }}
+          PREVIOUS_VERSION: ${{ steps.metadata.outputs.previous_version }}
+          VERSION_BUMP: ${{ steps.metadata.outputs.version_bump }}
           REPOSITORY_SEQUENCE: ${{ steps.metadata.outputs.repository_sequence }}
           RELEASE_BRANCH: ${{ steps.commit.outputs.branch }}
           BASE_BRANCH: ${{ inputs.base_branch }}
@@ -143,7 +161,7 @@ jobs:
           printf '%s\n' \
             "Publishes the verified **${EXTENSION_ID} v${EXTENSION_VERSION}** package in collection sequence **${REPOSITORY_SEQUENCE}**." \
             "" \
-            "The workflow completed type checking, build, tests, SHA-256 package verification, and catalog verification. Merge this PR to publish through the configured GitHub Raw collection URL." \
+            "The workflow generated the **${VERSION_BUMP}** version from **${PREVIOUS_VERSION:-the initial source version}**, then completed type checking, build, tests, SHA-256 package verification, and catalog verification. Merge this PR to publish through the configured GitHub Raw collection URL." \
             > "$pr_body"
           pr_url="$(gh pr create \
             --base "$BASE_BRANCH" \
@@ -152,6 +170,6 @@ jobs:
             --body-file "$pr_body")"
           echo "### Release candidate ready" >> "$GITHUB_STEP_SUMMARY"
           echo "- Extension: \`${EXTENSION_ID}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Version: \`${EXTENSION_VERSION}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version: \`${PREVIOUS_VERSION:-initial} -> ${EXTENSION_VERSION}\` (\`${VERSION_BUMP}\`)" >> "$GITHUB_STEP_SUMMARY"
           echo "- Collection sequence: \`${REPOSITORY_SEQUENCE}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Pull request: ${pr_url}" >> "$GITHUB_STEP_SUMMARY"

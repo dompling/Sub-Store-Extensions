@@ -66,6 +66,22 @@ test('keeps source, package, and repository versions on one extension identity',
   assert.equal(sourceManifest.frontend.style, 'frontend/style.css');
 });
 
+test('injects the manifest version into the frontend bundle instead of duplicating it', async () => {
+  const runtimeEntry = await fs.readFile(
+    path.join(
+      extension.workspaceDirectory,
+      'frontend/src/extensions/config-generator/runtime-entry.ts',
+    ),
+    'utf8',
+  );
+  const viteConfig = await fs.readFile(extension.frontend.config, 'utf8');
+
+  assert.match(runtimeEntry, /version:\s*__SUBSTORE_EXTENSION_VERSION__/);
+  assert.doesNotMatch(runtimeEntry, /version:\s*['"]\d+\.\d+\.\d+/);
+  assert.match(viteConfig, /__SUBSTORE_EXTENSION_VERSION__/);
+  assert.match(viteConfig, /manifest\.version/);
+});
+
 test('declares a Node-only remote execution contract', async () => {
   const manifest = await readJson(extension.manifestPath);
 

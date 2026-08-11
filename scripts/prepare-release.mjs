@@ -18,6 +18,8 @@ const argument = name => {
   return process.argv.find(value => value.startsWith(prefix))?.slice(prefix.length);
 };
 
+const releaseBumps = new Set(['major', 'minor', 'patch']);
+
 const parseVersion = value => {
   const match = `${value || ''}`.match(
     /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?$/,
@@ -57,6 +59,37 @@ export const compareVersions = (leftValue, rightValue) => {
   return comparePrerelease(left.prerelease, right.prerelease);
 };
 
+export const incrementVersion = (value, bump) => {
+  assert(releaseBumps.has(bump), `Unsupported release bump: ${bump || '(missing)'}`);
+  const version = parseVersion(value);
+  const [major, minor, patch] = version.core;
+  if (bump === 'major') return `${major + 1}.0.0`;
+  if (bump === 'minor') return `${major}.${minor + 1}.0`;
+  if (version.prerelease.length) return `${major}.${minor}.${patch}`;
+  return `${major}.${minor}.${patch + 1}`;
+};
+
+export const resolveReleaseVersion = ({ sourceVersion, publishedVersion, bump }) => {
+  parseVersion(sourceVersion);
+  if (bump !== undefined) {
+    assert(releaseBumps.has(bump), `Unsupported release bump: ${bump || '(missing)'}`);
+  }
+  if (!publishedVersion) return sourceVersion;
+  parseVersion(publishedVersion);
+  if (!bump) {
+    assert(
+      compareVersions(sourceVersion, publishedVersion) > 0,
+      `Source version ${sourceVersion} must be newer than published ${publishedVersion}`,
+    );
+    return sourceVersion;
+  }
+  assert(
+    compareVersions(sourceVersion, publishedVersion) === 0,
+    `Workflow-managed release source ${sourceVersion} must match published ${publishedVersion} before applying a ${bump} bump`,
+  );
+  return incrementVersion(publishedVersion, bump);
+};
+
 const appendGitHubOutput = async (outputPath, values) => {
   if (!outputPath) return;
   const lines = Object.entries(values).map(([key, value]) => {
@@ -67,7 +100,12 @@ const appendGitHubOutput = async (outputPath, values) => {
   await fs.appendFile(path.resolve(outputPath), `${lines.join('\n')}\n`, 'utf8');
 };
 
-export const prepareRelease = async ({ extensionId, installedAtValue, githubOutput }) => {
+export const prepareRelease = async ({
+  extensionId,
+  installedAtValue,
+  githubOutput,
+  bump,
+}) => {
   assert(extensionId, '--extension is required');
   assert(installedAtValue, '--installed-at is required');
   const installedAtTimestamp = Date.parse(installedAtValue);
@@ -84,18 +122,27 @@ export const prepareRelease = async ({ extensionId, installedAtValue, githubOutp
     `${extensionId} workspace package and manifest versions differ`,
   );
   parseVersion(manifest.version);
+  const versionDocuments = await Promise.all(
+    extension.versionFiles.map(async file => ({ file, value: await readJson(file) })),
+  );
+  for (const document of versionDocuments) {
+    assert(
+      document.value.version === manifest.version,
+      `${extensionId} release version file differs from the manifest: ${path.relative(extension.workspaceDirectory, document.file)}`,
+    );
+  }
 
   const catalogPath = path.join(repoRoot, 'repository/catalog.json');
   const catalog = await pathExists(catalogPath)
     ? await readJson(catalogPath)
     : { sequence: 0, entries: [] };
   const published = (catalog.entries || []).find(entry => entry.id === extensionId);
-  if (published) {
-    assert(
-      compareVersions(manifest.version, published.version) > 0,
-      `${extensionId}@${manifest.version} must be newer than published ${published.version}`,
-    );
-  }
+  const sourceVersion = manifest.version;
+  const releaseVersion = resolveReleaseVersion({
+    sourceVersion,
+    publishedVersion: published?.version,
+    bump,
+  });
 
   assert(
     extension.config.signature?.algorithm === 'sha256-digest',
@@ -108,6 +155,18 @@ export const prepareRelease = async ({ extensionId, installedAtValue, githubOutp
   assert(Number.isInteger(currentSequence) && currentSequence >= 0, 'Repository sequence is invalid');
   assert(Number.isInteger(publishedSequence) && publishedSequence >= 0, 'Published sequence is invalid');
   repositoryConfig.sequence = Math.max(currentSequence, publishedSequence + 1);
+
+  if (releaseVersion !== sourceVersion) {
+    manifest.version = releaseVersion;
+    workspacePackage.version = releaseVersion;
+    extension.manifest = manifest;
+    await writeJson(extension.manifestPath, manifest);
+    await writeJson(path.join(extension.workspaceDirectory, 'package.json'), workspacePackage);
+    for (const document of versionDocuments) {
+      document.value.version = releaseVersion;
+      await writeJson(document.file, document.value);
+    }
+  }
   await writeJson(repositoryConfigPath, repositoryConfig);
 
   if (extension.config.package) {
@@ -117,14 +176,16 @@ export const prepareRelease = async ({ extensionId, installedAtValue, githubOutp
 
   const metadata = {
     extension_id: extensionId,
-    version: manifest.version,
+    version: releaseVersion,
+    previous_version: published?.version || '',
+    version_bump: published ? (bump || 'manual') : 'initial',
     installed_at: installedAt,
     branch_slug: extensionId.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/\./g, '-'),
     repository_sequence: repositoryConfig.sequence,
   };
   await appendGitHubOutput(githubOutput, metadata);
   process.stdout.write(
-    `Prepared ${extensionId}@${manifest.version} for repository sequence ${repositoryConfig.sequence}\n`,
+    `Prepared ${extensionId}@${releaseVersion} for repository sequence ${repositoryConfig.sequence}\n`,
   );
   return metadata;
 };
@@ -135,6 +196,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === currentFile) {
     extensionId: argument('extension'),
     installedAtValue: argument('installed-at'),
     githubOutput: argument('github-output'),
+    bump: argument('bump'),
   }).catch(error => {
     console.error(error);
     process.exitCode = 1;

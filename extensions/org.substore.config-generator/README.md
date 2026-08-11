@@ -16,6 +16,8 @@ extension.config.json    构建、SHA-256 package 和 catalog 配置
 package.json             workspace 身份与版本
 ```
 
+正式发布时不要手工递增这里或 manifest 的版本。`Publish extension` workflow 会从 catalog 当前版本计算 patch、minor 或 major 版本；frontend bundle 的版本由 Vite 从 manifest 注入。
+
 生成物：
 
 ```text

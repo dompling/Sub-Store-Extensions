@@ -78,7 +78,7 @@ ID 用于目录、storage namespace、route/contribution namespace、catalog、r
 - manifest `publisher`：插件作者；
 - catalog entry `author`：商店展示作者。
 
-workspace `package.json`、manifest、receipt 和 catalog entry 的版本必须一致。
+workspace `package.json`、manifest、receipt 和 catalog entry 的版本必须一致。已有扩展发布时，以 catalog 当前版本为基线，由发布 workflow 计算 patch、minor 或 major 版本并同步 workspace 与 manifest；构建代码应从 manifest 注入版本，不再维护额外的硬编码版本常量。
 
 ## 5. Manifest 最小契约
 

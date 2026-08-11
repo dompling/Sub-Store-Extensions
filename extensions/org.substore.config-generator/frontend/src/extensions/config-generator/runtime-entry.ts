@@ -7,9 +7,11 @@ import ImportPage from './pages/ImportPage.vue';
 import PreviewPage from './pages/PreviewPage.vue';
 import { disposeConfigGeneratorMessages } from './i18n';
 
+declare const __SUBSTORE_EXTENSION_VERSION__: string;
+
 const definition: FrontendExtensionDefinition = {
   id: CONFIG_GENERATOR_EXTENSION_ID,
-  version: '1.2.0',
+  version: __SUBSTORE_EXTENSION_VERSION__,
   implementationAbi: 'config-generator-ui@1',
   openPath: '/extensions/config-generator',
   routes: configGeneratorRoutes,

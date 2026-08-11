@@ -119,7 +119,7 @@ HTTP 只用于 loopback 开发。外部来源应使用 HTTPS。
 
 ## 7. GitHub 发布
 
-GitHub Actions 的 `Publish extension` workflow 会生成 package、全集合 catalog 和 artifact，并创建 release PR。它不需要私钥或 Environment Secret。
+GitHub Actions 的 `Publish extension` workflow 会根据当前 catalog 版本自动计算 patch、minor 或 major 版本，生成 build、dist、package、全集合 catalog 和 artifact，并创建 release PR。它不需要私钥或 Environment Secret。
 
 发布 PR 应包含：
 
@@ -128,6 +128,8 @@ GitHub Actions 的 `Publish extension` workflow 会生成 package、全集合 ca
 - 完整 `repository/catalog.json`；
 - 完整 `repository/packages/`；
 - 必要测试和文档。
+
+`build/` 和 `dist/` 是 runner 中的临时、可下载 artifact，不进入 Git；`packages/` 和 `repository/` 是 GitHub Raw 集合源的一部分，必须进入 release PR。
 
 合并后再用真实 GitHub Raw URL 做 source add / refresh / install 回归。
 

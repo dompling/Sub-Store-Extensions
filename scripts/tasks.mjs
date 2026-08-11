@@ -315,9 +315,9 @@ export const verifyRepository = async () => {
 export const checkExtensions = async extensions => {
   await typecheckExtensions(extensions);
   await buildExtensions(extensions);
-  await testBuiltExtensions(extensions);
   await assembleExtensions(extensions);
   await publishRepository();
+  await testBuiltExtensions(extensions);
   await verifyRepository();
 };
 

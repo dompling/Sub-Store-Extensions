@@ -80,6 +80,11 @@ content 示例：
     "source": "community-repository",
     "createdAt": "2026-08-11T00:00:00.000Z"
   },
+  "release": {
+    "versionFiles": [
+      "content/extension.json"
+    ]
+  },
   "contentFiles": [
     {
       "source": "content/extension.json",
@@ -104,6 +109,7 @@ executable 使用同一个 `sha256-digest` 完整性闭包，并通过 `backend`
 - `packageDirectory` 固定为 `packages/<id>`；
 - `repository.author` 来自插件作者，不能用 GitHub owner 猜测；
 - `package.createdAt` 是 receipt 的稳定时间，同一个 release 重建时保持一致；
+- 业务 JSON 若重复保存 manifest version，必须列入 `release.versionFiles`，由 workflow 同步；
 - `contentFiles`、`artifacts` 和 entrypoint 必须是安全相对路径；
 - install hook 当前禁止；
 - schema 中沿用 `signature` 字段名兼容 Host v1，但 `sha256-digest` 只表示完整性，不是发布者签名。
@@ -135,7 +141,7 @@ corepack pnpm verify
 4. 写入 `packages/<id>`；
 5. 复制并验证 `dist/packages/<id>`。
 
-不要手工编辑这些生成物。
+不要手工编辑这些生成物。`build/` 和 `dist/` 被 Git 忽略，正式发布时由 workflow 重新生成并上传为候选 artifact；`packages/` 和 `repository/` 由同一次 workflow 生成后进入 release PR。
 
 ## 6. Watch 与 Host 联调
 
