@@ -35,7 +35,7 @@ concurrency:
 
 jobs:
   publish:
-    name: Verify package and open release PR
+    name: Verify package and prepare release PR
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -145,10 +145,11 @@ jobs:
           git push --set-upstream origin "$release_branch"
           echo "branch=$release_branch" >> "$GITHUB_OUTPUT"
 
-      - name: Open release pull request
+      - name: Create or link release pull request
+        id: pull_request
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.RELEASE_PR_TOKEN || github.token }}
           EXTENSION_ID: ${{ steps.metadata.outputs.extension_id }}
           EXTENSION_VERSION: ${{ steps.metadata.outputs.version }}
           PREVIOUS_VERSION: ${{ steps.metadata.outputs.previous_version }}
@@ -163,13 +164,42 @@ jobs:
             "" \
             "The workflow generated the **${VERSION_BUMP}** version from **${PREVIOUS_VERSION:-the initial source version}**, then completed type checking, build, tests, SHA-256 package verification, and catalog verification. Merge this PR to publish through the configured GitHub Raw collection URL." \
             > "$pr_body"
+          compare_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${BASE_BRANCH}...${RELEASE_BRANCH}?expand=1"
+          pr_error="$RUNNER_TEMP/extension-release-pr-error.txt"
+          set +e
           pr_url="$(gh pr create \
             --base "$BASE_BRANCH" \
             --head "$RELEASE_BRANCH" \
             --title "release: ${EXTENSION_ID} v${EXTENSION_VERSION}" \
-            --body-file "$pr_body")"
+            --body-file "$pr_body" \
+            2> "$pr_error")"
+          pr_exit=$?
+          set -e
+
+          pr_created=true
+          if [ "$pr_exit" -ne 0 ]; then
+            if grep -Fq \
+              "GitHub Actions is not permitted to create or approve pull requests" \
+              "$pr_error"; then
+              pr_created=false
+              pr_url="$compare_url"
+              echo "::warning::Repository Actions policy blocked automatic pull request creation. Use the manual link in the job summary or enable pull request creation under Settings > Actions > General."
+            else
+              sed -n '1,160p' "$pr_error" >&2
+              exit "$pr_exit"
+            fi
+          fi
+
+          echo "created=$pr_created" >> "$GITHUB_OUTPUT"
+          echo "url=$pr_url" >> "$GITHUB_OUTPUT"
           echo "### Release candidate ready" >> "$GITHUB_STEP_SUMMARY"
           echo "- Extension: \`${EXTENSION_ID}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Version: \`${PREVIOUS_VERSION:-initial} -> ${EXTENSION_VERSION}\` (\`${VERSION_BUMP}\`)" >> "$GITHUB_STEP_SUMMARY"
           echo "- Collection sequence: \`${REPOSITORY_SEQUENCE}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Pull request: ${pr_url}" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$pr_created" = true ]; then
+            echo "- Pull request: ${pr_url}" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- Pull request: automatic creation was blocked by the repository Actions policy" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Create manually: ${pr_url}" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Enable automatic creation: Settings > Actions > General > Workflow permissions > Allow GitHub Actions to create and approve pull requests" >> "$GITHUB_STEP_SUMMARY"
+          fi

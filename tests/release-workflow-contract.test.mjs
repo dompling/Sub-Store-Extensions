@@ -76,6 +76,10 @@ test('publishes a reproducible SHA-256 package through a release PR', async () =
   assert.match(workflow, /build\/\$\{\{ steps\.metadata\.outputs\.extension_id \}\}/);
   assert.match(workflow, /dist\/packages\/\$\{\{ steps\.metadata\.outputs\.extension_id \}\}/);
   assert.match(workflow, /gh pr create/);
+  assert.match(workflow, /secrets\.RELEASE_PR_TOKEN \|\| github\.token/);
+  assert.match(workflow, /GitHub Actions is not permitted to create or approve pull requests/);
+  assert.match(workflow, /\/compare\/\$\{BASE_BRANCH\}\.\.\.\$\{RELEASE_BRANCH\}\?expand=1/);
+  assert.match(workflow, /exit "\$pr_exit"/);
   assert.doesNotMatch(workflow, /pull_request_target:/);
   assert.doesNotMatch(workflow, /environment:/);
   assert.doesNotMatch(workflow, /EXTENSION_RELEASE_PRIVATE_KEY/);

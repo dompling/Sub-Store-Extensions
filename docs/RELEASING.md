@@ -22,6 +22,20 @@ Actions 中手动运行 `Publish extension`：
 
 它不会直接修改主分支：候选 package 和 catalog 会进入自动 release PR，合并后 GitHub Raw 集合地址才发布新版本。
 
+`pull-requests: write` 只是 workflow token 权限，不能覆盖仓库级 Actions 策略。要让默认 `GITHUB_TOKEN` 自动创建 PR，请在仓库中开启：
+
+```text
+Settings
+→ Actions
+→ General
+→ Workflow permissions
+→ Allow GitHub Actions to create and approve pull requests
+```
+
+如果该选项未开启，workflow 仍会成功完成构建、验证、artifact 上传、commit 和 release 分支 push，并在 job summary 输出 GitHub compare 链接供手动创建 PR。它只对这条已知仓库策略错误回退；其他 `gh pr create` 错误仍会使任务失败。
+
+也可以配置可选的 repository secret `RELEASE_PR_TOKEN`。使用 fine-grained personal access token 时至少授予目标仓库 `Pull requests: Read and write`；workflow 会优先使用该 secret，否则使用默认 `GITHUB_TOKEN`。
+
 ## 2. 发布单位
 
 一次发布包含：
@@ -182,6 +196,7 @@ corepack pnpm extension:install -- \
 
 - build output mismatch：重新生成 package，不手改摘要；
 - source version differs from published：撤销手工升版，让 workflow 从 catalog 生成版本；
+- GitHub Actions is not permitted to create pull requests：开启仓库级 PR 选项、配置 `RELEASE_PR_TOKEN`，或使用 job summary 中的 compare 链接手动创建；
 - digest mismatch：确保 catalog、envelope、package 来自同一次生成；
 - catalog 少 entry：恢复 workspace 后重建全集合；
 - Host API/ABI incompatible：升级 Host 或提升扩展兼容要求；
