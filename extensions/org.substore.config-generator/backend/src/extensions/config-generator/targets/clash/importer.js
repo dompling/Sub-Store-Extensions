@@ -40,6 +40,7 @@ const GROUP_FIELDS = new Set([
     'interval',
     'tolerance',
     'strategy',
+    'icon',
 ]);
 const PROXY_PROVIDER_FIELDS = new Set([
     'type',
@@ -302,6 +303,15 @@ function importGroups(config, providers, proxyNames, warnings) {
                 .filter((value) => typeof value === 'string' && value.trim())
                 .map((value) => ({ kind: 'proxy', value })),
         };
+        if (typeof rawGroup.icon === 'string' && rawGroup.icon.trim()) {
+            group.iconUrl = rawGroup.icon.trim();
+        } else if (rawGroup.icon !== undefined) {
+            warnings.push({
+                path: `proxy-groups.${name}.icon`,
+                message:
+                    'The Mihomo-compatible Clash policy-group icon must be a non-empty string and was omitted.',
+            });
+        }
         const uses = Array.isArray(rawGroup.use)
             ? rawGroup.use.filter(
                   (value) => typeof value === 'string' && value.trim(),

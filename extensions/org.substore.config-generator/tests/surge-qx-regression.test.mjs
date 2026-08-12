@@ -289,6 +289,34 @@ test('round-trips Quantumult X native policy groups, alive-checking, and shared 
   assert.deepEqual(generated.warnings, []);
 });
 
+test('round-trips shared policy group icons through Mihomo-compatible Clash YAML', async () => {
+  const generated = await preview('clash', projectFor('clash', {
+    name: 'clash-group-icon',
+    groups: [
+      {
+        name: 'Proxy',
+        type: 'select',
+        members: [{ kind: 'builtin', value: 'DIRECT' }],
+        iconUrl: 'https://example.com/proxy.png',
+      },
+    ],
+    rules: [{ kind: 'final', policy: 'Proxy' }],
+  }));
+  const generatedDocument = parseYaml(generated.body);
+  assert.equal(
+    generatedDocument['proxy-groups'][0].icon,
+    'https://example.com/proxy.png',
+    generated.body,
+  );
+  assert.doesNotMatch(
+    generated.warnings.map(item => item.message).join('\n'),
+    /icon was omitted/i,
+  );
+
+  const imported = await importConfig('clash', generated.body);
+  assert.equal(imported.project.groups[0].iconUrl, 'https://example.com/proxy.png');
+});
+
 test('preserves disabled QX remote sync while degrading undocumented regex benchmarks', async () => {
   const imported = await importConfig(
     'qx',

@@ -127,6 +127,7 @@ const TARGET_CAPABILITIES = {
                 members: 'ordered',
                 includedPolicyGroupsMode: 'nested-group',
                 fields: {
+                    iconUrl: true,
                     includeAllProxies: true,
                     nodeNameRegex: true,
                     remoteProxySource: true,
@@ -137,6 +138,7 @@ const TARGET_CAPABILITIES = {
                 members: 'ordered',
                 includedPolicyGroupsMode: 'nested-group',
                 fields: {
+                    iconUrl: true,
                     includeAllProxies: true,
                     interval: true,
                     nodeNameRegex: true,
@@ -149,6 +151,7 @@ const TARGET_CAPABILITIES = {
                 members: 'ordered',
                 includedPolicyGroupsMode: 'nested-group',
                 fields: {
+                    iconUrl: true,
                     includeAllProxies: true,
                     interval: true,
                     nodeNameRegex: true,
@@ -168,6 +171,7 @@ const TARGET_CAPABILITIES = {
                 ],
                 targetDefaults: { strategy: 'consistent-hashing' },
                 fields: {
+                    iconUrl: true,
                     includeAllProxies: true,
                     interval: true,
                     nodeNameRegex: true,

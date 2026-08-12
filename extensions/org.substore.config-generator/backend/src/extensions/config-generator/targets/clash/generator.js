@@ -260,17 +260,6 @@ async function embeddedProxies(project, produceBuiltinArtifact, warnings) {
 }
 
 function warnUnsupportedGroupFields(group, warnings) {
-    if (
-        group.iconUrl ||
-        group.targetOptions?.surge?.iconUrl ||
-        group.targetOptions?.qx?.iconUrl
-    ) {
-        warnings.push({
-            path: `groups.${group.name}.iconUrl`,
-            message:
-                'Classic Clash policy groups do not support group icons; the icon was omitted.',
-        });
-    }
     if (group.timeout !== undefined) {
         warnings.push({
             path: `groups.${group.name}.timeout`,
@@ -526,6 +515,11 @@ function generateGroups(project, localProxyNames, sourceContext, warnings) {
                 name: group.name,
                 type: capability.outputType,
             };
+            const iconUrl =
+                group.iconUrl ||
+                group.targetOptions?.surge?.iconUrl ||
+                group.targetOptions?.qx?.iconUrl;
+            if (iconUrl) output.icon = iconUrl;
             const proxies = dedupe(values);
             if (!proxies.length && !uniqueUse.length) {
                 proxies.push('DIRECT');

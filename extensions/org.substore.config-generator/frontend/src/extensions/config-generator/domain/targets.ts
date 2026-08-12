@@ -29,8 +29,9 @@ export interface ConfigGeneratorTargetDefinition {
 
 export const DEFAULT_CONFIG_GENERATOR_TARGET: ConfigGeneratorTarget = 'surge';
 
-// "clash" intentionally means the classic Clash / Clash for Windows format.
-// Mihomo-specific syntax must be registered as a separate target when supported.
+// "clash" keeps the portable Clash YAML model. Harmless presentation metadata
+// understood by Mihomo-compatible clients, such as policy-group icons, may be
+// preserved without creating a separate routing target.
 export const CONFIG_GENERATOR_TARGET_REGISTRY: Record<
   ConfigGeneratorTarget,
   ConfigGeneratorTargetDefinition
