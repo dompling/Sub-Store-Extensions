@@ -3,8 +3,8 @@
   "id": "org.substore.extensions",
   "name": "Sub-Store Extensions",
   "description": "Sub-Store 扩展集合订阅源",
-  "sequence": 2,
-  "generatedAt": "2026-08-11T07:09:03.000Z",
+  "sequence": 3,
+  "generatedAt": "2026-08-12T01:38:49.000Z",
   "publisher": {
     "id": "org.substore",
     "name": "Sub-Store"
@@ -12,7 +12,7 @@
   "entries": [
     {
       "id": "org.substore.config-generator",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "manifest": {
         "schemaVersion": 1,
         "id": "org.substore.config-generator",
@@ -20,7 +20,7 @@
         "distribution": "source-executable",
         "name": "配置生成器",
         "description": "生成 Surge、Quantumult X、Clash 和 Loon 配置",
-        "version": "1.2.0",
+        "version": "1.2.1",
         "publisher": {
           "id": "org.substore",
           "name": "Sub-Store"
@@ -47,7 +47,7 @@
           "assets": {
             "entrypoint": {
               "path": "frontend/index.js",
-              "digest": "64a8ba8fbf10a7588f2ca50a56c41177f09cbebc9014909f4102286dc2e04707"
+              "digest": "7d655e02922d03b0ef54aa7f63e0453fb32065a275aa3ad945ba1942f57eb2a3"
             },
             "style": {
               "path": "frontend/style.css",
@@ -162,13 +162,13 @@
         }
       },
       "distribution": "source-executable",
-      "packageUrl": "./packages/org.substore.config-generator/1.2.0/node.json",
+      "packageUrl": "./packages/org.substore.config-generator/1.2.1/node.json",
       "packageUrls": {
-        "node": "./packages/org.substore.config-generator/1.2.0/node.json"
+        "node": "./packages/org.substore.config-generator/1.2.1/node.json"
       },
-      "packageDigest": "5dfe4491e5116e6971354de200e11d46a2247d2309d5149ad7ee1ce3df2a5970",
+      "packageDigest": "846ce91e7b3bf1d1ca50cb5d6c6fb99b2da8f8e27e84b950e5e674a4aec57ac8",
       "packageDigests": {
-        "node": "5dfe4491e5116e6971354de200e11d46a2247d2309d5149ad7ee1ce3df2a5970"
+        "node": "846ce91e7b3bf1d1ca50cb5d6c6fb99b2da8f8e27e84b950e5e674a4aec57ac8"
       },
       "source": "org.substore.extensions",
       "sourceName": "Sub-Store Extensions",
