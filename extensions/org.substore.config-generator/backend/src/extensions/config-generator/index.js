@@ -27,7 +27,13 @@ import {
     getTargetPlatform,
     normalizeTargetId,
 } from './core/target-capabilities';
-import { isAutomaticRemoteProxySource } from './core/remote-proxy-source';
+import {
+    createRemoteProxySourceContext,
+    isAutomaticRemoteProxySource,
+    projectGroupRemoteProxySource,
+} from './core/remote-proxy-source';
+import { resolveRuleSetSource } from './core/rule-set-source-resolver';
+import { sanitizeClashRuleProvider } from './targets/clash/rule-provider';
 import manifest from './manifest.json';
 import { hex_md5 } from '@/vendor/md5';
 
@@ -379,6 +385,85 @@ async function downloadProject(req, res, produceBuiltinArtifact, target) {
     }
 }
 
+function isFlattenableRemoteProxyGroup(group) {
+    return Boolean(
+        group &&
+            !group.disabled &&
+            !(group.members || []).length &&
+            !group.includeAllProxies &&
+            !(group.includeOtherGroups || []).length &&
+            !group.nodeNameRegex,
+    );
+}
+
+function serverFilterGroup(project, sourceName, targetId, groupName) {
+    if (!groupName) return null;
+    if (targetId !== 'clash') {
+        throw new RequestInvalidError(
+            'REMOTE_PROXY_SOURCE_FILTER_TARGET_UNSUPPORTED',
+            '远程订阅来源的服务端策略组筛选目前仅用于 Clash 兼容转换',
+        );
+    }
+
+    const group = findByName(project.groups || [], groupName);
+    if (!group || group.disabled) {
+        throw new RequestInvalidError(
+            'REMOTE_PROXY_SOURCE_FILTER_GROUP_NOT_FOUND',
+            `找不到可用的策略组 ${groupName}`,
+        );
+    }
+    const regex = `${group.nodeNameRegex || ''}`.trim();
+    if (!regex) {
+        throw new RequestInvalidError(
+            'REMOTE_PROXY_SOURCE_FILTER_GROUP_REGEX_MISSING',
+            `策略组 ${groupName} 没有可用于服务端筛选的节点名称正则`,
+        );
+    }
+    try {
+        new RegExp(regex);
+    } catch (_) {
+        throw new RequestInvalidError(
+            'REMOTE_PROXY_SOURCE_FILTER_GROUP_REGEX_INVALID',
+            `策略组 ${groupName} 的节点名称正则无效`,
+        );
+    }
+
+    const sourceContext = createRemoteProxySourceContext(project);
+    const directProjection = projectGroupRemoteProxySource(
+        group,
+        targetId,
+        sourceContext,
+    );
+    const directMatch =
+        directProjection.status === 'ready' &&
+        directProjection.source?.name === sourceName;
+    const inheritedMatch = (group.includeOtherGroups || []).some(
+        (includedName) => {
+            const includedGroup = findByName(
+                project.groups || [],
+                includedName,
+            );
+            if (!isFlattenableRemoteProxyGroup(includedGroup)) return false;
+            const projection = projectGroupRemoteProxySource(
+                includedGroup,
+                targetId,
+                sourceContext,
+            );
+            return (
+                projection.status === 'ready' &&
+                projection.source?.name === sourceName
+            );
+        },
+    );
+    if (!directMatch && !inheritedMatch) {
+        throw new RequestInvalidError(
+            'REMOTE_PROXY_SOURCE_FILTER_GROUP_MISMATCH',
+            `策略组 ${groupName} 没有引用远程订阅来源 ${sourceName}`,
+        );
+    }
+    return group;
+}
+
 async function downloadRemoteProxySource(req, res, produceBuiltinArtifact) {
     try {
         const store = readConfigGeneratorStore();
@@ -417,16 +502,37 @@ async function downloadRemoteProxySource(req, res, produceBuiltinArtifact) {
 
         const targetId = normalizeTargetId(req.params.target);
         const handler = resolveTargetHandler(targetId);
+        const filterGroupName = Array.isArray(req.query?.group)
+            ? req.query.group[0]
+            : req.query?.group;
+        const filterGroup = serverFilterGroup(
+            project,
+            sourceName,
+            targetId,
+            `${filterGroupName || ''}`.trim(),
+        );
         const output = await produceBuiltinArtifact({
             type: 'subscription',
             url: source.source.url,
             platform: handler.platform,
             subscription: {
-                name: `config-project:${project.name}:${source.name}`,
+                name: `config-project:${project.name}:${source.name}${
+                    filterGroup ? `:${filterGroup.name}` : ''
+                }`,
                 displayName: source.name,
                 source: 'remote',
                 url: source.source.url,
-                process: [],
+                process: filterGroup
+                    ? [
+                          {
+                              type: 'Regex Filter',
+                              args: {
+                                  regex: [filterGroup.nodeNameRegex],
+                                  keep: true,
+                              },
+                          },
+                      ]
+                    : [],
                 noFlow: true,
             },
             produceOpts:
@@ -451,6 +557,61 @@ async function downloadRemoteProxySource(req, res, produceBuiltinArtifact) {
             throw error;
         }
         res.type('text/plain').send(output);
+    } catch (error) {
+        failed(
+            res,
+            errorFrom(error),
+            error instanceof ResourceNotFoundError
+                ? 404
+                : error instanceof RequestInvalidError
+                ? 400
+                : 502,
+        );
+    }
+}
+
+async function downloadClashRuleProvider(req, res) {
+    try {
+        const store = readConfigGeneratorStore();
+        const projectName = parseName(req);
+        const project = findByName(store.projects, projectName);
+        if (!project) {
+            throw new ResourceNotFoundError(
+                'CONFIG_GENERATOR_PROJECT_NOT_FOUND',
+                `找不到配置项目 ${projectName}`,
+            );
+        }
+        if (normalizeTargetId(req.params.target) !== 'clash') {
+            throw new RequestInvalidError(
+                'CONFIG_GENERATOR_RULE_PROVIDER_TARGET_UNSUPPORTED',
+                '规则缓存目前仅支持 Clash',
+            );
+        }
+        const ruleSetName = decodeURIComponent(req.params.ruleSet);
+        const ruleSet = findByName(store.ruleSets, ruleSetName);
+        if (!ruleSet || ruleSet.enabled === false) {
+            throw new ResourceNotFoundError(
+                'CONFIG_GENERATOR_RULE_SET_NOT_FOUND',
+                `找不到可用规则集 ${ruleSetName}`,
+            );
+        }
+        const resolution = resolveRuleSetSource(ruleSet, 'clash');
+        if (resolution.kind !== 'remote-url' || !resolution.url) {
+            throw new RequestInvalidError(
+                'CONFIG_GENERATOR_RULE_PROVIDER_UNAVAILABLE',
+                `规则集 ${ruleSetName} 不能生成 Clash 远程规则缓存`,
+            );
+        }
+        const content = await downloadCachedRuleSet(resolution.url);
+        const clashOptions = ruleSet.targetOptions?.clash || {};
+        const sanitized = sanitizeClashRuleProvider(content, {
+            behavior: clashOptions.behavior || 'classical',
+            format:
+                resolution.inlineConversion === 'surge-rule-list'
+                    ? 'text'
+                    : clashOptions.format || 'yaml',
+        });
+        res.type('text/yaml').send(sanitized.body);
     } catch (error) {
         failed(
             res,
@@ -522,6 +683,10 @@ export function registerConfigGeneratorRoutes(
         '/download/config-project/:name/proxy-source/:source/:target',
         (req, res) =>
             downloadRemoteProxySource(req, res, produceBuiltinArtifact),
+    );
+    $app.get(
+        '/download/config-project/:name/rule-set/:ruleSet/:target',
+        downloadClashRuleProvider,
     );
     $app.get('/download/config-project/:name/:target', (req, res) =>
         downloadProject(req, res, produceBuiltinArtifact),

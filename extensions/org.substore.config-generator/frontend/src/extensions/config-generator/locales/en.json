@@ -152,13 +152,13 @@
     "policyMappings": {
       "select": "Surge select / QX static / Clash select / Loon select (native)",
       "fallback": "Surge fallback / QX available / Clash fallback / Loon fallback (native)",
-      "urlTest": "Surge url-test / QX url-latency-benchmark / Clash url-test / Loon url-test (native)",
+      "urlTest": "Native Surge, Clash and Loon url-test; QX normally uses url-latency-benchmark, but falls back to available for remote sources or node regex filters because those regex options are not documented for benchmark groups",
       "loadBalance": "Surge, Clash and Loon use native load-balance; QX falls back to round-robin (approximate, balancing algorithms may differ)",
       "subnet": "Native in Surge; Clash and Loon fall back to select (approximate; default and subnet-rule policies become candidates); unsupported in QX",
-      "smart": "Native Surge smart; QX, Clash and Loon fall back to latency testing (approximate; adaptive quality semantics are not preserved)",
+      "smart": "Native Surge smart; Clash and Loon fall back to latency testing; QX uses url-latency-benchmark without node filters and available with remote sources or node regex filters (all approximations lose adaptive quality semantics)",
       "roundRobin": "Native in QX; Surge, Clash and Loon fall back to load-balance (approximate)",
-      "destHash": "Native in QX; Surge persistent load-balance / Clash consistent-hashing / Loon load-balance are approximate",
-      "ssid": "Native in Quantumult X and Loon; Clash falls back to select (approximate; network conditions are not preserved); unsupported in Surge",
+      "destHash": "QX normally uses native dest-hash, but falls back to round-robin for remote sources or node regex filters; Surge persistent load-balance / Clash consistent-hashing / Loon load-balance are approximate",
+      "ssid": "Native in Quantumult X; Loon output is retained only for compatibility with the legacy official example because the current policy-group manual omits it (verify the client version); Clash falls back to select (approximate; network conditions are not preserved); unsupported in Surge",
       "surgeOnly": "Surge only; Quantumult X, Clash and Loon generation report a diagnostic instead of guessing a mapping"
     },
     "fields": {

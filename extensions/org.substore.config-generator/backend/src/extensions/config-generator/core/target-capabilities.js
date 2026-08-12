@@ -71,6 +71,7 @@ const TARGET_CAPABILITIES = {
             },
             'url-test': {
                 outputType: 'url-latency-benchmark',
+                regexCandidateFallback: 'available',
                 members: 'ordered',
                 includedPolicyGroupsMode: 'omit',
                 fields: {
@@ -98,6 +99,7 @@ const TARGET_CAPABILITIES = {
             },
             'dest-hash': {
                 outputType: 'dest-hash',
+                regexCandidateFallback: 'round-robin',
                 members: 'ordered',
                 includedPolicyGroupsMode: 'omit',
                 fields: {
@@ -226,6 +228,9 @@ const TARGET_CAPABILITIES = {
             },
             ssid: {
                 outputType: 'ssid',
+                exact: false,
+                warning:
+                    'Loon ssid policy groups are preserved for compatibility with the legacy official example, but the current Loon policy-group manual no longer documents this type. Verify the target Loon version or migrate the network trigger to current Loon settings.',
                 members: 'ordered',
                 includedPolicyGroupsMode: 'omit',
                 fields: {},

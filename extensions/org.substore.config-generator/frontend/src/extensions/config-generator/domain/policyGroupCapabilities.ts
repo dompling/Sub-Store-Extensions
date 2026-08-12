@@ -39,7 +39,7 @@ export const POLICY_GROUP_TYPE_DEFINITIONS: PolicyGroupTypeDefinition[] = [
     section: 'portable',
     support: {
       surge: { level: 'exact', output: 'url-test' },
-      qx: { level: 'exact', output: 'url-latency-benchmark' },
+      qx: { level: 'exact', output: 'url-latency / available' },
       clash: { level: 'exact', output: 'url-test' },
       loon: { level: 'exact', output: 'url-test' },
     },
@@ -50,7 +50,7 @@ export const POLICY_GROUP_TYPE_DEFINITIONS: PolicyGroupTypeDefinition[] = [
     section: 'surge',
     support: {
       surge: { level: 'exact', output: 'smart' },
-      qx: { level: 'fallback', output: 'url-latency-benchmark' },
+      qx: { level: 'fallback', output: 'url-latency / available' },
       clash: { level: 'fallback', output: 'url-test' },
       loon: { level: 'fallback', output: 'url-test' },
     },
@@ -94,7 +94,7 @@ export const POLICY_GROUP_TYPE_DEFINITIONS: PolicyGroupTypeDefinition[] = [
     section: 'qx',
     support: {
       surge: { level: 'fallback', output: 'load-balance + persistent' },
-      qx: { level: 'exact', output: 'dest-hash' },
+      qx: { level: 'exact', output: 'dest-hash / round-robin' },
       clash: { level: 'fallback', output: 'load-balance / consistent-hashing' },
       loon: { level: 'fallback', output: 'load-balance' },
     },
@@ -107,7 +107,7 @@ export const POLICY_GROUP_TYPE_DEFINITIONS: PolicyGroupTypeDefinition[] = [
       surge: { level: 'unsupported' },
       qx: { level: 'exact', output: 'ssid' },
       clash: { level: 'fallback', output: 'select' },
-      loon: { level: 'exact', output: 'ssid' },
+      loon: { level: 'fallback', output: 'ssid (legacy)' },
     },
   },
 ];

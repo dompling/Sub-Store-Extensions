@@ -502,7 +502,12 @@ test('keeps unnamed remote rule identifiers target-local without mutating the pr
     /RULE-SET, https:\/\/raw\.githubusercontent\.com\/blackmatrix7\/ios_rule_script\/master\/rule\/Surge\/Advertising\/Advertising\.list, REJECT/,
   );
   assert.equal(surge.body.includes('internal-rule-set-id'), false);
-  assert.match(qx.body, /tag=internal-rule-set-id, force-policy=reject/);
+  assert.match(
+    qx.body,
+    /Advertising\.list, force-policy=reject, enabled=true/,
+  );
+  assert.equal(qx.body.includes('tag='), false);
+  assert.equal(qx.body.includes('internal-rule-set-id'), false);
   assert.ok(clash['rule-providers']['internal-rule-set-id']);
   assert.equal(
     clash['rule-providers']['internal-rule-set-id'].url,
@@ -816,10 +821,11 @@ test('routes automatic URL sources through the injected Node Host producer', asy
       },
     },
     async ({ routes }) => {
-      const response = createResponse();
-      await routes.get(
+      const handler = routes.get(
         'GET /download/config-project/:name/proxy-source/:source/:target',
-      )(
+      );
+      const response = createResponse();
+      await handler(
         {
           params: {
             name: 'automatic-source',
@@ -864,6 +870,130 @@ test('routes automatic URL sources through the injected Node Host producer', asy
       url: 'https://origin.example.com/subscription',
     },
   );
+});
+
+test('filters automatic Clash sources on the server for unsupported provider regex syntax', async () => {
+  let producerInput;
+  const initialStore = {
+    version: 1,
+    projects: [
+      {
+        name: 'server-filtered-source',
+        remoteProxySources: [
+          {
+            name: 'Shared Nodes',
+            source: {
+              kind: 'url',
+              mode: 'auto',
+              url: 'https://origin.example.com/subscription',
+              publicBaseUrl: 'https://sub.example.com',
+            },
+          },
+        ],
+        groups: [
+          {
+            name: 'Nodes',
+            type: 'select',
+            members: [],
+            remoteProxySource: 'Shared Nodes',
+          },
+          {
+            name: 'Other',
+            type: 'fallback',
+            members: [],
+            includeOtherGroups: ['Nodes'],
+            nodeNameRegex: '^((?!JP|Japan|日本).)*$',
+          },
+          {
+            name: 'Unrelated',
+            type: 'select',
+            members: [{ kind: 'builtin', value: 'DIRECT' }],
+            nodeNameRegex: 'US|United States|美国',
+          },
+        ],
+        rules: [{ kind: 'final', policy: 'Other' }],
+        outputs: { clash: {} },
+      },
+    ],
+    ruleSets: [],
+  };
+
+  await withNodeRuntime(
+    {
+      initialStore,
+      produceBuiltinArtifact: async input => {
+        producerInput = input;
+        return 'filtered Clash proxy output';
+      },
+    },
+    async ({ routes }) => {
+      const handler = routes.get(
+        'GET /download/config-project/:name/proxy-source/:source/:target',
+      );
+      const response = createResponse();
+      await handler(
+        {
+          params: {
+            name: 'server-filtered-source',
+            source: 'Shared Nodes',
+            target: 'Clash',
+          },
+          query: { group: 'Other' },
+        },
+        response,
+      );
+      assert.deepEqual(response.result(), {
+        statusCode: 200,
+        payload: 'filtered Clash proxy output',
+      });
+
+      const rejected = createResponse();
+      await handler(
+        {
+          params: {
+            name: 'server-filtered-source',
+            source: 'Shared Nodes',
+            target: 'Clash',
+          },
+          query: { group: 'Nodes' },
+        },
+        rejected,
+      );
+      assert.equal(rejected.result().statusCode, 400);
+      assert.equal(
+        rejected.result().payload.error.code,
+        'REMOTE_PROXY_SOURCE_FILTER_GROUP_REGEX_MISSING',
+      );
+
+      const mismatched = createResponse();
+      await handler(
+        {
+          params: {
+            name: 'server-filtered-source',
+            source: 'Shared Nodes',
+            target: 'Clash',
+          },
+          query: { group: 'Unrelated' },
+        },
+        mismatched,
+      );
+      assert.equal(mismatched.result().statusCode, 400);
+      assert.equal(
+        mismatched.result().payload.error.code,
+        'REMOTE_PROXY_SOURCE_FILTER_GROUP_MISMATCH',
+      );
+    },
+  );
+
+  assert.deepEqual(producerInput.subscription.process, [
+    {
+      type: 'Regex Filter',
+      args: {
+        regex: ['^((?!JP|Japan|日本).)*$'],
+        keep: true,
+      },
+    },
+  ]);
 });
 
 test('still rejects real policy cycles instead of applying compatibility fallbacks', async () => {

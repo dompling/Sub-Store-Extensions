@@ -152,13 +152,13 @@
     "policyMappings": {
       "select": "Surge select / QX static / Clash select / Loon select（原生）",
       "fallback": "Surge fallback / QX available / Clash fallback / Loon fallback（原生）",
-      "urlTest": "Surge url-test / QX url-latency-benchmark / Clash url-test / Loon url-test（原生）",
+      "urlTest": "Surge url-test / Clash url-test / Loon url-test 原生；QX 默认映射为 url-latency-benchmark，使用远程来源或节点正则时按官方限制降级为 available，以保留正确节点范围",
       "loadBalance": "Surge、Clash 与 Loon 原生为 load-balance；QX 降级为 round-robin（近似，负载算法可能不同）",
       "subnet": "Surge 原生；Clash 与 Loon 降级为手动选择（近似，会把默认策略和子网规则策略作为候选）；QX 不支持",
-      "smart": "Surge smart 原生；QX、Clash 与 Loon 均降级为延迟测试（近似，不保留自适应质量语义）",
+      "smart": "Surge smart 原生；Clash 与 Loon 降级为延迟测试；QX 无节点筛选时降级为 url-latency-benchmark，使用远程来源或节点正则时进一步降级为 available（均不保留自适应质量语义）",
       "roundRobin": "QX 原生；Surge、Clash 与 Loon 降级为 load-balance（近似）",
-      "destHash": "QX 原生；Surge persistent load-balance / Clash consistent-hashing / Loon load-balance（均为近似）",
-      "ssid": "Quantumult X 与 Loon 原生；Clash 降级为手动选择（近似，不保留网络条件）；Surge 不支持",
+      "destHash": "QX 默认原生 dest-hash，但使用远程来源或节点正则时按官方限制降级为 round-robin；Surge persistent load-balance / Clash consistent-hashing / Loon load-balance 均为近似",
+      "ssid": "Quantumult X 原生；Loon 仅按旧版官方示例兼容输出（当前策略组手册已不再列出，需确认客户端版本）；Clash 降级为手动选择（近似，不保留网络条件）；Surge 不支持",
       "surgeOnly": "仅支持 Surge；生成 Quantumult X、Clash 或 Loon 时会给出诊断，不会猜测映射"
     },
     "fields": {

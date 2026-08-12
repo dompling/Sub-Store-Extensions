@@ -8,6 +8,10 @@ import {
     policyGroupSupportsField,
 } from '../../core/target-capabilities';
 import { matchingSubStoreSource } from '../../core/sub-store-source';
+import {
+    mergeSectionedImportedRules,
+    withoutGeneratedPolicyHeading,
+} from '../../core/rule-trivia';
 
 const MANAGED_SECTIONS = new Set([
     'server_local',
@@ -24,6 +28,7 @@ const RULE_TYPES = {
     'ip-cidr': 'IP-CIDR',
     'ip6-cidr': 'IP-CIDR6',
     geoip: 'GEOIP',
+    'ip-asn': 'IP-ASN',
     'user-agent': 'USER-AGENT',
     'url-regex': 'URL-REGEX',
 };
@@ -31,6 +36,14 @@ const RULE_TYPES = {
 function bool(value, fallback = undefined) {
     if (value === undefined) return fallback;
     return !['0', 'false', 'no'].includes(`${value}`.trim().toLowerCase());
+}
+
+function isQxComment(line) {
+    return /^(?:#|;|\/\/)/.test(`${line || ''}`.trim());
+}
+
+function qxCommentText(line) {
+    return `${line || ''}`.trim().replace(/^(?:#|;|\/\/)\s*/, '');
 }
 
 function splitLine(line) {
@@ -117,7 +130,7 @@ function importRemoteSources(section, warnings, sourceContext) {
     const byTag = new Map();
     (section?.body || []).forEach((rawLine, index) => {
         const line = rawLine.trim();
-        if (!line || line.startsWith('#')) return;
+        if (!line || isQxComment(line)) return;
         const values = splitLine(line);
         const url = values.shift();
         if (!/^https?:\/\//i.test(url || '')) {
@@ -189,9 +202,17 @@ function sourceFromResourceRegex(value, remoteSources) {
 
 function importPolicies(section, remoteSources, warnings) {
     const groups = [];
+    let pendingRemark;
     (section?.body || []).forEach((rawLine, index) => {
         const line = rawLine.trim();
-        if (!line || line.startsWith('#')) return;
+        if (!line) {
+            pendingRemark = undefined;
+            return;
+        }
+        if (isQxComment(line)) {
+            pendingRemark = qxCommentText(line);
+            return;
+        }
         const values = splitLine(line);
         const first = values.shift() || '';
         const separator = first.indexOf('=');
@@ -204,6 +225,7 @@ function importPolicies(section, remoteSources, warnings) {
                 line: index + 1,
                 message: `Unsupported Quantumult X policy: ${line}`,
             });
+            pendingRemark = undefined;
             return;
         }
         const options = optionMap(values);
@@ -286,6 +308,8 @@ function importPolicies(section, remoteSources, warnings) {
                 message: `Unable to bind resource-tag-regex ${options['resource-tag-regex']} to one imported source; the raw Quantumult X expression was preserved.`,
             });
         }
+        if (pendingRemark) group.remark = pendingRemark;
+        pendingRemark = undefined;
         groups.push(group);
     });
     const names = new Map(
@@ -324,9 +348,18 @@ function importRemoteRules(section, warnings) {
     const ruleSets = [];
     const rules = [];
     const usedNames = new Set();
+    let pendingTrivia = [];
     (section?.body || []).forEach((rawLine, index) => {
         const line = rawLine.trim();
-        if (!line || line.startsWith('#')) return;
+        if (!line) {
+            pendingTrivia.push({ kind: 'blank' });
+            return;
+        }
+        if (isQxComment(line)) {
+            const text = qxCommentText(line);
+            pendingTrivia.push({ kind: 'comment', text });
+            return;
+        }
         const values = splitLine(line);
         const sourceValue = values.shift();
         const options = optionMap(values);
@@ -344,9 +377,24 @@ function importRemoteRules(section, warnings) {
                 line: index + 1,
                 message: `Unsupported Quantumult X remote filter: ${line}`,
             });
+            pendingTrivia = [];
             return;
         }
-        const baseName = options.tag || `rule-set-${ruleSets.length + 1}`;
+        const explicitName = options.tag;
+        if (
+            explicitName &&
+            pendingTrivia.at(-1)?.kind === 'comment' &&
+            pendingTrivia.at(-1).text === explicitName
+        ) {
+            pendingTrivia.pop();
+        }
+        pendingTrivia = withoutGeneratedPolicyHeading(
+            pendingTrivia,
+            options['force-policy'],
+        );
+        rules.push(...pendingTrivia);
+        pendingTrivia = [];
+        const baseName = explicitName || `rule-set-${ruleSets.length + 1}`;
         let name = baseName;
         let number = 2;
         while (usedNames.has(name)) name = `${baseName}-${number++}`;
@@ -369,19 +417,23 @@ function importRemoteRules(section, warnings) {
         });
         rules.push({
             kind: 'remote',
-            name: baseName,
+            ...(explicitName ? { name: explicitName } : {}),
             ruleSet: name,
             policy: options['force-policy'],
             disabled: bool(options.enabled, true) === false,
         });
     });
+    rules.push(...pendingTrivia);
     return { ruleSets, rules };
 }
 
 function importLocalRules(section, warnings) {
     return (section?.body || []).flatMap((rawLine, index) => {
         const line = rawLine.trim();
-        if (!line || line.startsWith('#')) return [];
+        if (!line) return [{ kind: 'blank' }];
+        if (isQxComment(line)) {
+            return [{ kind: 'comment', text: qxCommentText(line) }];
+        }
         const values = splitLine(line);
         const type = values.shift()?.toLowerCase();
         if (type === 'final' && values[0])
@@ -425,12 +477,7 @@ export function importQXConfig(content, sourceContext = {}) {
     const localRules = importLocalRules(byName.get('filter_local'), warnings);
     // QX keeps local and remote filters in separate sections.  The shared
     // model requires FINAL to be last, so place it after imported remote rules.
-    const finalRules = localRules.filter((rule) => rule.kind === 'final');
-    const rules = [
-        ...localRules.filter((rule) => rule.kind !== 'final'),
-        ...remoteRules,
-        ...finalRules,
-    ];
+    const rules = mergeSectionedImportedRules(localRules, remoteRules);
     ensureImplicitProxyGroup(groups, rules, sources, warnings);
     normalizePolicyReferences(groups, rules);
     const independentConfig = serializeProfileSections({

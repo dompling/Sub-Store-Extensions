@@ -46,7 +46,12 @@ const LOON_RULE_TYPES = new Set([
     'USER-AGENT',
     'URL-REGEX',
 ]);
-const NO_RESOLVE_RULE_TYPES = new Set(['IP-CIDR', 'IP-CIDR6', 'GEOIP']);
+const NO_RESOLVE_RULE_TYPES = new Set([
+    'IP-CIDR',
+    'IP-CIDR6',
+    'GEOIP',
+    'IP-ASN',
+]);
 
 function namedAssignment(line) {
     const trimmed = `${line || ''}`.trim();
@@ -195,106 +200,157 @@ function warnUnsupportedGroupFields(group, capability, warnings) {
 function generateRemoteSources(project, sourceContext, warnings) {
     const remoteProxyLines = [];
     const remoteFilterLines = [];
-    const memberByGroup = new Map();
+    const membersByGroup = new Map();
+    const flattenedIncludedGroupsByGroup = new Map();
     const sourceAliases = new Map();
     const usedAliases = new Set(
         (project.groups || []).map((group) => group.name.toLowerCase()),
     );
     const usedFilterVariants = new Map();
+    const enabledGroups = (project.groups || []).filter(
+        (group) => !group.disabled,
+    );
+    const sourceProjections = new Map(
+        enabledGroups.map((group) => [
+            group.name,
+            projectGroupRemoteProxySource(group, 'loon', sourceContext),
+        ]),
+    );
+    const flattenableSourceGroups = new Map();
 
-    (project.groups || [])
-        .filter((group) => !group.disabled)
-        .forEach((group) => {
-            const projection = projectGroupRemoteProxySource(
-                group,
-                'loon',
-                sourceContext,
+    enabledGroups.forEach((group) => {
+        const projection = sourceProjections.get(group.name);
+        if (
+            projection?.status === 'ready' &&
+            !(group.members || []).length &&
+            !group.includeAllProxies &&
+            !(group.includeOtherGroups || []).length &&
+            !group.nodeNameRegex
+        ) {
+            flattenableSourceGroups.set(group.name, projection);
+        }
+    });
+
+    const sourceAliasFor = (projection) => {
+        let sourceAlias = sourceAliases.get(projection.source.name);
+        if (sourceAlias) return sourceAlias;
+
+        sourceAlias = uniqueName(
+            projection.source.name,
+            usedAliases,
+            'Remote',
+        );
+        const url = remoteProxySourceOutputUrl(
+            projection.source,
+            'loon',
+            sourceContext,
+        );
+        if (!url) {
+            warnings.push({
+                path: projection.path,
+                message:
+                    'The remote proxy source has no usable Loon output URL and was omitted.',
+            });
+            return null;
+        }
+        sourceAliases.set(projection.source.name, sourceAlias);
+        remoteProxyLines.push(`${sourceAlias} = ${url}`);
+        return sourceAlias;
+    };
+
+    const remoteMemberFor = (projection, group) => {
+        const sourceAlias = sourceAliasFor(projection);
+        if (!sourceAlias) return null;
+
+        const regex = compileRegex(
+            group.nodeNameRegex,
+            `groups.${group.name}.nodeNameRegex`,
+            warnings,
+        );
+        if (!regex) return sourceAlias;
+
+        const filterKey = `${sourceAlias}\u0000${group.nodeNameRegex}`;
+        let filterAlias = usedFilterVariants.get(filterKey);
+        if (!filterAlias) {
+            filterAlias = uniqueName(
+                `${sourceAlias}-${group.name}`,
+                usedAliases,
+                'Remote-Filter',
             );
-            if (projection.status === 'none') return;
-            if (projection.status === 'unsupported-field') {
-                warnings.push({
-                    path: projection.path,
-                    message: `Loon ${
-                        projection.capability?.outputType || group.type
-                    } cannot use a Remote Proxy source; it was omitted.`,
-                });
-                return;
-            }
-            if (
-                projection.status === 'missing' ||
-                projection.status === 'incompatible'
-            ) {
-                warnings.push({
-                    path: projection.path,
-                    message: remoteProxySourceWarning(projection, 'loon'),
-                });
-                return;
-            }
-            if (projection.status === 'disabled') {
-                warnings.push({
-                    path: projection.path,
-                    message:
-                        'The Loon remote proxy source is disabled and was omitted.',
-                });
-                return;
-            }
-            if (projection.status !== 'ready') return;
-
-            let sourceAlias = sourceAliases.get(projection.source.name);
-            if (!sourceAlias) {
-                sourceAlias = uniqueName(
-                    projection.source.name,
-                    usedAliases,
-                    'Remote',
-                );
-                const url = remoteProxySourceOutputUrl(
-                    projection.source,
-                    'loon',
-                    sourceContext,
-                );
-                if (!url) {
-                    warnings.push({
-                        path: projection.path,
-                        message:
-                            'The remote proxy source has no usable Loon output URL and was omitted.',
-                    });
-                    return;
-                }
-                sourceAliases.set(projection.source.name, sourceAlias);
-                remoteProxyLines.push(`${sourceAlias} = ${url}`);
-            }
-
-            const regex = compileRegex(
-                group.nodeNameRegex,
-                `groups.${group.name}.nodeNameRegex`,
-                warnings,
+            usedFilterVariants.set(filterKey, filterAlias);
+            remoteFilterLines.push(
+                `${filterAlias} = ${serializeSurgeCsv([
+                    'NameRegex',
+                    sourceAlias,
+                    `FilterKey = ${group.nodeNameRegex}`,
+                ])}`,
             );
-            if (!regex) {
-                memberByGroup.set(group.name, sourceAlias);
-                return;
-            }
+        }
+        return filterAlias;
+    };
 
-            const filterKey = `${sourceAlias}\u0000${group.nodeNameRegex}`;
-            let filterAlias = usedFilterVariants.get(filterKey);
-            if (!filterAlias) {
-                filterAlias = uniqueName(
-                    `${sourceAlias}-${group.name}`,
-                    usedAliases,
-                    'Remote-Filter',
-                );
-                usedFilterVariants.set(filterKey, filterAlias);
-                remoteFilterLines.push(
-                    `${filterAlias} = ${serializeSurgeCsv([
-                        'NameRegex',
-                        sourceAlias,
-                        `FilterKey = ${group.nodeNameRegex}`,
-                    ])}`,
-                );
-            }
-            memberByGroup.set(group.name, filterAlias);
+    const appendMember = (groupName, member) => {
+        if (!member) return;
+        const members = membersByGroup.get(groupName) || [];
+        members.push(member);
+        membersByGroup.set(groupName, dedupe(members));
+    };
+
+    enabledGroups.forEach((group) => {
+        const projection = sourceProjections.get(group.name);
+        if (projection.status === 'none') return;
+        if (projection.status === 'unsupported-field') {
+            warnings.push({
+                path: projection.path,
+                message: `Loon ${
+                    projection.capability?.outputType || group.type
+                } cannot use a Remote Proxy source; it was omitted.`,
+            });
+            return;
+        }
+        if (
+            projection.status === 'missing' ||
+            projection.status === 'incompatible'
+        ) {
+            warnings.push({
+                path: projection.path,
+                message: remoteProxySourceWarning(projection, 'loon'),
+            });
+            return;
+        }
+        if (projection.status === 'disabled') {
+            warnings.push({
+                path: projection.path,
+                message:
+                    'The Loon remote proxy source is disabled and was omitted.',
+            });
+            return;
+        }
+        if (projection.status !== 'ready') return;
+        appendMember(group.name, remoteMemberFor(projection, group));
+    });
+
+    enabledGroups.forEach((group) => {
+        const flattened = new Set();
+        (group.includeOtherGroups || []).forEach((name) => {
+            const projection = flattenableSourceGroups.get(name);
+            if (!projection) return;
+            const member = remoteMemberFor(projection, group);
+            if (!member) return;
+            appendMember(group.name, member);
+            flattened.add(name);
         });
+        if (flattened.size) {
+            flattenedIncludedGroupsByGroup.set(group.name, flattened);
+        }
+    });
 
-    return { remoteProxyLines, remoteFilterLines, memberByGroup };
+    return {
+        remoteProxyLines,
+        remoteFilterLines,
+        membersByGroup,
+        flattenedIncludedGroupsByGroup,
+    };
 }
 
 function conditionalParts(member) {
@@ -347,13 +403,21 @@ function generateGroups(
                 capability,
                 'loon',
             );
-            members.push(...includedGroups.members);
-            warnings.push(...includedGroups.diagnostics);
-
-            const remoteMember = remoteSourceProjection.memberByGroup.get(
-                group.name,
+            const flattenedIncludedGroups =
+                remoteSourceProjection.flattenedIncludedGroupsByGroup.get(
+                    group.name,
+                ) || new Set();
+            const residualIncludedGroups = includedGroups.members.filter(
+                (name) => !flattenedIncludedGroups.has(name),
             );
-            if (remoteMember) members.push(remoteMember);
+            members.push(...residualIncludedGroups);
+            if (residualIncludedGroups.length) {
+                warnings.push(...includedGroups.diagnostics);
+            }
+
+            const remoteMembers =
+                remoteSourceProjection.membersByGroup.get(group.name) || [];
+            members.push(...remoteMembers);
 
             const regex = compileRegex(
                 group.nodeNameRegex,
@@ -365,14 +429,14 @@ function generateGroups(
                     (name) => !regex || regex.test(name),
                 );
                 members.push(...matched);
-                if (!matched.length && !remoteMember) {
+                if (!matched.length && !remoteMembers.length) {
                     warnings.push({
                         path: `groups.${group.name}.includeAllProxies`,
                         message:
                             'No embedded or independent Loon proxy matched includeAllProxies, so it added no members.',
                     });
                 }
-            } else if (group.nodeNameRegex && !remoteMember) {
+            } else if (group.nodeNameRegex && !remoteMembers.length) {
                 warnings.push({
                     path: `groups.${group.name}.nodeNameRegex`,
                     message:
@@ -487,6 +551,7 @@ function generateRules(project, ruleSets, warnings) {
     const byName = new Map((ruleSets || []).map((item) => [item.name, item]));
     const local = [];
     const remoteBlocks = [];
+    let pendingTrivia = [];
     let currentRemotePolicy;
     let currentRemoteBlock = [];
 
@@ -494,22 +559,31 @@ function generateRules(project, ruleSets, warnings) {
         if (!currentRemoteBlock.length) return;
         remoteBlocks.push(currentRemoteBlock);
         currentRemoteBlock = [];
+        currentRemotePolicy = undefined;
+    };
+    const flushTriviaToLocal = () => {
+        local.push(...pendingTrivia);
+        pendingTrivia = [];
     };
 
     (project.rules || []).forEach((rule, index) => {
         if (rule.disabled) return;
         if (rule.kind === 'comment') {
             const text = `${rule.text || ''}`.trim();
-            local.push(
+            finishRemoteBlock();
+            pendingTrivia.push(
                 text.startsWith('#') ? text : `#${text ? ` ${text}` : ''}`,
             );
             return;
         }
         if (rule.kind === 'blank') {
-            local.push('');
+            finishRemoteBlock();
+            pendingTrivia.push('');
             return;
         }
         if (rule.kind !== 'remote') {
+            finishRemoteBlock();
+            flushTriviaToLocal();
             const line = localRuleLine(rule, warnings, index);
             if (line) local.push(line);
             return;
@@ -528,6 +602,8 @@ function generateRules(project, ruleSets, warnings) {
             });
         }
         if (resolution.kind === 'inline-rules') {
+            finishRemoteBlock();
+            flushTriviaToLocal();
             resolution.rules.forEach((item) => {
                 if (!LOON_RULE_TYPES.has(item.type)) return;
                 local.push(
@@ -575,20 +651,28 @@ function generateRules(project, ruleSets, warnings) {
             });
         }
 
-        if (currentRemotePolicy !== rule.policy) {
+        if (
+            pendingTrivia.length ||
+            currentRemotePolicy !== rule.policy ||
+            !currentRemoteBlock.length
+        ) {
             finishRemoteBlock();
+            currentRemoteBlock.push(...pendingTrivia);
+            pendingTrivia = [];
             currentRemotePolicy = rule.policy;
             currentRemoteBlock.push(
                 `# ==================== ${rule.policy} ====================`,
             );
         }
         const bindingName = getExplicitRuleBindingName(rule);
-        if (bindingName) currentRemoteBlock.push(`# ${bindingName}`);
+        if (bindingName)
+            currentRemoteBlock.push(`# rule-name: ${bindingName}`);
         currentRemoteBlock.push(
             `${resolution.url}, policy=${rule.policy}, enabled=true`,
         );
     });
     finishRemoteBlock();
+    flushTriviaToLocal();
 
     return {
         local,
@@ -635,6 +719,7 @@ function mergeIndependentConfig(content, replacements, replaceProxy) {
         if (existing) {
             if (name === 'proxy') {
                 if (replaceProxy) existing.body = generated;
+                if (!existing.body.length) existing.body = [''];
             } else if (
                 ['remote proxy', 'remote filter', 'proxy group'].includes(name)
             ) {

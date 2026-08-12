@@ -92,6 +92,10 @@ interface RemoteRuleSet {
     qx?: {
       optParser?: boolean;
     };
+    clash?: {
+      behavior?: 'domain' | 'ipcidr' | 'classical';
+      format?: 'yaml' | 'text';
+    };
   };
 }
 
@@ -113,6 +117,7 @@ interface QxOutput {
 
 interface ClashOutput {
   independentConfig?: string;
+  publicBaseUrl?: string;
 }
 
 interface LoonOutput {

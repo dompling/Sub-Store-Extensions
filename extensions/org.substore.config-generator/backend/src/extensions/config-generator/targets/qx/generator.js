@@ -16,7 +16,7 @@ import {
     projectIncludedPolicyGroups,
 } from '@/extensions/config-generator/core/policy-group-projection';
 import { resolveRuleSetSource } from '@/extensions/config-generator/core/rule-set-source-resolver';
-import { resolveRuleBindingResourceName } from '@/extensions/config-generator/core/rule-binding-name';
+import { getExplicitRuleBindingName } from '@/extensions/config-generator/core/rule-binding-name';
 import { separateSectionBlocks } from '@/extensions/config-generator/core/section-lines';
 import { mergeNamedLines } from '@/extensions/config-generator/core/named-entry-merge';
 import {
@@ -45,6 +45,7 @@ const QX_RULE_TYPES = {
     'IP-CIDR': 'ip-cidr',
     'IP-CIDR6': 'ip6-cidr',
     GEOIP: 'geoip',
+    'IP-ASN': 'ip-asn',
     'USER-AGENT': 'user-agent',
     'URL-REGEX': 'url-regex',
 };
@@ -61,7 +62,12 @@ function qxRulePolicy(policy) {
 
 function qxPolicyGroupName(line) {
     const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith(';'))
+    if (
+        !trimmed ||
+        trimmed.startsWith('#') ||
+        trimmed.startsWith(';') ||
+        trimmed.startsWith('//')
+    )
         return undefined;
     const separator = trimmed.indexOf('=');
     if (separator <= 0) return undefined;
@@ -72,7 +78,33 @@ function qxPolicyGroupName(line) {
     return name || undefined;
 }
 
-function groupOptions(group, sourceContext, warnings) {
+function createRemoteSourceInheritance(project, sourceContext) {
+    const enabledGroups = (project.groups || []).filter(
+        (group) => !group.disabled,
+    );
+    const sourceProjections = new Map(
+        enabledGroups.map((group) => [
+            group.name,
+            projectGroupRemoteProxySource(group, 'qx', sourceContext),
+        ]),
+    );
+    const flattenableSourceGroups = new Map();
+    enabledGroups.forEach((group) => {
+        const projection = sourceProjections.get(group.name);
+        if (
+            projection?.status === 'ready' &&
+            !(group.members || []).length &&
+            !group.includeAllProxies &&
+            !(group.includeOtherGroups || []).length &&
+            !group.nodeNameRegex
+        ) {
+            flattenableSourceGroups.set(group.name, projection);
+        }
+    });
+    return { sourceProjections, flattenableSourceGroups };
+}
+
+function groupOptions(group, sourceContext, sourceInheritance, warnings) {
     const capability = resolvePolicyGroupCapability('qx', group.type);
     if (!capability) {
         warnings.push({
@@ -83,7 +115,8 @@ function groupOptions(group, sourceContext, warnings) {
     }
     warnings.push(...policyGroupCapabilityDiagnostics(group, capability));
 
-    const values = [`${capability.outputType}=${group.name}`];
+    let outputType = capability.outputType;
+    const values = [`${outputType}=${group.name}`];
     const memberValues = new Set();
     if (capability.members === 'ordered') {
         (group.members || []).forEach((member) => {
@@ -92,7 +125,27 @@ function groupOptions(group, sourceContext, warnings) {
             values.push(member.value);
         });
     }
-    const includedGroups = projectIncludedPolicyGroups(group, capability, 'qx');
+    const inheritedSourceProjections = [];
+    const flattenedIncludedGroups = new Set();
+    if (capability.fields?.resourceTagRegex) {
+        (group.includeOtherGroups || []).forEach((name) => {
+            const inherited =
+                sourceInheritance.flattenableSourceGroups.get(name);
+            if (!inherited) return;
+            inheritedSourceProjections.push(inherited);
+            flattenedIncludedGroups.add(name);
+        });
+    }
+    const includedGroups = projectIncludedPolicyGroups(
+        {
+            ...group,
+            includeOtherGroups: (group.includeOtherGroups || []).filter(
+                (name) => !flattenedIncludedGroups.has(name),
+            ),
+        },
+        capability,
+        'qx',
+    );
     includedGroups.members.forEach((name) => {
         if (memberValues.has(name)) return;
         memberValues.add(name);
@@ -101,12 +154,11 @@ function groupOptions(group, sourceContext, warnings) {
     warnings.push(...includedGroups.diagnostics);
     let hasCandidates = memberValues.size > 0;
 
-    const sourceProjection = projectGroupRemoteProxySource(
-        group,
-        'qx',
-        sourceContext,
-    );
+    const sourceProjection =
+        sourceInheritance.sourceProjections.get(group.name) ||
+        projectGroupRemoteProxySource(group, 'qx', sourceContext);
     const qxOptions = group.targetOptions?.qx || {};
+    const readySourceProjections = [];
     if (sourceProjection.status !== 'none') {
         if (sourceProjection.status === 'unsupported-field') {
             warnings.push({
@@ -128,11 +180,7 @@ function groupOptions(group, sourceContext, warnings) {
                     'The Quantumult X remote proxy source is disabled and was omitted.',
             });
         } else if (sourceProjection.status === 'ready') {
-            const tag =
-                sourceProjection.source.targetOptions?.qx?.tag ||
-                sourceProjection.source.name;
-            values.push(`resource-tag-regex=^${escapeRegex(tag)}$`);
-            hasCandidates = true;
+            readySourceProjections.push(sourceProjection);
             const fallbackWarning =
                 remoteProxySourceFallbackWarning(sourceProjection);
             if (fallbackWarning) {
@@ -142,7 +190,49 @@ function groupOptions(group, sourceContext, warnings) {
                 });
             }
         }
-    } else if (qxOptions.resourceTagRegex) {
+    }
+    inheritedSourceProjections.forEach((projection) => {
+        readySourceProjections.push(projection);
+        const fallbackWarning = remoteProxySourceFallbackWarning(projection);
+        if (fallbackWarning) {
+            warnings.push({
+                path: `groups.${group.name}.includeOtherGroups`,
+                message: fallbackWarning,
+            });
+        }
+    });
+    const sourceTags = [
+        ...new Set(
+            readySourceProjections.map(
+                (projection) =>
+                    projection.source.targetOptions?.qx?.tag ||
+                    projection.source.name,
+            ),
+        ),
+    ];
+    const usesRegexCandidates = Boolean(
+        sourceTags.length ||
+            (sourceProjection.status === 'none' &&
+                qxOptions.resourceTagRegex) ||
+            group.includeAllProxies ||
+            group.nodeNameRegex,
+    );
+    if (usesRegexCandidates && capability.regexCandidateFallback) {
+        outputType = capability.regexCandidateFallback;
+        values[0] = `${outputType}=${group.name}`;
+        warnings.push({
+            path: `groups.${group.name}.type`,
+            message: `The official Quantumult X sample only documents resource-tag-regex and server-tag-regex for static, available, and round-robin policies; ${capability.outputType} fell back to ${outputType} so the remote node set remains correctly scoped.`,
+        });
+    }
+    if (sourceTags.length) {
+        const sourceRegex =
+            sourceTags.length === 1
+                ? `^${escapeRegex(sourceTags[0])}$`
+                : `^(?:${sourceTags.map(escapeRegex).join('|')})$`;
+        values.push(`resource-tag-regex=${sourceRegex}`);
+        hasCandidates = true;
+    } else if (sourceProjection.status === 'none' && qxOptions.resourceTagRegex) {
         if (capability.fields?.resourceTagRegex) {
             values.push(`resource-tag-regex=${qxOptions.resourceTagRegex}`);
             hasCandidates = true;
@@ -175,7 +265,7 @@ function groupOptions(group, sourceContext, warnings) {
         }
     }
     if (group.interval !== undefined) {
-        if (capability.fields?.interval) {
+        if (outputType === 'url-latency-benchmark') {
             values.push(`check-interval=${group.interval}`);
         } else {
             warnings.push({
@@ -186,7 +276,7 @@ function groupOptions(group, sourceContext, warnings) {
         }
     }
     if (group.tolerance !== undefined) {
-        if (capability.fields?.tolerance) {
+        if (outputType === 'url-latency-benchmark') {
             values.push(`tolerance=${group.tolerance}`);
         } else {
             warnings.push({
@@ -197,7 +287,7 @@ function groupOptions(group, sourceContext, warnings) {
         }
     }
     if (qxOptions.aliveChecking !== undefined) {
-        if (capability.fields?.aliveChecking) {
+        if (outputType === 'url-latency-benchmark') {
             values.push(
                 `alive-checking=${qxOptions.aliveChecking ? 'true' : 'false'}`,
             );
@@ -239,7 +329,7 @@ function groupOptions(group, sourceContext, warnings) {
         throw new ConfigGeneratorValidationError([
             {
                 path: `groups.${group.name}.members`,
-                message: `Quantumult X ${capability.outputType} has no usable policy members after target projection`,
+                message: `Quantumult X ${outputType} has no usable policy members after target projection`,
             },
         ]);
     }
@@ -353,93 +443,50 @@ function remoteSources(project, sourceContext, warnings) {
         });
 }
 
-function remoteRules(project, ruleSets, warnings) {
+function generateRules(project, ruleSets, warnings) {
     const byName = new Map(ruleSets.map((item) => [item.name, item]));
-    return (project.rules || []).flatMap((rule) => {
-        if (rule.kind !== 'remote' || rule.disabled) return [];
-        const ruleSet = byName.get(rule.ruleSet);
-        if (!ruleSet || ruleSet.enabled === false) return [];
-        const resolution = resolveRuleSetSource(ruleSet, 'qx');
-        if (resolution.kind === 'inline-rules') return [];
-        if (resolution.kind === 'unsupported') {
-            warnings.push({
-                path: `rules.${rule.ruleSet}`,
-                message:
-                    resolution.warning?.message ||
-                    'Quantumult X cannot represent this rule-set source.',
-            });
-            return [];
-        }
-        if (resolution.warning) {
-            warnings.push({
-                path:
-                    resolution.kind === 'remote-url'
-                        ? `rules.${rule.ruleSet}.source.url`
-                        : `rules.${rule.ruleSet}`,
-                message: resolution.warning.message,
-            });
-        }
-        if (resolution.kind === 'qx-inserted') {
-            const name = resolveRuleBindingResourceName(rule, ruleSet);
-            return [
-                [
-                    resolution.value,
-                    `tag=${name}`,
-                    `force-policy=${qxRulePolicy(rule.policy)}`,
-                    'inserted-resource=true',
-                    'enabled=true',
-                ].join(', '),
-            ];
-        }
-        if (resolution.kind !== 'remote-url' || !resolution.url) return [];
-        const name = resolveRuleBindingResourceName(rule, ruleSet);
-        const values = [
-            resolution.url,
-            `tag=${name}`,
-            `force-policy=${qxRulePolicy(rule.policy)}`,
-        ];
-        if (ruleSet.updateInterval !== undefined)
-            values.push(`update-interval=${ruleSet.updateInterval}`);
-        const qx = ruleSet.targetOptions?.qx || {};
-        if (resolution.forceOptParser || qx.optParser !== undefined) {
-            values.push(
-                `opt-parser=${
-                    resolution.forceOptParser || qx.optParser ? 'true' : 'false'
-                }`,
-            );
-        } else if (!resolution.provider) {
-            // Known providers resolve to a native Quantumult X rule format and
-            // do not need the client-side resource parser. Preserve the legacy
-            // parser default only for unclassified URLs.
-            values.push('opt-parser=true');
-        }
-        values.push('enabled=true');
-        return [values.join(', ')];
-    });
-}
+    const local = [];
+    const remoteBlocks = [];
+    let pendingTrivia = [];
+    let currentRemotePolicy;
+    let currentRemoteBlock = [];
 
-function localRules(project, ruleSets, warnings) {
-    const byName = new Map(ruleSets.map((item) => [item.name, item]));
-    return (project.rules || []).flatMap((rule, index) => {
-        if (rule.disabled) return [];
+    const finishRemoteBlock = () => {
+        if (currentRemoteBlock.length) remoteBlocks.push(currentRemoteBlock);
+        currentRemoteBlock = [];
+        currentRemotePolicy = undefined;
+    };
+    const flushTriviaToLocal = () => {
+        local.push(...pendingTrivia);
+        pendingTrivia = [];
+    };
+    const triviaLine = (rule) => {
+        if (rule.kind === 'blank') return '';
+        const text = `${rule.text || ''}`.trim();
+        return text.startsWith('#') ? text : `#${text ? ` ${text}` : ''}`;
+    };
+
+    (project.rules || []).forEach((rule, index) => {
+        if (rule.disabled) return;
         if (rule.kind === 'comment' || rule.kind === 'blank') {
-            warnings.push({
-                path: `rules[${index}]`,
-                message:
-                    'Quantumult X separates local and remote filters, so this shared comment or blank rule could not be positioned safely and was omitted.',
-            });
-            return [];
+            pendingTrivia.push(triviaLine(rule));
+            return;
         }
-        if (rule.kind === 'final')
-            return [`final, ${qxRulePolicy(rule.policy)}`];
-        if (rule.kind === 'inline') {
+
+        let projection;
+        if (rule.kind === 'final') {
+            projection = {
+                section: 'local',
+                lines: [`final, ${qxRulePolicy(rule.policy)}`],
+            };
+        } else if (rule.kind === 'inline') {
             const type = QX_RULE_TYPES[rule.type];
             if (!type) {
                 warnings.push({
                     path: `rules.${rule.type}`,
                     message: `Quantumult X does not support ${rule.type} as a local filter`,
                 });
-                return [];
+                return;
             }
             if (rule.noResolve) {
                 warnings.push({
@@ -448,27 +495,127 @@ function localRules(project, ruleSets, warnings) {
                         'Quantumult X does not support Surge no-resolve on local filters',
                 });
             }
-            return [`${type}, ${rule.value}, ${qxRulePolicy(rule.policy)}`];
-        }
-        if (rule.kind === 'remote') {
+            projection = {
+                section: 'local',
+                lines: [
+                    `${type}, ${rule.value}, ${qxRulePolicy(rule.policy)}`,
+                ],
+            };
+        } else if (rule.kind === 'remote') {
             const ruleSet = byName.get(rule.ruleSet);
-            if (!ruleSet || ruleSet.enabled === false) return [];
+            if (!ruleSet || ruleSet.enabled === false) return;
             const resolution = resolveRuleSetSource(ruleSet, 'qx');
-            if (resolution.kind !== 'inline-rules') return [];
-            if (resolution.warning) {
+            if (resolution.kind === 'unsupported') {
                 warnings.push({
                     path: `rules.${rule.ruleSet}`,
+                    message:
+                        resolution.warning?.message ||
+                        'Quantumult X cannot represent this rule-set source.',
+                });
+                return;
+            }
+            if (resolution.warning) {
+                warnings.push({
+                    path:
+                        resolution.kind === 'remote-url'
+                            ? `rules.${rule.ruleSet}.source.url`
+                            : `rules.${rule.ruleSet}`,
                     message: resolution.warning.message,
                 });
             }
-            return resolution.rules.flatMap((item) => {
-                const type = QX_RULE_TYPES[item.type];
-                if (!type) return [];
-                return [`${type}, ${item.value}, ${qxRulePolicy(rule.policy)}`];
-            });
+            if (resolution.kind === 'inline-rules') {
+                projection = {
+                    section: 'local',
+                    lines: resolution.rules.flatMap((item) => {
+                        const type = QX_RULE_TYPES[item.type];
+                        return type
+                            ? [
+                                  `${type}, ${item.value}, ${qxRulePolicy(
+                                      rule.policy,
+                                  )}`,
+                              ]
+                            : [];
+                    }),
+                };
+            } else {
+                const explicitName = getExplicitRuleBindingName(rule);
+                const values = [];
+                if (resolution.kind === 'qx-inserted') {
+                    values.push(resolution.value);
+                    if (explicitName) values.push(`tag=${explicitName}`);
+                    values.push(
+                        `force-policy=${qxRulePolicy(rule.policy)}`,
+                        'inserted-resource=true',
+                        'enabled=true',
+                    );
+                } else if (
+                    resolution.kind === 'remote-url' &&
+                    resolution.url
+                ) {
+                    values.push(resolution.url);
+                    if (explicitName) values.push(`tag=${explicitName}`);
+                    values.push(`force-policy=${qxRulePolicy(rule.policy)}`);
+                    if (ruleSet.updateInterval !== undefined) {
+                        values.push(
+                            `update-interval=${ruleSet.updateInterval}`,
+                        );
+                    }
+                    const qx = ruleSet.targetOptions?.qx || {};
+                    if (
+                        resolution.forceOptParser ||
+                        qx.optParser !== undefined
+                    ) {
+                        values.push(
+                            `opt-parser=${
+                                resolution.forceOptParser || qx.optParser
+                                    ? 'true'
+                                    : 'false'
+                            }`,
+                        );
+                    } else if (!resolution.provider) {
+                        values.push('opt-parser=true');
+                    }
+                    values.push('enabled=true');
+                }
+                if (values.length) {
+                    projection = {
+                        section: 'remote',
+                        line: values.join(', '),
+                        explicitName,
+                    };
+                }
+            }
         }
-        return [];
+
+        if (!projection) return;
+        if (projection.section === 'local') {
+            finishRemoteBlock();
+            flushTriviaToLocal();
+            local.push(...projection.lines);
+            return;
+        }
+
+        if (
+            pendingTrivia.length ||
+            currentRemotePolicy !== rule.policy ||
+            !currentRemoteBlock.length
+        ) {
+            finishRemoteBlock();
+            currentRemoteBlock.push(...pendingTrivia);
+            pendingTrivia = [];
+            currentRemotePolicy = rule.policy;
+            currentRemoteBlock.push(
+                `# ==================== ${rule.policy} ====================`,
+            );
+        }
+        if (projection.explicitName) {
+            currentRemoteBlock.push(`# ${projection.explicitName}`);
+        }
+        currentRemoteBlock.push(projection.line);
     });
+    finishRemoteBlock();
+    flushTriviaToLocal();
+    return { local, remote: separateSectionBlocks(remoteBlocks) };
 }
 
 function mergeIndependentConfig(content, sections) {
@@ -517,6 +664,10 @@ export async function generateQXConfig({
     validateProject(project, ruleSets, 'qx');
     const warnings = [];
     const sourceContext = createRemoteProxySourceContext(project);
+    const sourceInheritance = createRemoteSourceInheritance(
+        project,
+        sourceContext,
+    );
     const sections = [];
     if (project.embeddedSource) {
         const body = await produceBuiltinArtifact({
@@ -529,20 +680,33 @@ export async function generateQXConfig({
         if (lines.length) sections.push(['server_local', lines]);
     }
 
-    const policies = (project.groups || [])
+    const policyBlocks = (project.groups || [])
         .filter((group) => !group.disabled)
-        .map((group) => groupOptions(group, sourceContext, warnings))
+        .map((group) => {
+            const line = groupOptions(
+                group,
+                sourceContext,
+                sourceInheritance,
+                warnings,
+            );
+            if (!line) return null;
+            return [
+                ...(group.remark ? [`# ${group.remark}`] : []),
+                line,
+            ];
+        })
         .filter(Boolean);
-    if (policies.length)
-        sections.push(['policy', separateSectionBlocks(policies)]);
+    if (policyBlocks.length)
+        sections.push(['policy', separateSectionBlocks(policyBlocks)]);
 
     const servers = remoteSources(project, sourceContext, warnings);
     if (servers.length) sections.push(['server_remote', servers]);
 
-    const local = localRules(project, ruleSets, warnings);
+    const rules = generateRules(project, ruleSets, warnings);
+    const local = rules.local;
     if (local.length) sections.push(['filter_local', local]);
 
-    const remote = remoteRules(project, ruleSets, warnings);
+    const remote = rules.remote;
     if (remote.length) sections.push(['filter_remote', remote]);
 
     const qx = project.outputs?.qx || {};
@@ -557,10 +721,10 @@ export async function generateQXConfig({
             nodeCount:
                 sections.find(([name]) => name === 'server_local')?.[1]
                     .length || 0,
-            groupCount: policies.length,
+            groupCount: policyBlocks.length,
             ruleCount:
                 local.filter((line) => line && !line.startsWith('#')).length +
-                remote.length,
+                remote.filter((line) => line && !line.startsWith('#')).length,
         },
         warnings,
         errors: [],

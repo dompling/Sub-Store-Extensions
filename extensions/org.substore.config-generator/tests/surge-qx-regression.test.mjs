@@ -4,7 +4,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { build } from 'esbuild';
-import { importConfig, parseYaml, preview } from './helpers/backend-runtime.mjs';
+import {
+  importConfig,
+  parseYaml,
+  preview,
+  requestRoute,
+  withRuntime,
+} from './helpers/backend-runtime.mjs';
 
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
 const sourceRoot = path.resolve(testDirectory, '../backend/src');
@@ -283,7 +289,7 @@ test('round-trips Quantumult X native policy groups, alive-checking, and shared 
   assert.deepEqual(generated.warnings, []);
 });
 
-test('round-trips Quantumult X tolerance zero and disabled remote auto sync', async () => {
+test('preserves disabled QX remote sync while degrading undocumented regex benchmarks', async () => {
   const imported = await importConfig(
     'qx',
     '[server_remote]\n'
@@ -299,7 +305,11 @@ test('round-trips Quantumult X tolerance zero and disabled remote auto sync', as
     name: 'qx-numeric-boundaries',
   }, imported.ruleSets);
   assert.match(generated.body, /tag=Sample-01, update-interval=-1/);
-  assert.match(generated.body, /tolerance=0, alive-checking=false/);
+  assert.match(generated.body, /available=Benchmark, resource-tag-regex=\^Sample-01\$/);
+  assert.equal(/available=Benchmark[^\n]*(check-interval|tolerance|alive-checking)/.test(generated.body), false);
+  assert.ok(generated.warnings.some(warning =>
+    warning.path === 'groups.Benchmark.type'
+      && warning.message.includes('only documents resource-tag-regex and server-tag-regex')));
 });
 
 test('validates policy groups referenced by QX ssid conditions', async () => {
@@ -565,7 +575,8 @@ test('round-trips the Quantumult X FILTER_LAN inserted resource fallback', async
     }),
     [{ name: 'lan', source: { kind: 'builtin', value: 'LAN' } }],
   );
-  assert.match(generated.body, /FILTER_LAN, tag=lan, force-policy=direct/);
+  assert.match(generated.body, /FILTER_LAN, force-policy=direct/);
+  assert.equal(generated.body.includes('tag=lan'), false);
   const imported = await importConfig('qx', generated.body);
   assert.deepEqual(imported.ruleSets[0].source, { kind: 'builtin', value: 'LAN' });
   assert.equal(imported.project.rules[0].ruleSet, imported.ruleSets[0].name);
@@ -586,6 +597,132 @@ test('does not provider-rewrite a blackmatrix7 URL whose ref is named rule and u
   );
   assert.equal(resolution.provider, undefined);
   assert.equal(resolution.forceOptParser, true);
+});
+
+test('maps Blackmatrix7 aggregate Surge filenames to existing Clash classical files', () => {
+  const privacy = core.resolveRuleSetUrl({
+    name: 'privacy',
+    source: {
+      kind: 'url',
+      url: 'https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/Privacy/Privacy_All.list',
+      target: 'surge',
+    },
+  }, 'clash');
+  assert.equal(
+    privacy.url,
+    'https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Privacy/Privacy_Classical.yaml',
+  );
+
+  const noResolve = core.resolveRuleSetUrl({
+    name: 'aggregate-no-resolve',
+    source: {
+      kind: 'url',
+      url: 'https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/Example/Example_All_No_Resolve.list',
+      target: 'surge',
+    },
+  }, 'clash');
+  assert.equal(
+    noResolve.url,
+    'https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Example/Example_Classical_No_Resolve.yaml',
+  );
+});
+
+test('serves cached Clash rule providers without undocumented rule types', async () => {
+  await withRuntime({
+    initialStore: {
+      projects: [{
+        name: 'cached-project',
+        remoteProxySources: [],
+        groups: [],
+        rules: [],
+        outputs: { clash: {} },
+      }],
+      ruleSets: [{
+        name: 'cached-rules',
+        source: {
+          kind: 'url',
+          url: 'https://example.com/rules.yaml',
+          target: 'clash',
+        },
+      }],
+    },
+    networkGet: async ({ url }) => {
+      assert.equal(url, 'https://example.com/rules.yaml');
+      return {
+        statusCode: 200,
+        body: [
+          'payload:',
+          '  - DOMAIN-SUFFIX,example.com',
+          '  - IP-CIDR,1.2.3.0/24,no-resolve',
+          '  - IP-ASN,13335',
+          '  - AND,((DOMAIN,example.com),(NETWORK,TCP))',
+        ].join('\n'),
+      };
+    },
+  }, async ({ routes }) => {
+    const response = await requestRoute(
+      routes,
+      'GET',
+      '/download/config-project/:name/rule-set/:ruleSet/:target',
+      {
+        params: {
+          name: 'cached-project',
+          ruleSet: 'cached-rules',
+          target: 'Clash',
+        },
+      },
+    );
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(parseYaml(response.payload).payload, [
+      'DOMAIN-SUFFIX,example.com',
+      'IP-CIDR,1.2.3.0/24,no-resolve',
+    ]);
+  });
+});
+
+test('routes Clash rule providers through a reachable Sub-Store cache URL', async () => {
+  const result = await preview(
+    'clash',
+    projectFor('clash', {
+      name: 'cached-provider-project',
+      remoteProxySources: [{
+        name: 'conversion-base',
+        enabled: false,
+        source: {
+          kind: 'url',
+          url: 'https://example.com/nodes.yaml',
+          mode: 'auto',
+          publicBaseUrl: 'http://127.0.0.1:3000',
+        },
+      }],
+      groups: [{
+        name: 'Main',
+        type: 'select',
+        members: [{ kind: 'builtin', value: 'DIRECT' }],
+      }],
+      rules: [
+        { kind: 'remote', name: 'Cached', ruleSet: 'cached-rules', policy: 'Main' },
+        { kind: 'final', policy: 'Main' },
+      ],
+    }),
+    [{
+      name: 'cached-rules',
+      source: {
+        kind: 'url',
+        url: 'https://example.com/rules.yaml',
+        target: 'clash',
+      },
+    }],
+  );
+  const clash = parseYaml(result.body);
+  assert.equal(
+    clash['rule-providers'].Cached.url,
+    'http://127.0.0.1:3000/download/config-project/cached-provider-project/rule-set/cached-rules/Clash',
+  );
+  assert.equal(clash['rule-providers'].Cached.format, 'yaml');
+  assert.ok(result.warnings.some(warning =>
+    warning.path === 'outputs.clash.publicBaseUrl'
+      && warning.message.includes('same host')));
 });
 
 test('projects process paths and RULE-SET no-resolve with documented Clash syntax', async () => {
@@ -656,6 +793,29 @@ test('projects process paths and RULE-SET no-resolve with documented Clash synta
     ),
     false,
   );
+});
+
+test('warns when Clash cannot preserve Surge FINAL dns-failed semantics', async () => {
+  const result = await preview(
+    'clash',
+    projectFor('clash', {
+      name: 'clash-final-dns-failed',
+      groups: [
+        {
+          name: 'Main',
+          type: 'select',
+          members: [{ kind: 'builtin', value: 'DIRECT' }],
+        },
+      ],
+      rules: [{ kind: 'final', policy: 'Main', dnsFailed: true }],
+    }),
+  );
+  const clash = parseYaml(result.body);
+
+  assert.deepEqual(clash.rules, ['MATCH,Main']);
+  assert.ok(result.warnings.some(warning =>
+    warning.path === 'rules[0].dnsFailed'
+      && warning.message.includes('no equivalent')));
 });
 
 test('converts documented Clash rules from a cached Surge rule-list fallback', async () => {
@@ -748,8 +908,8 @@ test('flattens provider-only included groups while combining direct and inherite
         source: {
           kind: 'url',
           url: 'https://example.com/inherited.yaml',
-          mode: 'passthrough',
-          target: 'clash',
+          mode: 'auto',
+          publicBaseUrl: 'https://sub.example.com',
         },
       },
       {
@@ -806,13 +966,647 @@ test('flattens provider-only included groups while combining direct and inherite
       clash['proxy-providers'][providerName].filter,
       'JP|Japan|日本',
     );
+    assert.equal(
+      new URL(clash['proxy-providers'][providerName].url).searchParams.get('group'),
+      null,
+    );
   });
   assert.equal(group('Other').use.length, 1);
   group('Other').use.forEach(providerName => {
     assert.equal(clash['proxy-providers'][providerName].filter, undefined);
+    assert.equal(
+      new URL(clash['proxy-providers'][providerName].url).searchParams.get('group'),
+      'Other',
+    );
   });
   assert.ok(result.warnings.some(warning =>
     warning.path === 'groups.Other.nodeNameRegex'
       && warning.message.includes('Go regular expression')
   ));
+});
+
+test('flattens provider-only included groups into documented Loon node filters', async () => {
+  const result = await preview('loon', projectFor('loon', {
+    name: 'loon-remote-filter-flattening',
+    remoteProxySources: [{
+      name: 'Inherited Nodes',
+      source: {
+        kind: 'url',
+        url: 'https://example.com/nodes.list',
+        mode: 'passthrough',
+        target: 'loon',
+      },
+    }],
+    groups: [
+      {
+        name: 'Nodes',
+        type: 'select',
+        members: [],
+        remoteProxySource: 'Inherited Nodes',
+      },
+      {
+        name: 'Japan',
+        type: 'fallback',
+        members: [],
+        includeOtherGroups: ['Nodes'],
+        nodeNameRegex: 'JP|Japan|日本',
+      },
+      {
+        name: 'Other',
+        type: 'fallback',
+        members: [],
+        includeOtherGroups: ['Nodes'],
+        nodeNameRegex: '^((?!JP|Japan|日本).)*$',
+      },
+    ],
+    rules: [{ kind: 'final', policy: 'Japan' }],
+  }));
+  const remoteFilters = result.body.slice(
+    result.body.indexOf('[Remote Filter]'),
+    result.body.indexOf('[Proxy Group]'),
+  );
+  const groups = result.body.slice(
+    result.body.indexOf('[Proxy Group]'),
+    result.body.indexOf('[Rule]'),
+  );
+
+  assert.match(
+    remoteFilters,
+    /NameRegex, Inherited Nodes, FilterKey = JP\|Japan\|日本/,
+  );
+  assert.match(
+    remoteFilters,
+    /NameRegex, Inherited Nodes, FilterKey = \^\(\(\?!JP\|Japan\|日本\)\.\)\*\$/,
+  );
+  assert.match(groups, /Japan = fallback, Inherited Nodes-Japan,/);
+  assert.match(groups, /Other = fallback, Inherited Nodes-Other,/);
+  assert.equal(/Japan = fallback, Nodes,/.test(groups), false);
+  assert.equal(/Other = fallback, Nodes,/.test(groups), false);
+  assert.equal(result.warnings.some(warning =>
+    ['groups.Japan.includeOtherGroups', 'groups.Japan.nodeNameRegex',
+      'groups.Other.includeOtherGroups', 'groups.Other.nodeNameRegex']
+      .includes(warning.path)), false);
+});
+
+test('scopes inherited Quantumult X node filters to provider-only remote sources', async () => {
+  const result = await preview('qx', projectFor('qx', {
+    name: 'qx-remote-source-flattening',
+    remoteProxySources: [{
+      name: 'Inherited Nodes',
+      source: {
+        kind: 'url',
+        url: 'https://example.com/nodes.conf',
+        mode: 'passthrough',
+        target: 'qx',
+      },
+    }],
+    groups: [
+      {
+        name: 'Nodes',
+        type: 'select',
+        members: [],
+        remoteProxySource: 'Inherited Nodes',
+      },
+      {
+        name: 'Japan',
+        type: 'fallback',
+        members: [],
+        includeOtherGroups: ['Nodes'],
+        nodeNameRegex: 'JP|Japan|日本',
+      },
+      {
+        name: 'Auto',
+        type: 'url-test',
+        members: [],
+        includeOtherGroups: ['Nodes'],
+        nodeNameRegex: 'JP|Japan|日本',
+      },
+      {
+        name: 'Hash',
+        type: 'dest-hash',
+        members: [],
+        remoteProxySource: 'Inherited Nodes',
+        nodeNameRegex: 'JP|Japan|日本',
+      },
+    ],
+    rules: [{ kind: 'final', policy: 'Japan' }],
+  }));
+
+  assert.match(
+    result.body,
+    /available=Japan, resource-tag-regex=\^Inherited Nodes\$, server-tag-regex=JP\|Japan\|日本/,
+  );
+  assert.match(
+    result.body,
+    /available=Auto, resource-tag-regex=\^Inherited Nodes\$, server-tag-regex=JP\|Japan\|日本/,
+  );
+  assert.equal(/available=Japan, Nodes/.test(result.body), false);
+  assert.match(
+    result.body,
+    /round-robin=Hash, resource-tag-regex=\^Inherited Nodes\$, server-tag-regex=JP\|Japan\|日本/,
+  );
+  assert.equal(/available=Auto, Nodes/.test(result.body), false);
+  assert.equal(result.warnings.some(warning =>
+    ['groups.Japan.includeOtherGroups', 'groups.Auto.includeOtherGroups']
+      .includes(warning.path)), false);
+  assert.ok(result.warnings.some(warning =>
+    warning.path === 'groups.Auto.type'
+      && warning.message.includes('fell back to available')));
+  assert.ok(result.warnings.some(warning =>
+    warning.path === 'groups.Hash.type'
+      && warning.message.includes('fell back to round-robin')));
+});
+
+test('merges a complete independent Clash document and keeps one final MATCH', async () => {
+  const result = await preview(
+    'clash',
+    projectFor('clash', {
+      name: 'clash-complete-document-merge',
+      embeddedSource: { type: 'collection', name: 'generated' },
+      groups: [{
+        name: 'Main',
+        type: 'select',
+        members: [{ kind: 'builtin', value: 'DIRECT' }],
+      }],
+      rules: [{
+        kind: 'remote',
+        name: 'GeneratedRules',
+        ruleSet: 'generated-rules',
+        policy: 'Main',
+      }],
+      outputs: {
+        clash: {
+          independentConfig: [
+            'port: 7890',
+            'dns:',
+            '  enable: true',
+            'tun:',
+            '  enable: true',
+            'proxies:',
+            '  - name: Manual',
+            '    type: http',
+            '    server: manual.example.com',
+            '    port: 443',
+            '  - name: Collision',
+            '    type: http',
+            '    server: old.example.com',
+            '    port: 80',
+            'proxy-providers:',
+            '  LocalNodes:',
+            '    type: file',
+            '    path: ./providers/local.yaml',
+            'proxy-groups:',
+            '  - name: Main',
+            '    type: select',
+            '    lazy: true',
+            '    proxies:',
+            '      - Manual',
+            '  - name: Manual Group',
+            '    type: select',
+            '    proxies:',
+            '      - Manual',
+            'rule-providers:',
+            '  ManualRules:',
+            '    type: file',
+            '    behavior: domain',
+            '    path: ./rules/manual.yaml',
+            'rules:',
+            '  - SCRIPT,shortcuts.example,Main',
+            '  - MATCH,DIRECT',
+          ].join('\n'),
+        },
+      },
+    }),
+    [{
+      name: 'generated-rules',
+      source: {
+        kind: 'url',
+        url: 'https://example.com/generated.txt',
+        target: 'clash',
+      },
+      targetOptions: {
+        clash: { behavior: 'ipcidr', format: 'text' },
+      },
+    }],
+    {
+      produceBuiltinArtifact: async () => [
+        {
+          name: 'Collision',
+          type: 'ss',
+          server: 'new.example.com',
+          port: 443,
+          cipher: 'aes-128-gcm',
+          password: 'secret',
+        },
+        {
+          name: 'Generated',
+          type: 'http',
+          server: 'generated.example.com',
+          port: 443,
+        },
+      ],
+    },
+  );
+  const clash = parseYaml(result.body);
+  const proxy = name => clash.proxies.find(item => item.name === name);
+  const group = name => clash['proxy-groups'].find(item => item.name === name);
+
+  assert.equal(clash.port, 7890);
+  assert.equal(clash.dns.enable, true);
+  assert.equal(clash.tun.enable, true);
+  assert.deepEqual(clash.proxies.map(item => item.name), [
+    'Manual',
+    'Collision',
+    'Generated',
+  ]);
+  assert.equal(proxy('Collision').server, 'new.example.com');
+  assert.equal(group('Main').lazy, true);
+  assert.deepEqual(group('Main').proxies, ['DIRECT']);
+  assert.ok(group('Manual Group'));
+  assert.equal(clash['proxy-providers'].LocalNodes.type, 'file');
+  assert.equal(clash['rule-providers'].ManualRules.type, 'file');
+  assert.equal(clash['rule-providers'].GeneratedRules.behavior, 'ipcidr');
+  assert.equal(clash['rule-providers'].GeneratedRules.format, 'text');
+  assert.match(clash['rule-providers'].GeneratedRules.path, /\.txt$/);
+  assert.ok(clash.rules.includes('SCRIPT,shortcuts.example,Main'));
+  assert.ok(clash.rules.includes('RULE-SET,GeneratedRules,Main'));
+  assert.deepEqual(clash.rules.filter(rule => rule.startsWith('MATCH,')), [
+    'MATCH,Main',
+  ]);
+  assert.equal(clash.rules.at(-1), 'MATCH,Main');
+  assert.ok(result.warnings.some(warning =>
+    warning.path === 'outputs.clash.independentConfig.proxies.Collision'
+      && warning.message.includes('replaced')));
+});
+
+test('round-trips documented Clash rule-provider behavior and format', async () => {
+  const imported = await importConfig('clash', [
+    'mode: rule',
+    'proxy-groups:',
+    '  - name: Main',
+    '    type: select',
+    '    proxies:',
+    '      - DIRECT',
+    'rule-providers:',
+    '  DomainText:',
+    '    type: http',
+    '    behavior: domain',
+    '    format: text',
+    '    url: https://example.com/domain.txt',
+    '    path: ./rules/domain.txt',
+    '    interval: 3600',
+    'rules:',
+    '  - RULE-SET,DomainText,Main',
+    '  - MATCH,Main',
+  ].join('\n'));
+
+  assert.deepEqual(imported.ruleSets[0].targetOptions?.clash, {
+    behavior: 'domain',
+    format: 'text',
+  });
+  const clash = parseYaml((await preview(
+    'clash',
+    { ...imported.project, name: 'clash-provider-round-trip' },
+    imported.ruleSets,
+  )).body);
+  assert.equal(clash['rule-providers'].DomainText.behavior, 'domain');
+  assert.equal(clash['rule-providers'].DomainText.format, 'text');
+  assert.match(clash['rule-providers'].DomainText.path, /\.txt$/);
+});
+
+test('routes Quantumult X and Loon rule remarks to their matching sections', async () => {
+  const rules = [
+    { kind: 'comment', text: 'Local heading' },
+    { kind: 'inline', type: 'DOMAIN', value: 'local.example', policy: 'Main' },
+    { kind: 'blank' },
+    { kind: 'comment', text: 'Remote heading' },
+    { kind: 'remote', name: 'Named Rule', ruleSet: 'named', policy: 'Main' },
+    { kind: 'blank' },
+    { kind: 'comment', text: 'Unnamed remote heading' },
+    { kind: 'remote', ruleSet: 'unnamed-internal-id', policy: 'Main' },
+    { kind: 'blank' },
+    { kind: 'final', policy: 'Main' },
+  ];
+  const groups = [{
+    name: 'Main',
+    type: 'select',
+    members: [{ kind: 'builtin', value: 'DIRECT' }],
+    remark: 'Main remark',
+  }];
+  const qx = await preview(
+    'qx',
+    projectFor('qx', { name: 'qx-rule-remarks', groups, rules }),
+    [
+      { name: 'named', source: { kind: 'url', url: 'https://example.com/named.list', target: 'qx' } },
+      { name: 'unnamed-internal-id', source: { kind: 'url', url: 'https://example.com/unnamed.list', target: 'qx' } },
+    ],
+  );
+  const qxPolicy = qx.body.slice(
+    qx.body.indexOf('[policy]'),
+    qx.body.indexOf('[filter_local]'),
+  );
+  const qxLocal = qx.body.slice(
+    qx.body.indexOf('[filter_local]'),
+    qx.body.indexOf('[filter_remote]'),
+  );
+  const qxRemote = qx.body.slice(qx.body.indexOf('[filter_remote]'));
+  assert.match(qxPolicy, /# Main remark\nstatic=Main/);
+  assert.match(qxLocal, /# Local heading\nhost, local\.example, Main/);
+  assert.equal(qxLocal.includes('# Remote heading'), false);
+  assert.match(qxRemote, /# Remote heading/);
+  assert.match(qxRemote, /# Named Rule/);
+  assert.match(qxRemote, /tag=Named Rule/);
+  assert.match(qxRemote, /# Unnamed remote heading/);
+  assert.equal(qxRemote.includes('tag=unnamed-internal-id'), false);
+
+  const loon = await preview(
+    'loon',
+    projectFor('loon', { name: 'loon-rule-remarks', groups, rules }),
+    [
+      { name: 'named', source: { kind: 'url', url: 'https://example.com/named.list', target: 'loon' } },
+      { name: 'unnamed-internal-id', source: { kind: 'url', url: 'https://example.com/unnamed.list', target: 'loon' } },
+    ],
+  );
+  const loonLocal = loon.body.slice(
+    loon.body.indexOf('[Rule]'),
+    loon.body.indexOf('[Remote Rule]'),
+  );
+  const loonRemote = loon.body.slice(loon.body.indexOf('[Remote Rule]'));
+  assert.match(loonLocal, /# Local heading\nDOMAIN, local\.example, Main/);
+  assert.equal(loonLocal.includes('# Remote heading'), false);
+  assert.match(loonRemote, /# Remote heading/);
+  assert.match(loonRemote, /# rule-name: Named Rule/);
+  assert.match(loonRemote, /# Unnamed remote heading/);
+  assert.equal(loonRemote.includes('# unnamed-internal-id'), false);
+});
+
+test('round-trips remote category headings without retaining generated policy headings', async () => {
+  const category = '==================== Remote Category ====================';
+  const secondCategory = '==================== Second Category ====================';
+  const policyHeading = '==================== Main ====================';
+  const project = projectFor('qx', {
+    name: 'remote-category-round-trip',
+    groups: [
+      {
+        name: 'Main',
+        type: 'select',
+        members: [{ kind: 'builtin', value: 'DIRECT' }],
+      },
+      {
+        name: 'Other',
+        type: 'select',
+        members: [{ kind: 'builtin', value: 'DIRECT' }],
+      },
+    ],
+    rules: [
+      { kind: 'blank' },
+      { kind: 'comment', text: category },
+      { kind: 'remote', name: 'Named Rule', ruleSet: 'remote', policy: 'Main' },
+      { kind: 'blank' },
+      { kind: 'comment', text: secondCategory },
+      { kind: 'remote', name: 'Second Rule', ruleSet: 'second-remote', policy: 'Other' },
+      { kind: 'final', policy: 'Main' },
+      { kind: 'blank' },
+    ],
+  });
+
+  for (const target of ['qx', 'loon']) {
+    const generated = await preview(
+      target,
+      { ...project, outputs: { [target]: {} } },
+      [{
+        name: 'remote',
+        source: {
+          kind: 'url',
+          url: 'https://example.com/remote.list',
+          target,
+        },
+      }, {
+        name: 'second-remote',
+        source: {
+          kind: 'url',
+          url: 'https://example.com/second-remote.list',
+          target,
+        },
+      }],
+    );
+    const imported = await importConfig(target, generated.body);
+
+    assert.equal(
+      imported.project.rules.filter(rule =>
+        rule.kind === 'comment' && rule.text === category).length,
+      1,
+      target,
+    );
+    assert.equal(
+      imported.project.rules.some(rule =>
+        rule.kind === 'comment' && rule.text === policyHeading),
+      false,
+      target,
+    );
+
+    const regenerated = await preview(
+      target,
+      { ...imported.project, name: `${target}-category-round-trip` },
+      imported.ruleSets,
+    );
+    assert.equal(regenerated.body.split(`# ${category}`).length - 1, 1, target);
+    assert.equal(
+      regenerated.body.split(`# ${policyHeading}`).length - 1,
+      1,
+      target,
+    );
+    const remoteSectionName = target === 'qx' ? 'filter_remote' : 'remote rule';
+    const generatedRemote = core.parseProfileSections(generated.body).sections
+      .find(section => section.name === remoteSectionName)?.body;
+    const regeneratedRemote = core.parseProfileSections(regenerated.body).sections
+      .find(section => section.name === remoteSectionName)?.body;
+    assert.deepEqual(regeneratedRemote, generatedRemote, target);
+  }
+});
+
+test('round-trips QX comments, group remarks, and optional remote tags', async () => {
+  const imported = await importConfig('qx', [
+    '[policy]',
+    '; Main remark',
+    'static=Main, direct',
+    '// default = Main',
+    '',
+    '[filter_local]',
+    '// Local note',
+    'host, local.example, Main',
+    'final, Main',
+    '',
+    '[filter_remote]',
+    '; Remote note',
+    'https://example.com/remote.list, force-policy=Main, enabled=true',
+  ].join('\n'));
+
+  assert.equal(imported.project.groups[0].remark, 'Main remark');
+  assert.equal(imported.warnings.some(warning =>
+    warning.message.includes('Unsupported')
+      && /comment|semi|slash|default/i.test(warning.message)), false);
+  assert.ok(imported.project.rules.some(rule =>
+    rule.kind === 'comment' && rule.text === 'Local note'));
+  assert.ok(imported.project.rules.some(rule =>
+    rule.kind === 'comment' && rule.text === 'Remote note'));
+  const remote = imported.project.rules.find(rule => rule.kind === 'remote');
+  assert.equal(remote.name, undefined);
+
+  const generated = await preview(
+    'qx',
+    { ...imported.project, name: 'qx-comment-round-trip' },
+    imported.ruleSets,
+  );
+  assert.match(generated.body, /# Main remark\nstatic=Main/);
+  assert.match(generated.body, /# Local note\nhost, local\.example, Main/);
+  assert.match(generated.body, /# Remote note/);
+  assert.equal(generated.body.includes('tag=remote'), false);
+});
+
+test('keeps imported Loon remote rules before FINAL without inventing names', async () => {
+  const imported = await importConfig('loon', [
+    '[Proxy Group]',
+    'Main = select, DIRECT',
+    '',
+    '[Rule]',
+    'FINAL, Main',
+    '',
+    '[Remote Rule]',
+    '# Remote category',
+    'https://example.com/remote.list, policy=Main, enabled=true',
+  ].join('\n'));
+  const finalIndex = imported.project.rules.findIndex(rule => rule.kind === 'final');
+  const remoteIndex = imported.project.rules.findIndex(rule => rule.kind === 'remote');
+  assert.ok(remoteIndex >= 0 && remoteIndex < finalIndex);
+  assert.equal(imported.project.rules[remoteIndex].name, undefined);
+
+  const generated = await preview(
+    'loon',
+    { ...imported.project, name: 'loon-final-round-trip' },
+    imported.ruleSets,
+  );
+  const local = generated.body.slice(
+    generated.body.indexOf('[Rule]'),
+    generated.body.indexOf('[Remote Rule]'),
+  );
+  const remote = generated.body.slice(generated.body.indexOf('[Remote Rule]'));
+  assert.match(local, /FINAL, Main/);
+  assert.equal(local.includes('# Remote category'), false);
+  assert.match(remote, /# Remote category/);
+  assert.equal(remote.includes('# remote'), false);
+});
+
+test('keeps empty Loon proxy-section spacing across import and regeneration', async () => {
+  const imported = await importConfig('loon', [
+    '[General]',
+    '',
+    '[Proxy]',
+    '',
+    '[Remote Proxy]',
+    'Nodes = https://example.com/nodes.list',
+    '[Proxy Group]',
+    'Main = select, Nodes',
+    '[Rule]',
+    'FINAL, Main',
+  ].join('\n'));
+  const generated = await preview(
+    'loon',
+    { ...imported.project, name: 'loon-empty-proxy-spacing' },
+    imported.ruleSets,
+  );
+
+  assert.match(generated.body, /\[Proxy\]\n\n\[Remote Proxy\]/);
+});
+
+test('round-trips the officially documented Quantumult X IP-ASN filter', async () => {
+  const imported = await importConfig('qx', [
+    '[policy]',
+    'static=Main, direct',
+    '',
+    '[filter_local]',
+    'ip-asn, 6185, Main',
+    'final, Main',
+  ].join('\n'));
+
+  assert.deepEqual(
+    imported.project.rules.find(rule => rule.kind === 'inline'),
+    {
+      kind: 'inline',
+      type: 'IP-ASN',
+      value: '6185',
+      policy: 'Main',
+    },
+  );
+
+  const generated = await preview(
+    'qx',
+    { ...imported.project, name: 'qx-ip-asn-round-trip' },
+    imported.ruleSets,
+  );
+  assert.match(generated.body, /ip-asn, 6185, Main/);
+  assert.equal(
+    generated.warnings.some(warning => warning.message.includes('IP-ASN')),
+    false,
+  );
+});
+
+test('keeps Loon IP-ASN no-resolve and imports the documented positional remote policy', async () => {
+  const imported = await importConfig('loon', [
+    '[Proxy Group]',
+    'Main = select, DIRECT',
+    '',
+    '[Rule]',
+    'IP-ASN,4134,Main,no-resolve',
+    'FINAL,Main',
+    '',
+    '[Remote Rule]',
+    'https://example.com/remote.list, Main',
+  ].join('\n'));
+
+  const ipAsn = imported.project.rules.find(rule =>
+    rule.kind === 'inline' && rule.type === 'IP-ASN');
+  const remote = imported.project.rules.find(rule => rule.kind === 'remote');
+  assert.equal(ipAsn?.noResolve, true);
+  assert.equal(remote?.policy, 'Main');
+
+  const generated = await preview(
+    'loon',
+    { ...imported.project, name: 'loon-documented-rule-round-trip' },
+    imported.ruleSets,
+  );
+  assert.match(generated.body, /IP-ASN, 4134, Main, no-resolve/);
+  assert.match(
+    generated.body,
+    /https:\/\/example\.com\/remote\.list, policy=Main, enabled=true/,
+  );
+  assert.equal(
+    generated.warnings.some(warning => warning.path === 'rules[0].noResolve'),
+    false,
+  );
+});
+
+test('keeps legacy Loon ssid groups importable while warning about the current manual boundary', async () => {
+  const imported = await importConfig('loon', [
+    '[Proxy Group]',
+    'Main = select, DIRECT',
+    'Network = ssid, default = Main, cellular = DIRECT, "Home WiFi" = Main',
+    '',
+    '[Rule]',
+    'FINAL,Network',
+  ].join('\n'));
+
+  const network = imported.project.groups.find(group => group.name === 'Network');
+  assert.equal(network?.type, 'ssid');
+
+  const generated = await preview(
+    'loon',
+    { ...imported.project, name: 'loon-legacy-ssid-round-trip' },
+    imported.ruleSets,
+  );
+  assert.match(generated.body, /Network = ssid,/);
+  assert.ok(generated.warnings.some(warning =>
+    warning.path === 'groups.Network.type'
+      && warning.message.includes('legacy official example')
+      && warning.message.includes('current Loon policy-group manual')));
 });

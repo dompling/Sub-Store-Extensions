@@ -8,6 +8,10 @@ import {
 } from '../../core/target-capabilities';
 import { matchingSubStoreSource } from '../../core/sub-store-source';
 import { inferRuleBindingName } from '../../core/rule-binding-name';
+import {
+    mergeSectionedImportedRules,
+    withoutGeneratedPolicyHeading,
+} from '../../core/rule-trivia';
 import { parseSurgeCsv } from '../surge/serializer';
 
 const MANAGED_SECTIONS = new Set([
@@ -430,19 +434,41 @@ function importLocalRules(section, ruleSets, groups, warnings) {
     return rules;
 }
 
-function importRemoteRules(section, ruleSets, groups, warnings, existingRules) {
+function importRemoteRules(section, ruleSets, groups, warnings) {
     const rules = [];
     const usedNames = new Set(ruleSets.map((ruleSet) => ruleSet.name));
     let pendingName;
+    let pendingTrivia = [];
+    let afterPolicyHeader = false;
     (section?.body || []).forEach((rawLine, index) => {
         const line = rawLine.trim();
         if (!line) {
             pendingName = undefined;
+            afterPolicyHeader = false;
+            pendingTrivia.push({ kind: 'blank' });
             return;
         }
         if (line.startsWith('#') || line.startsWith(';')) {
             const text = line.replace(/^[#;]+\s*/, '');
-            if (!/^=+/.test(text)) pendingName = text;
+            if (/^=+.*=+$/.test(text)) {
+                pendingTrivia.push({ kind: 'comment', text });
+                afterPolicyHeader = true;
+                return;
+            }
+            const explicitName = text.match(/^rule-name:\s*(.+)$/i)?.[1];
+            if (explicitName) {
+                pendingName = explicitName.trim();
+                afterPolicyHeader = false;
+            } else if (afterPolicyHeader) {
+                // Compatibility with older generated profiles, where the
+                // first plain comment after an automatic policy heading was
+                // the explicit rule name.
+                pendingName = text;
+                afterPolicyHeader = false;
+            } else {
+                pendingTrivia.push({ kind: 'comment', text });
+                afterPolicyHeader = false;
+            }
             return;
         }
         const values = parseSurgeCsv(line);
@@ -455,13 +481,16 @@ function importRemoteRules(section, ruleSets, groups, warnings, existingRules) {
                     'Loon Remote Rule entries require an absolute HTTP(S) URL; this entry was omitted.',
             });
             pendingName = undefined;
+            pendingTrivia = [];
+            afterPolicyHeader = false;
             return;
         }
         const options = Object.fromEntries(
             values.map(assignment).filter(Boolean),
         );
+        const positionalPolicy = values.find((value) => !assignment(value));
         const policy = importedPolicy(
-            options.policy || options['force-policy'],
+            options.policy || options['force-policy'] || positionalPolicy,
             groups,
         );
         if (!policy) {
@@ -471,11 +500,16 @@ function importRemoteRules(section, ruleSets, groups, warnings, existingRules) {
                 message: 'This Loon Remote Rule has no policy and was omitted.',
             });
             pendingName = undefined;
+            pendingTrivia = [];
+            afterPolicyHeader = false;
             return;
         }
+        pendingTrivia = withoutGeneratedPolicyHeading(pendingTrivia, policy);
+        rules.push(...pendingTrivia);
+        pendingTrivia = [];
+        const explicitName = pendingName || options.tag;
         const inferredName =
-            pendingName ||
-            options.tag ||
+            explicitName ||
             inferRuleBindingName(url, `rule-set-${ruleSets.length + 1}`);
         const name = uniqueName(
             inferredName,
@@ -488,14 +522,16 @@ function importRemoteRules(section, ruleSets, groups, warnings, existingRules) {
         });
         rules.push({
             kind: 'remote',
-            name,
+            ...(explicitName ? { name: explicitName } : {}),
             ruleSet: name,
             policy,
             ...(booleanValue(options.enabled, true) ? {} : { disabled: true }),
         });
         pendingName = undefined;
+        afterPolicyHeader = false;
     });
-    return [...existingRules, ...rules];
+    rules.push(...pendingTrivia);
+    return rules;
 }
 
 function normalizePolicyReferences(groups, rules, warnings) {
@@ -545,19 +581,19 @@ export function importLoonConfig(content, sourceContext) {
         groups.map((group) => [group.name.toLowerCase(), group.name]),
     );
     const ruleSets = [];
-    let rules = importLocalRules(
+    const localRules = importLocalRules(
         byName.get('rule'),
         ruleSets,
         groupNames,
         warnings,
     );
-    rules = importRemoteRules(
+    const remoteRules = importRemoteRules(
         byName.get('remote rule'),
         ruleSets,
         groupNames,
         warnings,
-        rules,
     );
+    const rules = mergeSectionedImportedRules(localRules, remoteRules);
     normalizePolicyReferences(groups, rules, warnings);
 
     const independentConfig = serializeProfileSections({

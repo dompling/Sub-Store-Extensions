@@ -427,14 +427,21 @@ function importRuleProviders(config, warnings) {
             });
             return;
         }
-        if (
-            provider.behavior !== undefined &&
-            `${provider.behavior}`.toLowerCase() !== 'classical'
-        ) {
+        const behavior = `${provider.behavior || 'classical'}`.toLowerCase();
+        if (!['domain', 'ipcidr', 'classical'].includes(behavior)) {
             warnings.push({
                 path: `rule-providers.${providerName}.behavior`,
                 message:
-                    'Only classical Clash rule providers map safely to the shared rule-set model; this provider was omitted.',
+                    'Clash rule-provider behavior must be domain, ipcidr, or classical; this provider was omitted.',
+            });
+            return;
+        }
+        const format = `${provider.format || 'yaml'}`.toLowerCase();
+        if (!['yaml', 'text'].includes(format)) {
+            warnings.push({
+                path: `rule-providers.${providerName}.format`,
+                message:
+                    'Clash rule-provider format must be yaml or text; this provider was omitted.',
             });
             return;
         }
@@ -442,6 +449,9 @@ function importRuleProviders(config, warnings) {
         const ruleSet = {
             name,
             source: { kind: 'url', url: provider.url, target: 'clash' },
+            targetOptions: {
+                clash: { behavior, format },
+            },
         };
         if (Number.isInteger(provider.interval) && provider.interval > 0) {
             ruleSet.updateInterval = provider.interval;
@@ -450,16 +460,6 @@ function importRuleProviders(config, warnings) {
                 path: `rule-providers.${providerName}.interval`,
                 message:
                     'The Clash rule provider interval must be a positive integer and was omitted.',
-            });
-        }
-        if (
-            provider.format !== undefined &&
-            `${provider.format}`.toLowerCase() !== 'yaml'
-        ) {
-            warnings.push({
-                path: `rule-providers.${providerName}.format`,
-                message:
-                    'The Clash rule provider format is target-specific; generation will use classical YAML.',
             });
         }
         Object.keys(provider).forEach((field) => {

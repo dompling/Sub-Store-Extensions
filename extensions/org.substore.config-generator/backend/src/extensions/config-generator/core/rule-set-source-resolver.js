@@ -60,10 +60,17 @@ const RULE_SET_PROVIDERS = [
             const targetExtension = BLACKMATRIX7_TARGET_EXTENSIONS[target];
             if (targetExtension) {
                 const fileIndex = segments.length - 1;
-                segments[fileIndex] = `${segments[fileIndex].replace(
+                let basename = segments[fileIndex].replace(
                     /\.[^.]*$/,
                     '',
-                )}${targetExtension}`;
+                );
+                if (target === 'clash' && match.sourceTarget === 'surge') {
+                    basename = basename.replace(
+                        /_All(_No_Resolve)?$/,
+                        '_Classical$1',
+                    );
+                }
+                segments[fileIndex] = `${basename}${targetExtension}`;
             }
             resolved.pathname = `/${segments.join('/')}`;
             return resolved.toString();

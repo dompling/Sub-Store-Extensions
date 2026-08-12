@@ -399,6 +399,27 @@ export function validateRuleSet(ruleSet) {
     ) {
         issues.push(issue('targetOptions.qx.optParser', 'must be a boolean'));
     }
+    if (
+        ruleSet?.targetOptions?.clash?.behavior !== undefined &&
+        !['domain', 'ipcidr', 'classical'].includes(
+            ruleSet.targetOptions.clash.behavior,
+        )
+    ) {
+        issues.push(
+            issue(
+                'targetOptions.clash.behavior',
+                'must be domain, ipcidr, or classical',
+            ),
+        );
+    }
+    if (
+        ruleSet?.targetOptions?.clash?.format !== undefined &&
+        !['yaml', 'text'].includes(ruleSet.targetOptions.clash.format)
+    ) {
+        issues.push(
+            issue('targetOptions.clash.format', 'must be yaml or text'),
+        );
+    }
     if (issues.length) throw new ConfigGeneratorValidationError(issues);
     return ruleSet;
 }

@@ -48,7 +48,12 @@ function normalizedPublicBaseUrl(source) {
     return `${source?.source?.publicBaseUrl || ''}`.trim().replace(/\/+$/, '');
 }
 
-export function remoteProxySourceOutputUrl(source, target, sourceContext) {
+export function remoteProxySourceOutputUrl(
+    source,
+    target,
+    sourceContext,
+    options = {},
+) {
     if (source?.source?.kind === 'sub-store') {
         return subStoreSourceUrl(source, getTargetPlatform(target));
     }
@@ -59,11 +64,15 @@ export function remoteProxySourceOutputUrl(source, target, sourceContext) {
     const projectName = `${sourceContext?.projectName || ''}`.trim();
     const platform = getTargetPlatform(target);
     if (!publicBaseUrl || !projectName || !platform) return null;
-    return `${publicBaseUrl}/download/config-project/${encodeURIComponent(
+    const outputUrl = `${publicBaseUrl}/download/config-project/${encodeURIComponent(
         projectName,
     )}/proxy-source/${encodeURIComponent(source.name)}/${encodeURIComponent(
         platform,
     )}`;
+    const serverFilterGroup = `${options.serverFilterGroup || ''}`.trim();
+    return serverFilterGroup
+        ? `${outputUrl}?group=${encodeURIComponent(serverFilterGroup)}`
+        : outputUrl;
 }
 
 function binding(

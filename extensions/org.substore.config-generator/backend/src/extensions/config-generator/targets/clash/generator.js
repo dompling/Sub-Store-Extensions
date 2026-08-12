@@ -11,6 +11,7 @@ import {
 } from '@/extensions/config-generator/core/policy-group-projection';
 import {
     createRemoteProxySourceContext,
+    isAutomaticRemoteProxySource,
     projectGroupRemoteProxySource,
     remoteProxySourceOutputUrl,
     remoteProxySourceWarning,
@@ -110,18 +111,84 @@ function allocateUnique(value, used, fallback) {
     return candidate;
 }
 
-function compileRegex(value, path, warnings) {
-    if (!value) return null;
+function clashRuleProviderCacheUrl(project, ruleSet, warnings, state) {
+    const configuredBase =
+        project.outputs?.clash?.publicBaseUrl ||
+        (project.remoteProxySources || []).find(
+            (source) => source?.source?.publicBaseUrl,
+        )?.source?.publicBaseUrl;
+    if (!configuredBase) return null;
+    let base;
     try {
-        return new RegExp(value);
+        base = new URL(configuredBase);
+        if (!['http:', 'https:'].includes(base.protocol)) return null;
+    } catch (_) {
+        return null;
+    }
+    if (
+        !state.loopbackWarning &&
+        ['127.0.0.1', 'localhost', '::1'].includes(base.hostname)
+    ) {
+        state.loopbackWarning = true;
+        warnings.push({
+            path: 'outputs.clash.publicBaseUrl',
+            message:
+                'The Clash provider cache uses a loopback Sub-Store URL. It only works when Clash runs on the same host; configure a reachable public base URL before using this profile on another device.',
+        });
+    }
+    const normalizedBase = base.toString().replace(/\/+$/, '');
+    return `${normalizedBase}/download/config-project/${encodeURIComponent(
+        project.name,
+    )}/rule-set/${encodeURIComponent(ruleSet.name)}/Clash`;
+}
+
+function hasUnsupportedGoRegexSyntax(value) {
+    return (
+        /\(\?(?:[=!]|<[=!]|:|>)/.test(value) ||
+        /\\(?:[1-9][0-9]*|k<[^>]+>)/.test(value) ||
+        /(?:\*|\+|\?|\{\d+(?:,\d*)?\})\+/.test(value)
+    );
+}
+
+function compileRegex(value, path, warnings) {
+    if (!value)
+        return {
+            localRegex: null,
+            providerFilter: null,
+            serverFilterRequired: false,
+        };
+    let localRegex;
+    try {
+        localRegex = new RegExp(value);
     } catch (_) {
         warnings.push({
             path,
             message:
                 'The node-name regular expression is invalid and was omitted from Clash output.',
         });
-        return null;
+        return {
+            localRegex: null,
+            providerFilter: null,
+            serverFilterRequired: false,
+        };
     }
+    if (hasUnsupportedGoRegexSyntax(value)) {
+        warnings.push({
+            path,
+            message:
+                'The node-name filter uses syntax that is not supported by Clash Go regular expressions. Automatic Sub-Store sources will be filtered on the server; other remote providers will be kept without this filter.',
+        });
+        return {
+            localRegex,
+            providerFilter: null,
+            serverFilterRequired: true,
+        };
+    }
+    return {
+        localRegex,
+        providerFilter: value,
+        serverFilterRequired: false,
+    };
 }
 
 function clashProcessRuleType(type, value) {
@@ -243,10 +310,99 @@ function generateGroups(project, localProxyNames, sourceContext, warnings) {
     const usedProviderPaths = new Set();
     const providerVariants = new Map();
     const warnedSourceOptions = new Set();
+    const enabledGroups = (project.groups || []).filter(
+        (group) => !group.disabled,
+    );
+    const sourceProjections = new Map(
+        enabledGroups.map((group) => [
+            group.name,
+            projectGroupRemoteProxySource(group, 'clash', sourceContext),
+        ]),
+    );
+    const flattenableProviderGroups = new Map();
 
-    (project.groups || [])
-        .filter((group) => !group.disabled)
-        .forEach((group) => {
+    enabledGroups.forEach((group) => {
+        const sourceProjection = sourceProjections.get(group.name);
+        if (
+            sourceProjection?.status === 'ready' &&
+            !(group.members || []).length &&
+            !group.includeAllProxies &&
+            !(group.includeOtherGroups || []).length &&
+            !group.nodeNameRegex
+        ) {
+            flattenableProviderGroups.set(group.name, sourceProjection);
+        }
+    });
+
+    const registerProvider = (
+        sourceProjection,
+        group,
+        providerFilter,
+        serverFilterRequired,
+    ) => {
+        if (
+            sourceProjection.source.targetOptions?.qx &&
+            !warnedSourceOptions.has(sourceProjection.source.name)
+        ) {
+            warnedSourceOptions.add(sourceProjection.source.name);
+            warnings.push({
+                path: `remoteProxySources.${sourceProjection.source.name}.targetOptions.qx`,
+                message:
+                    'Quantumult X remote-source tag and parser options have no Clash equivalent and were omitted.',
+            });
+        }
+        const interval =
+            sourceProjection.source.targetOptions?.clash?.updateInterval ??
+            group.policyUpdateInterval ??
+            DEFAULT_PROVIDER_INTERVAL;
+        const providerDefinition = {
+            type: 'http',
+            url: remoteProxySourceOutputUrl(
+                sourceProjection.source,
+                'clash',
+                sourceContext,
+                {
+                    serverFilterGroup:
+                        serverFilterRequired &&
+                        isAutomaticRemoteProxySource(sourceProjection.source)
+                            ? group.name
+                            : undefined,
+                },
+            ),
+            interval,
+            'health-check': {
+                enable: true,
+                url: group.testUrl || DEFAULT_TEST_URL,
+                interval: group.interval ?? DEFAULT_HEALTH_CHECK_INTERVAL,
+            },
+        };
+        if (providerFilter) providerDefinition.filter = providerFilter;
+        const variantKey = JSON.stringify({
+            source: sourceProjection.source.name,
+            ...providerDefinition,
+        });
+        let providerName = providerVariants.get(variantKey);
+        if (!providerName) {
+            providerName = allocateUnique(
+                `${sourceProjection.source.name}-${group.name}`,
+                usedProviderNames,
+                'proxy-provider',
+            );
+            const providerPath = allocateUnique(
+                sourceProjection.source.name,
+                usedProviderPaths,
+                'proxy-provider',
+            );
+            proxyProviders[providerName] = {
+                ...providerDefinition,
+                path: `./providers/${providerPath}.yaml`,
+            };
+            providerVariants.set(variantKey, providerName);
+        }
+        return providerName;
+    };
+
+    enabledGroups.forEach((group) => {
             const capability = resolvePolicyGroupCapability(
                 'clash',
                 group.type,
@@ -274,10 +430,23 @@ function generateGroups(project, localProxyNames, sourceContext, warnings) {
                 capability,
                 'clash',
             );
-            values.push(...includedGroups.members);
-            warnings.push(...includedGroups.diagnostics);
+            const inheritedSourceProjections = [];
+            const residualIncludedGroups = [];
+            includedGroups.members.forEach((name) => {
+                const inherited = flattenableProviderGroups.get(name);
+                if (inherited) inheritedSourceProjections.push(inherited);
+                else residualIncludedGroups.push(name);
+            });
+            values.push(...residualIncludedGroups);
+            if (residualIncludedGroups.length) {
+                warnings.push(...includedGroups.diagnostics);
+            }
 
-            const regex = compileRegex(
+            const {
+                localRegex,
+                providerFilter,
+                serverFilterRequired,
+            } = compileRegex(
                 group.nodeNameRegex,
                 `groups.${group.name}.nodeNameRegex`,
                 warnings,
@@ -286,7 +455,7 @@ function generateGroups(project, localProxyNames, sourceContext, warnings) {
                 if (localProxyNames.length) {
                     values.push(
                         ...localProxyNames.filter(
-                            (name) => !regex || regex.test(name),
+                            (name) => !localRegex || localRegex.test(name),
                         ),
                     );
                 } else {
@@ -299,11 +468,7 @@ function generateGroups(project, localProxyNames, sourceContext, warnings) {
             }
 
             const use = [];
-            const sourceProjection = projectGroupRemoteProxySource(
-                group,
-                'clash',
-                sourceContext,
-            );
+            const sourceProjection = sourceProjections.get(group.name);
             if (sourceProjection.status !== 'none') {
                 if (sourceProjection.status === 'unsupported-field') {
                     warnings.push({
@@ -328,66 +493,28 @@ function generateGroups(project, localProxyNames, sourceContext, warnings) {
                             'The Clash remote proxy source is disabled and was omitted.',
                     });
                 } else if (sourceProjection.status === 'ready') {
-                    if (
-                        sourceProjection.source.targetOptions?.qx &&
-                        !warnedSourceOptions.has(sourceProjection.source.name)
-                    ) {
-                        warnedSourceOptions.add(sourceProjection.source.name);
-                        warnings.push({
-                            path: `remoteProxySources.${sourceProjection.source.name}.targetOptions.qx`,
-                            message:
-                                'Quantumult X remote-source tag and parser options have no Clash equivalent and were omitted.',
-                        });
-                    }
-                    const interval =
-                        sourceProjection.source.targetOptions?.clash
-                            ?.updateInterval ??
-                        group.policyUpdateInterval ??
-                        DEFAULT_PROVIDER_INTERVAL;
-                    const providerDefinition = {
-                        type: 'http',
-                        url: remoteProxySourceOutputUrl(
-                            sourceProjection.source,
-                            'clash',
-                            sourceContext,
+                    use.push(
+                        registerProvider(
+                            sourceProjection,
+                            group,
+                            providerFilter,
+                            serverFilterRequired,
                         ),
-                        interval,
-                        'health-check': {
-                            enable: true,
-                            url: group.testUrl || DEFAULT_TEST_URL,
-                            interval:
-                                group.interval ?? DEFAULT_HEALTH_CHECK_INTERVAL,
-                        },
-                    };
-                    if (regex) {
-                        providerDefinition.filter = group.nodeNameRegex;
-                    }
-                    const variantKey = JSON.stringify({
-                        source: sourceProjection.source.name,
-                        ...providerDefinition,
-                    });
-                    let providerName = providerVariants.get(variantKey);
-                    if (!providerName) {
-                        providerName = allocateUnique(
-                            `${sourceProjection.source.name}-${group.name}`,
-                            usedProviderNames,
-                            'proxy-provider',
-                        );
-                        const providerPath = allocateUnique(
-                            sourceProjection.source.name,
-                            usedProviderPaths,
-                            'proxy-provider',
-                        );
-                        proxyProviders[providerName] = {
-                            ...providerDefinition,
-                            path: `./providers/${providerPath}.yaml`,
-                        };
-                        providerVariants.set(variantKey, providerName);
-                    }
-                    use.push(providerName);
+                    );
                 }
             }
-            if (!use.length && group.policyUpdateInterval !== undefined) {
+            inheritedSourceProjections.forEach((inherited) => {
+                use.push(
+                    registerProvider(
+                        inherited,
+                        group,
+                        providerFilter,
+                        serverFilterRequired,
+                    ),
+                );
+            });
+            const uniqueUse = dedupe(use);
+            if (!uniqueUse.length && group.policyUpdateInterval !== undefined) {
                 warnings.push({
                     path: `groups.${group.name}.policyUpdateInterval`,
                     message:
@@ -400,7 +527,7 @@ function generateGroups(project, localProxyNames, sourceContext, warnings) {
                 type: capability.outputType,
             };
             const proxies = dedupe(values);
-            if (!proxies.length && !use.length) {
+            if (!proxies.length && !uniqueUse.length) {
                 proxies.push('DIRECT');
                 warnings.push({
                     path: `groups.${group.name}.members`,
@@ -408,7 +535,7 @@ function generateGroups(project, localProxyNames, sourceContext, warnings) {
                 });
             }
             if (proxies.length) output.proxies = proxies;
-            if (use.length) output.use = use;
+            if (uniqueUse.length) output.use = uniqueUse;
             if (capability.outputType !== 'select') {
                 output.url = group.testUrl || DEFAULT_TEST_URL;
                 output.interval =
@@ -503,6 +630,7 @@ async function generateRules(project, ruleSets, warnings, downloadRuleSet) {
     const convertedRuleSets = new Map();
     const usedProviderNames = new Set();
     const usedProviderPaths = new Set();
+    const cacheUrlState = { loopbackWarning: false };
 
     const projectRules = project.rules || [];
     for (let index = 0; index < projectRules.length; index++) {
@@ -517,6 +645,13 @@ async function generateRules(project, ruleSets, warnings, downloadRuleSet) {
             continue;
         }
         if (rule.kind === 'final') {
+            if (rule.dnsFailed) {
+                warnings.push({
+                    path: `rules[${index}].dnsFailed`,
+                    message:
+                        'Clash MATCH has no equivalent for Surge FINAL dns-failed semantics; the final policy was preserved but dns-failed was omitted.',
+                });
+            }
             rules.push(`MATCH,${rule.policy}`);
             continue;
         }
@@ -664,23 +799,59 @@ async function generateRules(project, ruleSets, warnings, downloadRuleSet) {
                 usedProviderPaths,
                 'rule-provider',
             );
+            const clashOptions = ruleSet.targetOptions?.clash || {};
+            const behavior = clashOptions.behavior || 'classical';
+            const format = clashOptions.format || 'yaml';
+            const cacheUrl = clashRuleProviderCacheUrl(
+                project,
+                ruleSet,
+                warnings,
+                cacheUrlState,
+            );
             ruleProviders[providerName] = {
                 type: 'http',
-                behavior: 'classical',
-                url: resolution.url,
-                path: `./rules/${providerPath}.yaml`,
+                behavior,
+                url: cacheUrl || resolution.url,
+                path: `./rules/${providerPath}.${
+                    !cacheUrl && format === 'text' ? 'txt' : 'yaml'
+                }`,
                 interval: ruleSet.updateInterval ?? DEFAULT_PROVIDER_INTERVAL,
+                ...(cacheUrl
+                    ? { format: 'yaml' }
+                    : clashOptions.format
+                    ? { format }
+                    : {}),
             };
             providersByRuleSet.set(ruleSet.name, providerName);
+        }
+        const behavior = ruleSet.targetOptions?.clash?.behavior || 'classical';
+        const noResolve = Boolean(rule.noResolve && behavior !== 'domain');
+        if (rule.noResolve && !noResolve) {
+            warnings.push({
+                path: `rules[${index}].noResolve`,
+                message:
+                    'Clash no-resolve has no effect on a domain rule provider and was omitted.',
+            });
         }
         rules.push(
             [
                 'RULE-SET',
                 providerName,
                 rule.policy,
-                ...(rule.noResolve ? ['no-resolve'] : []),
+                ...(noResolve ? ['no-resolve'] : []),
             ].join(','),
         );
+    }
+
+    if (!rules.some((rule) => /^MATCH,/i.test(rule))) {
+        const fallbackPolicy =
+            (project.groups || []).find((group) => !group.disabled)?.name ||
+            'DIRECT';
+        rules.push(`MATCH,${fallbackPolicy}`);
+        warnings.push({
+            path: 'rules',
+            message: `Clash requires a final MATCH rule; MATCH,${fallbackPolicy} was appended as a fallback.`,
+        });
     }
 
     return { ruleProviders, rules };
@@ -688,30 +859,14 @@ async function generateRules(project, ruleSets, warnings, downloadRuleSet) {
 
 function mergeConfig(
     independentConfig,
-    generatedProxies,
+    proxies,
     proxyProviders,
     proxyGroups,
     ruleProviders,
     rules,
-    hasEmbeddedSource,
     warnings,
 ) {
     const base = { ...independentConfig };
-    const preservedProxies = Array.isArray(base.proxies) ? base.proxies : [];
-    if (base.proxies !== undefined && !Array.isArray(base.proxies)) {
-        warnings.push({
-            path: 'outputs.clash.independentConfig.proxies',
-            message:
-                'The independent Clash proxies field was not an array and was omitted.',
-        });
-    }
-    if (hasEmbeddedSource && preservedProxies.length) {
-        warnings.push({
-            path: 'outputs.clash.independentConfig.proxies',
-            message:
-                'Embedded proxies replace independent Clash proxies to avoid duplicate node definitions.',
-        });
-    }
     const preservedProxyGroups = Array.isArray(base['proxy-groups'])
         ? base['proxy-groups']
         : [];
@@ -738,13 +893,38 @@ function mergeConfig(
                 'The independent Clash proxy-providers field was not a mapping and was omitted.',
         });
     }
+    const preservedRuleProviders = isObject(base['rule-providers'])
+        ? base['rule-providers']
+        : {};
+    if (
+        base['rule-providers'] !== undefined &&
+        !isObject(base['rule-providers'])
+    ) {
+        warnings.push({
+            path: 'outputs.clash.independentConfig.rule-providers',
+            message:
+                'The independent Clash rule-providers field was not a mapping and was omitted.',
+        });
+    }
+    const preservedRules = Array.isArray(base.rules)
+        ? base.rules.filter((rule, index) => {
+              if (typeof rule === 'string' && rule.trim()) return true;
+              warnings.push({
+                  path: `outputs.clash.independentConfig.rules[${index}]`,
+                  message:
+                      'Clash rules must be non-empty strings; this independent rule was omitted.',
+              });
+              return false;
+          })
+        : [];
+    if (base.rules !== undefined && !Array.isArray(base.rules)) {
+        warnings.push({
+            path: 'outputs.clash.independentConfig.rules',
+            message:
+                'The independent Clash rules field was not an array and was omitted.',
+        });
+    }
     for (const key of MANAGED_KEYS) {
-        if (key !== 'proxies' && base[key] !== undefined) {
-            warnings.push({
-                path: `outputs.clash.independentConfig.${key}`,
-                message: `The independent Clash ${key} field is managed by the configuration generator and was replaced.`,
-            });
-        }
         delete base[key];
     }
     const mergedProxyGroups = mergeNamedEntries(
@@ -754,21 +934,47 @@ function mergeConfig(
             isObject(group) && typeof group.name === 'string' && group.name
                 ? group.name
                 : undefined,
+        {
+            replace: (existing, generated) => ({
+                ...existing,
+                ...generated,
+            }),
+        },
     );
-    // Keep provider definitions used by retained hand-authored groups. A
-    // generated provider with the same key intentionally wins while unrelated
-    // independent providers retain their original order and configuration.
-    const mergedProxyProviders = {
-        ...preservedProxyProviders,
-        ...proxyProviders,
+    const mergeProviders = (preserved, generated) => {
+        const merged = { ...preserved };
+        Object.entries(generated).forEach(([name, definition]) => {
+            merged[name] =
+                isObject(merged[name]) && isObject(definition)
+                    ? { ...merged[name], ...definition }
+                    : definition;
+        });
+        return merged;
     };
+    const generatedFinal = rules.find((rule) => /^MATCH,/i.test(rule));
+    const independentFinal = preservedRules.find((rule) =>
+        /^MATCH,/i.test(rule),
+    );
+    const mergedRules = dedupe([
+        ...preservedRules.filter((rule) => !/^MATCH,/i.test(rule)),
+        ...rules.filter((rule) => !/^MATCH,/i.test(rule)),
+    ]);
+    if (generatedFinal || independentFinal) {
+        mergedRules.push(generatedFinal || independentFinal);
+    }
     return {
         ...base,
-        proxies: hasEmbeddedSource ? generatedProxies : preservedProxies,
-        'proxy-providers': mergedProxyProviders,
+        proxies,
+        'proxy-providers': mergeProviders(
+            preservedProxyProviders,
+            proxyProviders,
+        ),
         'proxy-groups': mergedProxyGroups,
-        'rule-providers': ruleProviders,
-        rules,
+        'rule-providers': mergeProviders(
+            preservedRuleProviders,
+            ruleProviders,
+        ),
+        rules: mergedRules,
     };
 }
 
@@ -791,18 +997,53 @@ export async function generateClashConfig({
         warnings,
     );
     const preservedProxies = Array.isArray(independent.proxies)
-        ? independent.proxies.filter((proxy) => isObject(proxy) && proxy.name)
+        ? independent.proxies.filter((proxy, index) => {
+              if (isObject(proxy) && `${proxy.name || ''}`.trim()) return true;
+              warnings.push({
+                  path: `outputs.clash.independentConfig.proxies[${index}]`,
+                  message:
+                      'An independent Clash proxy without a valid name was omitted.',
+              });
+              return false;
+          })
         : [];
-    const outputProxies = project.embeddedSource
-        ? generatedProxies
-        : preservedProxies;
-    if (!project.embeddedSource) {
-        warnClassicProxyCompatibility(
-            outputProxies,
-            'outputs.clash.independentConfig.proxies',
-            warnings,
-        );
+    if (
+        independent.proxies !== undefined &&
+        !Array.isArray(independent.proxies)
+    ) {
+        warnings.push({
+            path: 'outputs.clash.independentConfig.proxies',
+            message:
+                'The independent Clash proxies field was not an array and was omitted.',
+        });
     }
+    const outputProxies = project.embeddedSource
+        ? mergeNamedEntries(
+              preservedProxies,
+              generatedProxies,
+              (proxy) =>
+                  isObject(proxy) && `${proxy.name || ''}`.trim()
+                      ? `${proxy.name}`
+                      : undefined,
+              {
+                  replace: (_, generated, name) => {
+                      warnings.push({
+                          path: `outputs.clash.independentConfig.proxies.${name}`,
+                          message:
+                              'The independent Clash proxy was replaced by an embedded proxy with the same name.',
+                      });
+                      return generated;
+                  },
+              },
+          )
+        : preservedProxies;
+    warnClassicProxyCompatibility(
+        outputProxies,
+        project.embeddedSource
+            ? 'proxies'
+            : 'outputs.clash.independentConfig.proxies',
+        warnings,
+    );
     const localProxyNames = outputProxies.map((proxy) => `${proxy.name}`);
     const sourceContext = createRemoteProxySourceContext(project);
     const { proxyProviders, proxyGroups } = generateGroups(
@@ -819,12 +1060,11 @@ export async function generateClashConfig({
     );
     const config = mergeConfig(
         independent,
-        generatedProxies,
+        outputProxies,
         proxyProviders,
         proxyGroups,
         ruleProviders,
         rules,
-        Boolean(project.embeddedSource),
         warnings,
     );
 
@@ -834,7 +1074,7 @@ export async function generateClashConfig({
         stats: {
             nodeCount: config.proxies.length,
             groupCount: proxyGroups.length,
-            ruleCount: rules.length,
+            ruleCount: config.rules.length,
         },
         warnings,
         errors: [],

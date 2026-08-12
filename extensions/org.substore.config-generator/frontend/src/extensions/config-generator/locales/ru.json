@@ -152,13 +152,13 @@
     "policyMappings": {
       "select": "Surge select / QX static / Clash select / Loon select (нативно)",
       "fallback": "Surge fallback / QX available / Clash fallback / Loon fallback (нативно)",
-      "urlTest": "Surge url-test / QX url-latency-benchmark / Clash url-test / Loon url-test (нативно)",
+      "urlTest": "Surge, Clash и Loon используют нативный url-test; QX обычно использует url-latency-benchmark, но для удалённых источников или regex-фильтра узлов переходит на available из-за ограничений официального формата",
       "loadBalance": "Surge, Clash и Loon используют нативный load-balance; QX переходит на round-robin (приблизительно, алгоритмы могут отличаться)",
       "subnet": "Нативно в Surge; Clash и Loon переходят на select (приблизительно: политики по умолчанию и правила подсети становятся вариантами); QX не поддерживается",
-      "smart": "Surge smart нативно; QX, Clash и Loon переходят на тест задержки (приблизительно, адаптивная оценка качества не сохраняется)",
+      "smart": "Surge smart нативно; Clash и Loon переходят на тест задержки; QX использует url-latency-benchmark без фильтров узлов и available для удалённых источников или regex-фильтров (адаптивная оценка качества не сохраняется)",
       "roundRobin": "Нативно в QX; Surge, Clash и Loon переходят на load-balance (приблизительно)",
-      "destHash": "Нативно в QX; Surge persistent load-balance / Clash consistent-hashing / Loon load-balance (приблизительно)",
-      "ssid": "Нативно в Quantumult X и Loon; Clash переходит на select (приблизительно, условия сети не сохраняются); Surge не поддерживается",
+      "destHash": "QX обычно использует нативный dest-hash, но для удалённых источников или regex-фильтра узлов переходит на round-robin; Surge persistent load-balance / Clash consistent-hashing / Loon load-balance приблизительны",
+      "ssid": "Нативно в Quantumult X; вывод Loon сохранён только для совместимости со старым официальным примером, поскольку в текущем руководстве по группам этот тип отсутствует (проверьте версию клиента); Clash переходит на select (приблизительно, сетевые условия не сохраняются); Surge не поддерживается",
       "surgeOnly": "Только Surge; Quantumult X, Clash и Loon покажут диагностику без предположительного сопоставления"
     },
     "fields": {

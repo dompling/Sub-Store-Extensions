@@ -5,7 +5,13 @@ export function separateSectionBlocks(blocks = []) {
             (line) => line !== undefined && line !== null,
         );
         if (!next.length) return;
-        if (lines.length && lines[lines.length - 1] !== '') lines.push('');
+        if (
+            lines.length &&
+            lines[lines.length - 1] !== '' &&
+            next[0] !== ''
+        ) {
+            lines.push('');
+        }
         lines.push(...next);
     });
     return lines;
