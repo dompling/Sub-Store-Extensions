@@ -1,7 +1,10 @@
 <template>
   <nut-swipe
+    ref="swipe"
     class="sub-item-swipe"
     :class="{ 'is-dual-column': isDualColumn }"
+    @open="setActionsOpen"
+    @close="setActionsClosed"
   >
     <article
       class="sub-item-wrapper"
@@ -40,6 +43,17 @@
             >
               <font-awesome-icon icon="fa-solid fa-pen-nib" />
             </button>
+            <button
+              type="button"
+              class="copy-sub-link actions-toggle"
+              :class="{ 'is-open': actionsOpen }"
+              :title="$t(actionsOpen ? 'configGenerator.collapseActions' : 'configGenerator.expandActions')"
+              :aria-label="$t(actionsOpen ? 'configGenerator.collapseActions' : 'configGenerator.expandActions')"
+              :aria-expanded="actionsOpen"
+              @click.stop="toggleActions"
+            >
+              <font-awesome-icon icon="fa-solid fa-angles-right" />
+            </button>
           </div>
         </div>
 
@@ -72,6 +86,7 @@
 <script setup lang="ts">
 import {
   computed,
+  ref,
   storeToRefs,
   useSettingsStore,
 } from '@/extensions/frontend-sdk-v1';
@@ -91,10 +106,33 @@ defineEmits<{
 
 const settingsStore = useSettingsStore();
 const { appearanceSetting } = storeToRefs(settingsStore);
+const swipe = ref<{
+  open: (position: 'left' | 'right') => void;
+  close: () => void;
+} | null>(null);
+const actionsOpen = ref(false);
 const displayName = computed(() => props.project.displayName || props.project.name);
 const avatarSize = computed(() => appearanceSetting.value.isSimpleMode ? 36 : (props.isDualColumn ? 40 : 48));
 const targetNames = CONFIG_GENERATOR_TARGET_DEFINITIONS.map(target => target.displayName).join('、');
 const itemPadding = computed(() => appearanceSetting.value.isSimpleMode ? '9px' : (props.isDualColumn ? '12px' : '16px'));
+
+const setActionsOpen = () => {
+  actionsOpen.value = true;
+};
+
+const setActionsClosed = () => {
+  actionsOpen.value = false;
+};
+
+const toggleActions = () => {
+  if (actionsOpen.value) {
+    swipe.value?.close();
+    return;
+  }
+
+  const position = appearanceSetting.value.isLeftRight ? 'right' : 'left';
+  swipe.value?.open(position);
+};
 </script>
 
 <style lang="scss" scoped>
@@ -200,6 +238,14 @@ const itemPadding = computed(() => appearanceSetting.value.isSimpleMode ? '9px' 
     height: 16px;
     color: var(--comment-text-color);
   }
+}
+
+.actions-toggle svg {
+  transition: transform 0.2s ease;
+}
+
+.actions-toggle.is-open svg {
+  transform: rotate(180deg);
 }
 
 .sub-item-detail,

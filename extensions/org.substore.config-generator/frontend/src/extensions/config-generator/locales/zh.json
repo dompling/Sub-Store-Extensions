@@ -4,6 +4,8 @@
     "title": "配置管理",
     "create": "创建项目",
     "edit": "编辑项目",
+    "expandActions": "展开操作",
+    "collapseActions": "收起操作",
     "import": "导入配置",
     "parse": "解析配置",
     "preview": "生成预览",

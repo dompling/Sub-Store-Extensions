@@ -4,6 +4,8 @@
     "title": "Config Generator",
     "create": "Create project",
     "edit": "Edit project",
+    "expandActions": "Show actions",
+    "collapseActions": "Hide actions",
     "import": "Import configuration",
     "parse": "Parse config",
     "preview": "Generate preview",
