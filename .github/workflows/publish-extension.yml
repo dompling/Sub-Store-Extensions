@@ -27,15 +27,14 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 concurrency:
-  group: publish-extension-${{ inputs.extension_id }}
+  group: publish-extension-${{ inputs.base_branch }}
   cancel-in-progress: false
 
 jobs:
   publish:
-    name: Verify package and prepare release PR
+    name: Verify and publish extension
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -44,6 +43,7 @@ jobs:
         with:
           ref: ${{ inputs.base_branch }}
           fetch-depth: 0
+          token: ${{ secrets.RELEASE_PUBLISH_TOKEN || github.token }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -123,8 +123,8 @@ jobs:
             echo "Release produced no tracked changes." >&2
             exit 1
           fi
-          release_branch="automation/publish-${BRANCH_SLUG}-v${EXTENSION_VERSION}-${GITHUB_RUN_ID}"
-          git switch -c "$release_branch"
+          base_sha="$(git rev-parse HEAD)"
+          echo "base_sha=${base_sha}" >> "$GITHUB_OUTPUT"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add --all
@@ -139,67 +139,80 @@ jobs:
             "Scope-risk: moderate" \
             "Directive: Do not edit generated package or repository files by hand" \
             "Tested: Extension typecheck, build, tests, package assembly, catalog verification, and diff validation" \
-            "Not-tested: Installation from GitHub Raw before this PR is merged" \
+            "Not-tested: Client refresh latency after GitHub Raw cache propagation" \
             > "$commit_message"
           git commit --file "$commit_message"
-          git push --set-upstream origin "$release_branch"
-          echo "branch=$release_branch" >> "$GITHUB_OUTPUT"
+          release_head_sha="$(git rev-parse HEAD)"
+          echo "head_sha=${release_head_sha}" >> "$GITHUB_OUTPUT"
 
-      - name: Create or link release pull request
-        id: pull_request
+      - name: Publish verified release to the base branch
+        id: publish
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_PR_TOKEN || github.token }}
+          BASE_BRANCH: ${{ inputs.base_branch }}
+          EXPECTED_BASE_SHA: ${{ steps.commit.outputs.base_sha }}
+          RELEASE_HEAD_SHA: ${{ steps.commit.outputs.head_sha }}
+        run: |
+          git fetch --no-tags origin "$BASE_BRANCH"
+          current_base_sha="$(git rev-parse FETCH_HEAD)"
+          if [ "$current_base_sha" != "$EXPECTED_BASE_SHA" ]; then
+            echo "::error::The base branch advanced while the release was being built. Run the workflow again so the package and catalog are regenerated from the current source."
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$EXPECTED_BASE_SHA" "$RELEASE_HEAD_SHA"; then
+            echo "::error::The generated release commit is not based on the expected source revision."
+            exit 1
+          fi
+          if ! git push origin "$RELEASE_HEAD_SHA:refs/heads/$BASE_BRANCH"; then
+            echo "::error::The verified release could not be pushed to the base branch. If a branch rule blocks GitHub Actions, allow this workflow actor to update the branch or configure a RELEASE_PUBLISH_TOKEN owned by an allowed actor."
+            exit 1
+          fi
+          git fetch --no-tags origin "$BASE_BRANCH"
+          published_sha="$(git rev-parse FETCH_HEAD)"
+          if [ "$published_sha" != "$RELEASE_HEAD_SHA" ]; then
+            echo "::error::The base branch does not point to the verified release commit after publication."
+            exit 1
+          fi
+          echo "published_sha=${published_sha}" >> "$GITHUB_OUTPUT"
+
+      - name: Delete obsolete generated release branches
+        shell: bash
+        env:
+          BRANCH_SLUG: ${{ steps.metadata.outputs.branch_slug }}
+          EXTENSION_VERSION: ${{ steps.metadata.outputs.version }}
+        run: |
+          release_prefix="automation/publish-${BRANCH_SLUG}-v${EXTENSION_VERSION}-"
+          git ls-remote --heads origin "refs/heads/${release_prefix}*" \
+            | awk '{print $2}' \
+            | while IFS= read -r stale_ref; do
+                [ -n "$stale_ref" ] || continue
+                stale_branch="${stale_ref#refs/heads/}"
+                case "$stale_branch" in
+                  "${release_prefix}"*)
+                    git push origin --delete "$stale_branch"
+                    ;;
+                  *)
+                    echo "::error::Refusing to delete unexpected branch: ${stale_branch}"
+                    exit 1
+                    ;;
+                esac
+              done
+
+      - name: Summarize published release
+        shell: bash
+        env:
           EXTENSION_ID: ${{ steps.metadata.outputs.extension_id }}
           EXTENSION_VERSION: ${{ steps.metadata.outputs.version }}
           PREVIOUS_VERSION: ${{ steps.metadata.outputs.previous_version }}
           VERSION_BUMP: ${{ steps.metadata.outputs.version_bump }}
           REPOSITORY_SEQUENCE: ${{ steps.metadata.outputs.repository_sequence }}
-          RELEASE_BRANCH: ${{ steps.commit.outputs.branch }}
           BASE_BRANCH: ${{ inputs.base_branch }}
+          PUBLISHED_SHA: ${{ steps.publish.outputs.published_sha }}
         run: |
-          pr_body="$RUNNER_TEMP/extension-release-pr.md"
-          printf '%s\n' \
-            "Publishes the verified **${EXTENSION_ID} v${EXTENSION_VERSION}** package in collection sequence **${REPOSITORY_SEQUENCE}**." \
-            "" \
-            "The workflow generated the **${VERSION_BUMP}** version from **${PREVIOUS_VERSION:-the initial source version}**, then completed type checking, build, tests, SHA-256 package verification, and catalog verification. Merge this PR to publish through the configured GitHub Raw collection URL." \
-            > "$pr_body"
-          compare_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${BASE_BRANCH}...${RELEASE_BRANCH}?expand=1"
-          pr_error="$RUNNER_TEMP/extension-release-pr-error.txt"
-          set +e
-          pr_url="$(gh pr create \
-            --base "$BASE_BRANCH" \
-            --head "$RELEASE_BRANCH" \
-            --title "release: ${EXTENSION_ID} v${EXTENSION_VERSION}" \
-            --body-file "$pr_body" \
-            2> "$pr_error")"
-          pr_exit=$?
-          set -e
-
-          pr_created=true
-          if [ "$pr_exit" -ne 0 ]; then
-            if grep -Fq \
-              "GitHub Actions is not permitted to create or approve pull requests" \
-              "$pr_error"; then
-              pr_created=false
-              pr_url="$compare_url"
-              echo "::warning::Repository Actions policy blocked automatic pull request creation. Use the manual link in the job summary or enable pull request creation under Settings > Actions > General."
-            else
-              sed -n '1,160p' "$pr_error" >&2
-              exit "$pr_exit"
-            fi
-          fi
-
-          echo "created=$pr_created" >> "$GITHUB_OUTPUT"
-          echo "url=$pr_url" >> "$GITHUB_OUTPUT"
-          echo "### Release candidate ready" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Extension published" >> "$GITHUB_STEP_SUMMARY"
           echo "- Extension: \`${EXTENSION_ID}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Version: \`${PREVIOUS_VERSION:-initial} -> ${EXTENSION_VERSION}\` (\`${VERSION_BUMP}\`)" >> "$GITHUB_STEP_SUMMARY"
           echo "- Collection sequence: \`${REPOSITORY_SEQUENCE}\`" >> "$GITHUB_STEP_SUMMARY"
-          if [ "$pr_created" = true ]; then
-            echo "- Pull request: ${pr_url}" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "- Pull request: automatic creation was blocked by the repository Actions policy" >> "$GITHUB_STEP_SUMMARY"
-            echo "- Create manually: ${pr_url}" >> "$GITHUB_STEP_SUMMARY"
-            echo "- Enable automatic creation: Settings > Actions > General > Workflow permissions > Allow GitHub Actions to create and approve pull requests" >> "$GITHUB_STEP_SUMMARY"
-          fi
+          echo "- Published branch: \`${BASE_BRANCH}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Published commit: \`${PUBLISHED_SHA}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Obsolete generated branches for this version: deleted" >> "$GITHUB_STEP_SUMMARY"

@@ -135,12 +135,14 @@ GitHub Actions 中的 `Publish extension` workflow 会：
 → test / verify
 → git diff --check
 → 上传 build / dist / package 候选 artifact
-→ 创建发布 PR
+→ 确认目标分支未发生并发更新
+→ 把已验证发布提交快进到目标分支
+→ 删除同版本遗留的 automation/publish-* 分支
 ```
 
-开发提交不需要手工修改版本或提交 `build/`、`dist/`。workflow 会把源码版本、可发布 package 和 catalog 变更一起放进 release PR；`build/`、`dist/` 只作为 Actions artifact 保存。workflow 不需要私钥或 GitHub Environment Secret。
+开发提交不需要手工修改版本或提交 `build/`、`dist/`。workflow 会把源码版本、可发布 package 和 catalog 变更组成一个已验证的发布提交，并直接快进到所选基础分支；`build/`、`dist/` 只作为 Actions artifact 保存。workflow 不需要私钥或 GitHub Environment Secret。
 
-自动创建 PR 还受仓库级 Actions 策略控制。推荐在 `Settings > Actions > General > Workflow permissions` 开启 `Allow GitHub Actions to create and approve pull requests`。若未开启，workflow 会保留已推送的 release 分支并在 job summary 输出手动创建 PR 的链接，不再让整个发布任务失败；也可以提供可选的 `RELEASE_PR_TOKEN` repository secret。详见 [发布指南](docs/RELEASING.md)。
+默认使用具有 `contents: write` 的 `GITHUB_TOKEN`。如果基础分支保护规则禁止 Actions 直接更新，可提供可选的 `RELEASE_PUBLISH_TOKEN` repository secret，由一个被允许更新该分支的 fine-grained token 提供 `Contents: Read and write` 权限。详见 [发布指南](docs/RELEASING.md)。
 
 ## 常用命令
 

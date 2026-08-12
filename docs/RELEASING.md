@@ -15,26 +15,28 @@ Actions 中手动运行 `Publish extension`：
 → 验证 package 与 catalog
 → git diff --check
 → 上传 build / dist / package 候选 artifact
-→ 创建发布 PR
+→ 确认基础分支未发生并发更新
+→ 把已验证发布提交快进到基础分支
+→ 清理同版本遗留的 automation/publish-* 分支
 ```
 
 输入目标 extension ID、基础分支和版本增量即可。workflow 使用 Node 22 与锁定的 pnpm，不需要私钥、发布者公钥或 GitHub Environment Secret。
 
-它不会直接修改主分支：候选 package 和 catalog 会进入自动 release PR，合并后 GitHub Raw 集合地址才发布新版本。
+验证通过后，它会直接把包含源码版本、package 和 catalog 的发布提交快进到所选基础分支。推送前会重新读取远端分支 SHA；如果基础分支在构建期间前进，workflow 会停止并要求重新运行，不会覆盖新的提交，也不会使用强制推送。
 
-`pull-requests: write` 只是 workflow token 权限，不能覆盖仓库级 Actions 策略。要让默认 `GITHUB_TOKEN` 自动创建 PR，请在仓库中开启：
+默认使用 workflow 的 `GITHUB_TOKEN` 和 `contents: write`。仓库设置应允许 workflow 写入仓库内容：
 
 ```text
 Settings
 → Actions
 → General
 → Workflow permissions
-→ Allow GitHub Actions to create and approve pull requests
+→ Read and write permissions
 ```
 
-如果该选项未开启，workflow 仍会成功完成构建、验证、artifact 上传、commit 和 release 分支 push，并在 job summary 输出 GitHub compare 链接供手动创建 PR。它只对这条已知仓库策略错误回退；其他 `gh pr create` 错误仍会使任务失败。
+不再依赖 `Allow GitHub Actions to create and approve pull requests`，也不会为每次发布创建新的候选分支或等待人工合并。
 
-也可以配置可选的 repository secret `RELEASE_PR_TOKEN`。使用 fine-grained personal access token 时至少授予目标仓库 `Pull requests: Read and write`；workflow 会优先使用该 secret，否则使用默认 `GITHUB_TOKEN`。
+如果基础分支规则不允许 `github-actions[bot]` 直接更新，可以配置可选的 repository secret `RELEASE_PUBLISH_TOKEN`。使用 fine-grained personal access token 时至少授予目标仓库 `Contents: Read and write`，并确保 token 所属账号被分支规则允许更新目标分支。workflow 会优先使用该 secret，否则使用默认 `GITHUB_TOKEN`。
 
 ## 2. 发布单位
 
@@ -146,7 +148,7 @@ repository/packages/org.substore.config-generator/<version>/node.json
 
 workflow 自动更新 workspace 与 manifest 版本；frontend runtime version 由 Vite 从 manifest 注入，不再单独维护。frontend bundle、CSS 和 locale 都随扩展 package 发布，不需要同步写入 Host 前端。Host 也不应内置配置生成器业务代码。
 
-`build/` 和 `dist/` 被 Git 忽略，只上传为 Actions 候选 artifact。`packages/` 与 `repository/` 是 GitHub Raw 集合源的可安装内容，会和源码版本变更一起进入 release PR。
+`build/` 和 `dist/` 被 Git 忽略，只上传为 Actions 候选 artifact。`packages/` 与 `repository/` 是 GitHub Raw 集合源的可安装内容，会和源码版本变更一起进入同一个发布提交。
 
 ## 8. 来源回归
 
@@ -179,27 +181,28 @@ corepack pnpm extension:install -- \
 
 `host:start` 默认不设置 package seed。不要用隐式本地 seed 冒充集合源安装成功。
 
-## 9. 发布 PR
+## 9. 发布提交
 
-自动 PR 应包含：
+workflow 生成并推送的发布提交包含：
 
 - workflow 生成的 workspace 与 manifest 版本；
 - 目标插件源码与测试；
 - `packages/<id>`；
 - 完整 `repository/catalog.json`；
 - 完整 `repository/packages/`；
-- workflow 生成的 Lore 格式 commit。
+- workflow 生成的 Lore 格式 commit message。
 
-合并后使用固定 commit/tag Raw URL 再做一次 source add、install、enable、uninstall、reinstall。只有已提交并推送的 URL 才算远程回归。
+发布后使用固定 commit/tag Raw URL 再做一次 source add、install、enable、uninstall、reinstall。只有已提交并推送的 URL 才算远程回归。
 
 ## 10. 失败处理
 
 - build output mismatch：重新生成 package，不手改摘要；
 - source version differs from published：撤销手工升版，让 workflow 从 catalog 生成版本；
-- GitHub Actions is not permitted to create pull requests：开启仓库级 PR 选项、配置 `RELEASE_PR_TOKEN`，或使用 job summary 中的 compare 链接手动创建；
+- push to base branch rejected：开启 Actions `Read and write permissions`；若目标分支规则仍阻止 bot，允许该 actor 更新分支或配置 `RELEASE_PUBLISH_TOKEN`；
+- base branch advanced：有其他提交在发布构建期间进入目标分支，直接重新运行 workflow；
 - digest mismatch：确保 catalog、envelope、package 来自同一次生成；
 - catalog 少 entry：恢复 workspace 后重建全集合；
 - Host API/ABI incompatible：升级 Host 或提升扩展兼容要求；
-- 安装后不健康：不要合并 release PR，修复并重新生成候选版本。
+- 安装后不健康：修复源码后重新运行发布 workflow，生成下一个修复版本。
 
 如果未来开放不受信作者，再为那一阶段设计签名、撤销和隔离；当前发布流程不要提前携带未使用的密钥系统。

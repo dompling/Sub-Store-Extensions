@@ -51,7 +51,7 @@ test('computes workflow-managed semantic versions from the published release', (
   }), /must match published 1\.2\.0/);
 });
 
-test('publishes a reproducible SHA-256 package through a release PR', async () => {
+test('publishes a reproducible SHA-256 package directly from the verified release commit', async () => {
   const workflow = await readFile(
     path.join(repoRoot, '.github/workflows/publish-extension.yml'),
     'utf8',
@@ -75,11 +75,20 @@ test('publishes a reproducible SHA-256 package through a release PR', async () =
   assert.match(workflow, /actions\/upload-artifact@v4/);
   assert.match(workflow, /build\/\$\{\{ steps\.metadata\.outputs\.extension_id \}\}/);
   assert.match(workflow, /dist\/packages\/\$\{\{ steps\.metadata\.outputs\.extension_id \}\}/);
-  assert.match(workflow, /gh pr create/);
-  assert.match(workflow, /secrets\.RELEASE_PR_TOKEN \|\| github\.token/);
-  assert.match(workflow, /GitHub Actions is not permitted to create or approve pull requests/);
-  assert.match(workflow, /\/compare\/\$\{BASE_BRANCH\}\.\.\.\$\{RELEASE_BRANCH\}\?expand=1/);
-  assert.match(workflow, /exit "\$pr_exit"/);
+  assert.match(workflow, /group: publish-extension-\$\{\{ inputs\.base_branch \}\}/);
+  assert.match(workflow, /base_sha=\$\{base_sha\}/);
+  assert.match(workflow, /current_base_sha/);
+  assert.match(workflow, /secrets\.RELEASE_PUBLISH_TOKEN \|\| github\.token/);
+  assert.match(workflow, /git merge-base --is-ancestor/);
+  assert.match(workflow, /git push origin "\$RELEASE_HEAD_SHA:refs\/heads\/\$BASE_BRANCH"/);
+  assert.match(workflow, /published_sha/);
+  assert.match(workflow, /release_prefix="automation\/publish-\$\{BRANCH_SLUG\}-v\$\{EXTENSION_VERSION\}-"/);
+  assert.match(workflow, /git push origin --delete "\$stale_branch"/);
+  assert.ok(workflow.indexOf('pnpm verify') < workflow.indexOf('git push origin "$RELEASE_HEAD_SHA:refs/heads/$BASE_BRANCH"'));
+  assert.ok(workflow.indexOf('git push origin "$RELEASE_HEAD_SHA:refs/heads/$BASE_BRANCH"') < workflow.indexOf('git push origin --delete "$stale_branch"'));
+  assert.doesNotMatch(workflow, /gh pr create/);
+  assert.doesNotMatch(workflow, /gh pr merge/);
+  assert.doesNotMatch(workflow, /RELEASE_PR_TOKEN/);
   assert.doesNotMatch(workflow, /pull_request_target:/);
   assert.doesNotMatch(workflow, /environment:/);
   assert.doesNotMatch(workflow, /EXTENSION_RELEASE_PRIVATE_KEY/);

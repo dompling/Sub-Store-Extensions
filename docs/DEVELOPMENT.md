@@ -141,7 +141,7 @@ corepack pnpm verify
 4. 写入 `packages/<id>`；
 5. 复制并验证 `dist/packages/<id>`。
 
-不要手工编辑这些生成物。`build/` 和 `dist/` 被 Git 忽略，正式发布时由 workflow 重新生成并上传为候选 artifact；`packages/` 和 `repository/` 由同一次 workflow 生成后进入 release PR。
+不要手工编辑这些生成物。`build/` 和 `dist/` 被 Git 忽略，正式发布时由 workflow 重新生成并上传为候选 artifact；`packages/` 和 `repository/` 由同一次 workflow 生成、验证并随发布提交直接进入目标分支。
 
 ## 6. Watch 与 Host 联调
 
