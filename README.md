@@ -29,6 +29,7 @@ Sub-Store-Extensions/
 ├── packages/<id>/                      # 插件独立目录包
 ├── repository/
 │   ├── catalog.json                    # 整个仓库唯一的集合订阅源
+│   ├── releases/<id>.json              # 每个插件独立的不可变版本台账
 │   └── packages/<id>/<version>/<variant>.json
 ├── scripts/                            # 构建、组包、发布和本地管理工具
 ├── tests/                              # 仓库级契约测试
@@ -136,11 +137,13 @@ GitHub Actions 中的 `Publish extension` workflow 会：
 → git diff --check
 → 上传 build / dist / package 候选 artifact
 → 确认目标分支未发生并发更新
-→ 把已验证发布提交快进到目标分支
+→ 原子推送已验证发布提交和 `<extension-id>@<semver>` tag
 → 删除同版本遗留的 automation/publish-* 分支
 ```
 
 开发提交不需要手工修改版本或提交 `build/`、`dist/`。workflow 会把源码版本、可发布 package 和 catalog 变更组成一个已验证的发布提交，并直接快进到所选基础分支；`build/`、`dist/` 只作为 Actions artifact 保存。workflow 不需要私钥或 GitHub Environment Secret。
+
+扩展显示版本仍使用 SemVer（例如 `1.2.1`），Git tag 是这个版本的不可变发布指针，而不是另一个版本号。因为一个仓库包含多个插件，tag 必须带插件 ID，例如 `org.substore.config-generator@1.2.1`。`catalog.json` 的顶层 entry 继续表示最新版本，以兼容旧 Host；`entry.releases[]` 和 `repository/releases/<id>.json` 保存可选历史版本。重复发布同一个版本但摘要或 manifest 不同会直接失败。
 
 默认使用具有 `contents: write` 的 `GITHUB_TOKEN`。如果基础分支保护规则禁止 Actions 直接更新，可提供可选的 `RELEASE_PUBLISH_TOKEN` repository secret，由一个被允许更新该分支的 fine-grained token 提供 `Contents: Read and write` 权限。详见 [发布指南](docs/RELEASING.md)。
 

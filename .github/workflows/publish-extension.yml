@@ -83,6 +83,9 @@ jobs:
           --extension "${{ steps.metadata.outputs.extension_id }}"
 
       - name: Publish collection catalog
+        env:
+          SUB_STORE_EXTENSION_RELEASE_ID: ${{ steps.metadata.outputs.extension_id }}
+          SUB_STORE_EXTENSION_RELEASE_TAG: ${{ steps.metadata.outputs.release_tag }}
         run: corepack pnpm repository
 
       - name: Test assembled release candidate
@@ -105,6 +108,7 @@ jobs:
             packages/${{ steps.metadata.outputs.extension_id }}
             repository/catalog.json
             repository/packages/${{ steps.metadata.outputs.extension_id }}
+            repository/releases/${{ steps.metadata.outputs.extension_id }}.json
           if-no-files-found: error
           retention-days: 14
 
@@ -118,6 +122,7 @@ jobs:
           VERSION_BUMP: ${{ steps.metadata.outputs.version_bump }}
           BRANCH_SLUG: ${{ steps.metadata.outputs.branch_slug }}
           REPOSITORY_SEQUENCE: ${{ steps.metadata.outputs.repository_sequence }}
+          RELEASE_TAG: ${{ steps.metadata.outputs.release_tag }}
         run: |
           if git diff --quiet; then
             echo "Release produced no tracked changes." >&2
@@ -152,6 +157,7 @@ jobs:
           BASE_BRANCH: ${{ inputs.base_branch }}
           EXPECTED_BASE_SHA: ${{ steps.commit.outputs.base_sha }}
           RELEASE_HEAD_SHA: ${{ steps.commit.outputs.head_sha }}
+          RELEASE_TAG: ${{ steps.metadata.outputs.release_tag }}
         run: |
           git fetch --no-tags origin "$BASE_BRANCH"
           current_base_sha="$(git rev-parse FETCH_HEAD)"
@@ -163,8 +169,15 @@ jobs:
             echo "::error::The generated release commit is not based on the expected source revision."
             exit 1
           fi
-          if ! git push origin "$RELEASE_HEAD_SHA:refs/heads/$BASE_BRANCH"; then
-            echo "::error::The verified release could not be pushed to the base branch. If a branch rule blocks GitHub Actions, allow this workflow actor to update the branch or configure a RELEASE_PUBLISH_TOKEN owned by an allowed actor."
+          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "::error::Release tag $RELEASE_TAG already exists. Extension versions are immutable; publish a new semantic version instead."
+            exit 1
+          fi
+          git tag --annotate "$RELEASE_TAG" "$RELEASE_HEAD_SHA" --message "Release $RELEASE_TAG"
+          if ! git push --atomic origin \
+            "$RELEASE_HEAD_SHA:refs/heads/$BASE_BRANCH" \
+            "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"; then
+            echo "::error::The verified release branch and tag could not be published atomically. If a branch rule blocks GitHub Actions, allow this workflow actor to update the branch or configure a RELEASE_PUBLISH_TOKEN owned by an allowed actor."
             exit 1
           fi
           git fetch --no-tags origin "$BASE_BRANCH"
@@ -173,7 +186,13 @@ jobs:
             echo "::error::The base branch does not point to the verified release commit after publication."
             exit 1
           fi
+          published_tag_sha="$(git ls-remote --tags origin "refs/tags/$RELEASE_TAG^{}" | awk '{print $1}')"
+          if [ "$published_tag_sha" != "$RELEASE_HEAD_SHA" ]; then
+            echo "::error::Release tag $RELEASE_TAG does not resolve to the verified release commit."
+            exit 1
+          fi
           echo "published_sha=${published_sha}" >> "$GITHUB_OUTPUT"
+          echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Delete obsolete generated release branches
         shell: bash
@@ -208,6 +227,7 @@ jobs:
           REPOSITORY_SEQUENCE: ${{ steps.metadata.outputs.repository_sequence }}
           BASE_BRANCH: ${{ inputs.base_branch }}
           PUBLISHED_SHA: ${{ steps.publish.outputs.published_sha }}
+          RELEASE_TAG: ${{ steps.publish.outputs.release_tag }}
         run: |
           echo "### Extension published" >> "$GITHUB_STEP_SUMMARY"
           echo "- Extension: \`${EXTENSION_ID}\`" >> "$GITHUB_STEP_SUMMARY"
@@ -215,4 +235,5 @@ jobs:
           echo "- Collection sequence: \`${REPOSITORY_SEQUENCE}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Published branch: \`${BASE_BRANCH}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Published commit: \`${PUBLISHED_SHA}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Immutable tag: \`${RELEASE_TAG}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Obsolete generated branches for this version: deleted" >> "$GITHUB_STEP_SUMMARY"

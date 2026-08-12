@@ -73,6 +73,16 @@ content 插件发布时同步：
 
 trusted-official executable 插件发生字节变化时，必须生成新版本和正式签名，并同步 Sub-Store Host catalog 授权。不要修改旧 package 中的 digest 或 signature 来让测试通过。
 
+版本号和 Git 的对应关系：
+
+- manifest/workspace 使用 SemVer；
+- 发布 tag 使用 `<extension-id>@<semver>`，避免集合仓库中不同插件的 `v1.0.0` 冲突；
+- `repository/releases/<id>.json` 是该插件的版本台账；
+- `repository/catalog.json` 保留最新 entry，并复制同一份 `releases[]` 供 Host 一次读取；
+- 旧版本 manifest、package URL、摘要和可安装状态发布后不可修改；需要修复时发布新版本。
+
+不要根据用户输入的版本号动态拼接下载 URL，也不要在 Host 运行时扫描 GitHub commits。Git tag/commit 负责不可变来源证明，catalog/ledger 才是通用安装协议。
+
 ## 作者与来源
 
 新增 entry 必须显式填写：

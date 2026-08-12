@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import {
   compareVersions,
   incrementVersion,
+  releaseTagFor,
   resolveReleaseVersion,
 } from '../scripts/prepare-release.mjs';
 
@@ -51,6 +52,14 @@ test('computes workflow-managed semantic versions from the published release', (
   }), /must match published 1\.2\.0/);
 });
 
+test('uses the extension semantic version as a namespaced immutable Git tag', () => {
+  assert.equal(
+    releaseTagFor('org.substore.config-generator', '1.2.1'),
+    'org.substore.config-generator@1.2.1',
+  );
+  assert.throws(() => releaseTagFor('org.substore@invalid', '1.2.1'), /extension id is invalid/);
+});
+
 test('publishes a reproducible SHA-256 package directly from the verified release commit', async () => {
   const workflow = await readFile(
     path.join(repoRoot, '.github/workflows/publish-extension.yml'),
@@ -67,6 +76,7 @@ test('publishes a reproducible SHA-256 package directly from the verified releas
   assert.match(workflow, /pnpm test:built/);
   assert.match(workflow, /pnpm package:assemble/);
   assert.match(workflow, /pnpm repository/);
+  assert.match(workflow, /SUB_STORE_EXTENSION_RELEASE_TAG/);
   assert.match(workflow, /pnpm verify/);
   assert.ok(workflow.indexOf('pnpm package:assemble') < workflow.indexOf('pnpm test:built'));
   assert.ok(workflow.indexOf('pnpm repository') < workflow.indexOf('pnpm test:built'));
@@ -75,17 +85,22 @@ test('publishes a reproducible SHA-256 package directly from the verified releas
   assert.match(workflow, /actions\/upload-artifact@v4/);
   assert.match(workflow, /build\/\$\{\{ steps\.metadata\.outputs\.extension_id \}\}/);
   assert.match(workflow, /dist\/packages\/\$\{\{ steps\.metadata\.outputs\.extension_id \}\}/);
+  assert.match(workflow, /repository\/releases\/\$\{\{ steps\.metadata\.outputs\.extension_id \}\}\.json/);
   assert.match(workflow, /group: publish-extension-\$\{\{ inputs\.base_branch \}\}/);
   assert.match(workflow, /base_sha=\$\{base_sha\}/);
   assert.match(workflow, /current_base_sha/);
   assert.match(workflow, /secrets\.RELEASE_PUBLISH_TOKEN \|\| github\.token/);
   assert.match(workflow, /git merge-base --is-ancestor/);
-  assert.match(workflow, /git push origin "\$RELEASE_HEAD_SHA:refs\/heads\/\$BASE_BRANCH"/);
+  assert.match(workflow, /git ls-remote --exit-code --tags origin "refs\/tags\/\$RELEASE_TAG"/);
+  assert.match(workflow, /git tag --annotate "\$RELEASE_TAG" "\$RELEASE_HEAD_SHA"/);
+  assert.match(workflow, /git push --atomic origin/);
+  assert.match(workflow, /"\$RELEASE_HEAD_SHA:refs\/heads\/\$BASE_BRANCH"/);
+  assert.match(workflow, /"refs\/tags\/\$RELEASE_TAG:refs\/tags\/\$RELEASE_TAG"/);
   assert.match(workflow, /published_sha/);
   assert.match(workflow, /release_prefix="automation\/publish-\$\{BRANCH_SLUG\}-v\$\{EXTENSION_VERSION\}-"/);
   assert.match(workflow, /git push origin --delete "\$stale_branch"/);
-  assert.ok(workflow.indexOf('pnpm verify') < workflow.indexOf('git push origin "$RELEASE_HEAD_SHA:refs/heads/$BASE_BRANCH"'));
-  assert.ok(workflow.indexOf('git push origin "$RELEASE_HEAD_SHA:refs/heads/$BASE_BRANCH"') < workflow.indexOf('git push origin --delete "$stale_branch"'));
+  assert.ok(workflow.indexOf('pnpm verify') < workflow.indexOf('git push --atomic origin'));
+  assert.ok(workflow.indexOf('git push --atomic origin') < workflow.indexOf('git push origin --delete "$stale_branch"'));
   assert.doesNotMatch(workflow, /gh pr create/);
   assert.doesNotMatch(workflow, /gh pr merge/);
   assert.doesNotMatch(workflow, /RELEASE_PR_TOKEN/);

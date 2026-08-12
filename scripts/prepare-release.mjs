@@ -19,6 +19,7 @@ const argument = name => {
 };
 
 const releaseBumps = new Set(['major', 'minor', 'patch']);
+const extensionIdPattern = /^[a-z0-9]+(?:[.-][a-z0-9]+)*\.[a-z0-9][a-z0-9.-]*$/;
 
 const parseVersion = value => {
   const match = `${value || ''}`.match(
@@ -67,6 +68,12 @@ export const incrementVersion = (value, bump) => {
   if (bump === 'minor') return `${major}.${minor + 1}.0`;
   if (version.prerelease.length) return `${major}.${minor}.${patch}`;
   return `${major}.${minor}.${patch + 1}`;
+};
+
+export const releaseTagFor = (extensionId, version) => {
+  assert(extensionIdPattern.test(extensionId || ''), `Release extension id is invalid: ${extensionId || '(missing)'}`);
+  parseVersion(version);
+  return `${extensionId}@${version}`;
 };
 
 export const resolveReleaseVersion = ({ sourceVersion, publishedVersion, bump }) => {
@@ -181,6 +188,7 @@ export const prepareRelease = async ({
     version_bump: published ? (bump || 'manual') : 'initial',
     installed_at: installedAt,
     branch_slug: extensionId.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/\./g, '-'),
+    release_tag: releaseTagFor(extensionId, releaseVersion),
     repository_sequence: repositoryConfig.sequence,
   };
   await appendGitHubOutput(githubOutput, metadata);

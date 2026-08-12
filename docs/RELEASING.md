@@ -133,7 +133,25 @@ corepack pnpm verify
 
 SHA-256 能检测内容漂移，但不认证发布者。添加来源和安装是用户的显式信任决定。当前 executable 扩展不是沙箱。
 
-## 7. 配置生成器同步点
+## 7. 版本历史与 Git
+
+扩展版本使用 SemVer，Git 只提供不可变发布指针：
+
+```text
+manifest version: 1.2.1
+Git tag: org.substore.config-generator@1.2.1
+```
+
+集合仓库不能使用通用 `v1.2.1`，因为不同插件可能同时拥有该版本。workflow 在发布前确认 tag 不存在，再原子推送目标分支与 annotated tag；任一 ref 推送失败时都不应留下半次发布。
+
+历史版本由两处同源记录：
+
+- `repository/catalog.json` 中最新 entry 的 `releases[]`，供 Host 一次刷新获得；
+- `repository/releases/<extension-id>.json`，作为插件独立版本台账。
+
+每个 release 固定完整 manifest、相对 package URL、package digest、发布时间和安装状态。旧 package 必须继续保留在当前 `repository/packages/`；历史 `gitCommit` 或未来 `gitTag` 只记录来源证明。发布器拒绝同一 SemVer 对应不同 manifest、URL 或摘要。
+
+## 8. 配置生成器同步点
 
 ```text
 extensions/org.substore.config-generator/package.json
@@ -144,13 +162,14 @@ dist/packages/org.substore.config-generator/
 packages/org.substore.config-generator/
 repository/catalog.json
 repository/packages/org.substore.config-generator/<version>/node.json
+repository/releases/org.substore.config-generator.json
 ```
 
 workflow 自动更新 workspace 与 manifest 版本；frontend runtime version 由 Vite 从 manifest 注入，不再单独维护。frontend bundle、CSS 和 locale 都随扩展 package 发布，不需要同步写入 Host 前端。Host 也不应内置配置生成器业务代码。
 
 `build/` 和 `dist/` 被 Git 忽略，只上传为 Actions 候选 artifact。`packages/` 与 `repository/` 是 GitHub Raw 集合源的可安装内容，会和源码版本变更一起进入同一个发布提交。
 
-## 8. 来源回归
+## 9. 来源回归
 
 本地候选：
 
@@ -181,7 +200,7 @@ corepack pnpm extension:install -- \
 
 `host:start` 默认不设置 package seed。不要用隐式本地 seed 冒充集合源安装成功。
 
-## 9. 发布提交
+## 10. 发布提交
 
 workflow 生成并推送的发布提交包含：
 
@@ -190,16 +209,19 @@ workflow 生成并推送的发布提交包含：
 - `packages/<id>`；
 - 完整 `repository/catalog.json`；
 - 完整 `repository/packages/`；
+- 目标插件 `repository/releases/<id>.json`；
+- `<extension-id>@<semver>` immutable tag；
 - workflow 生成的 Lore 格式 commit message。
 
 发布后使用固定 commit/tag Raw URL 再做一次 source add、install、enable、uninstall、reinstall。只有已提交并推送的 URL 才算远程回归。
 
-## 10. 失败处理
+## 11. 失败处理
 
 - build output mismatch：重新生成 package，不手改摘要；
 - source version differs from published：撤销手工升版，让 workflow 从 catalog 生成版本；
 - push to base branch rejected：开启 Actions `Read and write permissions`；若目标分支规则仍阻止 bot，允许该 actor 更新分支或配置 `RELEASE_PUBLISH_TOKEN`；
 - base branch advanced：有其他提交在发布构建期间进入目标分支，直接重新运行 workflow；
+- release tag already exists：该 SemVer 已发布，不得覆盖；修复代码后发布新的 patch 版本；
 - digest mismatch：确保 catalog、envelope、package 来自同一次生成；
 - catalog 少 entry：恢复 workspace 后重建全集合；
 - Host API/ABI incompatible：升级 Host 或提升扩展兼容要求；

@@ -23,11 +23,14 @@ https://raw.githubusercontent.com/dompling/Sub-Store-Extensions/main/repository/
 ```text
 repository/
 ├── catalog.json
+├── releases/<extension-id>.json
 └── packages/
     └── <extension-id>/<version>/<variant>.json
 ```
 
 catalog 负责发现，variant envelope 负责交付完整 package payload。
+
+`catalog.json` 的每个 entry 保持“最新版本”字段不变，以兼容只认识单版本 catalog 的旧 Host；同一个 entry 的 `releases[]` 保存历史版本。`releases/<extension-id>.json` 是相同内容的插件级台账，便于独立审阅、缓存和发布检查。两处不一致时生成和校验都会失败。
 
 ## 3. 生成
 
@@ -70,7 +73,24 @@ corepack pnpm verify
   "author": {
     "id": "org.substore",
     "name": "Sub-Store"
-  }
+  },
+  "releases": [
+    {
+      "version": "1.2.0",
+      "releasedAt": "2026-08-11T07:09:03.000Z",
+      "manifest": {},
+      "distribution": "source-executable",
+      "selectedVariant": "node",
+      "packageUrls": {
+        "node": "./packages/org.substore.config-generator/1.2.0/node.json"
+      },
+      "packageDigests": {
+        "node": "<sha256>"
+      },
+      "installable": true,
+      "gitCommit": "<40-character commit>"
+    }
+  ]
 }
 ```
 
@@ -80,6 +100,8 @@ corepack pnpm verify
 - `source-executable`：由用户已信任的来源交付 Node executable package。
 
 它不是发布者身份证明。
+
+历史 release 必须包含该版本自己的完整 manifest、相对 package URL 和摘要；不能拿最新 manifest 只替换版本号。所有历史 envelope 都保留在 `repository/packages/<id>/<version>/`，因此滚动 catalog 或固定 tag/commit catalog 都能自包含下载。`installable: false` 仅用于保留无法按当前集合协议安装的旧发布来源记录；`gitCommit`/`gitTag` 是来源证明，不替代 catalog 中的下载声明。
 
 ## 5. 来源就是显式信任边界
 
@@ -119,13 +141,14 @@ HTTP 只用于 loopback 开发。外部来源应使用 HTTPS。
 
 ## 7. GitHub 发布
 
-GitHub Actions 的 `Publish extension` workflow 会根据当前 catalog 版本自动计算 patch、minor 或 major 版本，生成 build、dist、package、全集合 catalog 和 artifact。验证通过且基础分支没有在构建期间前进时，它会把发布提交直接快进到目标分支，并清理同版本遗留的 `automation/publish-*` 分支。它不需要私钥或 Environment Secret。
+GitHub Actions 的 `Publish extension` workflow 会根据当前 catalog 版本自动计算 patch、minor 或 major 版本，生成 build、dist、package、全集合 catalog、插件 release ledger 和 artifact。验证通过且基础分支没有在构建期间前进时，它会原子推送发布提交与 `<extension-id>@<semver>` annotated tag，并清理同版本遗留的 `automation/publish-*` 分支。tag 已存在时发布失败，禁止覆盖历史版本。它不需要私钥或 Environment Secret。
 
 发布提交包含：
 
 - 目标插件源码与版本；
 - `packages/<id>`；
 - 完整 `repository/catalog.json`；
+- `repository/releases/<id>.json`；
 - 完整 `repository/packages/`；
 - 必要测试和文档。
 
