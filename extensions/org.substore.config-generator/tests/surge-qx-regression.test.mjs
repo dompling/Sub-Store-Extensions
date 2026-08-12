@@ -317,6 +317,68 @@ test('round-trips shared policy group icons through Mihomo-compatible Clash YAML
   assert.equal(imported.project.groups[0].iconUrl, 'https://example.com/proxy.png');
 });
 
+test('warns only for enabled Surge-only boolean options in Clash and Loon projections', async () => {
+  for (const target of ['clash', 'loon']) {
+    const baseGroup = {
+      name: 'Proxy',
+      type: 'select',
+      members: [{ kind: 'builtin', value: 'DIRECT' }],
+    };
+    const withoutOptions = await preview(target, projectFor(target, {
+      name: `${target}-without-surge-options`,
+      groups: [baseGroup],
+      rules: [{ kind: 'final', policy: 'Proxy' }],
+    }));
+    const disabledOptions = await preview(target, projectFor(target, {
+      name: `${target}-disabled-surge-options`,
+      groups: [{
+        ...baseGroup,
+        targetOptions: {
+          surge: {
+            hidden: false,
+            noAlert: false,
+            evaluateBeforeUse: false,
+            persistent: false,
+          },
+        },
+      }],
+      rules: [{ kind: 'final', policy: 'Proxy' }],
+    }));
+
+    assert.equal(disabledOptions.body, withoutOptions.body, target);
+    assert.equal(
+      disabledOptions.warnings.some(warning =>
+        warning.path.includes('targetOptions.surge')),
+      false,
+      target,
+    );
+
+    const enabledOptions = await preview(target, projectFor(target, {
+      name: `${target}-enabled-surge-options`,
+      groups: [{
+        ...baseGroup,
+        targetOptions: {
+          surge: {
+            hidden: true,
+            noAlert: true,
+            evaluateBeforeUse: true,
+            persistent: true,
+          },
+        },
+      }],
+      rules: [{ kind: 'final', policy: 'Proxy' }],
+    }));
+    assert.deepEqual(
+      enabledOptions.warnings
+        .filter(warning => warning.path.includes('targetOptions.surge'))
+        .map(warning => warning.path.split('.').at(-1))
+        .sort(),
+      ['evaluateBeforeUse', 'hidden', 'noAlert', 'persistent'],
+      target,
+    );
+  }
+});
+
 test('preserves disabled QX remote sync while degrading undocumented regex benchmarks', async () => {
   const imported = await importConfig(
     'qx',

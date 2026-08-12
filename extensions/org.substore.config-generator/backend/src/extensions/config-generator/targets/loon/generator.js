@@ -188,7 +188,7 @@ function warnUnsupportedGroupFields(group, capability, warnings) {
     }
     ['hidden', 'noAlert', 'evaluateBeforeUse', 'persistent'].forEach(
         (field) => {
-            if (group.targetOptions?.surge?.[field] === undefined) return;
+            if (group.targetOptions?.surge?.[field] !== true) return;
             warnings.push({
                 path: `groups.${group.name}.targetOptions.surge.${field}`,
                 message: `The Surge ${field} option has no documented Loon policy-group equivalent and was omitted.`,
