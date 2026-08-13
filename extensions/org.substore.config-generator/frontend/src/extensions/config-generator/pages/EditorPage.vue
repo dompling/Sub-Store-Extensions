@@ -2282,6 +2282,7 @@ onMounted(async () => {
     display: flex;
     align-items: center;
     justify-content: center;
+    margin: 0;
     border-radius: 8px;
     padding: 4px 12px;
     font-size: 14px;

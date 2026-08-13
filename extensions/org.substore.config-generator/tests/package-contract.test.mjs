@@ -82,6 +82,20 @@ test('injects the manifest version into the frontend bundle instead of duplicati
   assert.match(viteConfig, /manifest\.version/);
 });
 
+test('keeps the editor footer buttons immune to Host button margins', async () => {
+  const editorPage = await fs.readFile(
+    path.join(
+      extension.workspaceDirectory,
+      'frontend/src/extensions/config-generator/pages/EditorPage.vue',
+    ),
+    'utf8',
+  );
+  const footerStyles = editorPage.match(/\.bottom-btn-wrapper\s*\{[\s\S]*?\n\}/)?.[0];
+
+  assert.ok(footerStyles, 'missing editor footer styles');
+  assert.match(footerStyles, /\.btn\s*\{[\s\S]*?margin:\s*0\s*;/);
+});
+
 test('declares a Node-only remote execution contract', async () => {
   const manifest = await readJson(extension.manifestPath);
 
