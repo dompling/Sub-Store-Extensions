@@ -8,7 +8,8 @@
           input-align="right"
           class="nut-input-text"
           :placeholder="$t('configGenerator.placeholders.groupName')"
-          @blur="context.refreshGroupActionTitle(group)"
+          @blur="context.commitGroupName(group)"
+          @keyup.enter="context.commitGroupName(group)"
         />
       </nut-form-item>
 

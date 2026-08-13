@@ -421,6 +421,7 @@ import PolicyGroupActionForm from '@/extensions/config-generator/components/edit
 import InlineRuleActionForm from '@/extensions/config-generator/components/editor/InlineRuleActionForm.vue';
 import RuleSetActionForm from '@/extensions/config-generator/components/editor/RuleSetActionForm.vue';
 import { getRemoteRuleActionTitle } from '@/extensions/config-generator/domain/ruleBindingPresentation';
+import { renamePolicyGroupReferences } from '@/extensions/config-generator/domain/policyGroupRename';
 import ConfigGeneratorIndependentEditor from '@/extensions/config-generator/components/editor/ConfigGeneratorIndependentEditor.vue';
 import { POLICY_GROUP_TYPE_DEFINITIONS } from '@/extensions/config-generator/domain/policyGroupCapabilities';
 import {
@@ -937,6 +938,7 @@ const groupActionsChecked = reactive<Array<[string, boolean]>>([]);
 const ruleActions = reactive<ActionModuleProps[]>([]);
 const ruleActionsChecked = reactive<Array<[string, boolean]>>([]);
 const groupActionNames = new Map<string, string>();
+const committedGroupNames = new Map<string, string>();
 
 const groupByActionId = (id: string) => form.groups.find(group => groupItemKey(group) === id);
 const ruleByActionId = (id: string) => form.rules.find(rule => ruleItemKey(rule) === id);
@@ -961,9 +963,13 @@ const syncGroupActions = () => {
   const next = form.groups.map((group) => {
     const id = groupItemKey(group);
     const action = existing.get(id);
-    if (action) return action;
+    if (action) {
+      if (!committedGroupNames.has(id)) committedGroupNames.set(id, group.name);
+      return action;
+    }
 
     groupActionNames.set(id, group.name);
+    committedGroupNames.set(id, group.name);
     return {
       id,
       type: t('configGenerator.group'),
@@ -972,6 +978,12 @@ const syncGroupActions = () => {
       component: shallowRef(PolicyGroupActionForm),
       enabled: isGroupEnabled(group),
     };
+  });
+  const activeIds = new Set(next.map(action => action.id));
+  [groupActionNames, committedGroupNames].forEach((names) => {
+    [...names.keys()].forEach((id) => {
+      if (!activeIds.has(id)) names.delete(id);
+    });
   });
   groupActions.splice(0, groupActions.length, ...next);
   syncChecked(groupActionsChecked, groupActions);
@@ -1020,17 +1032,52 @@ const syncGroupActionNames = () => {
   });
 };
 
-const refreshGroupActionTitle = (group: PolicyGroup) => {
+const commitGroupName = (group: PolicyGroup, value = group.name) => {
   const id = groupItemKey(group);
   const action = groupActions.find(item => item.id === id);
-  if (action) action.customName = group.name;
-  groupActionNames.set(id, group.name);
+  const previousName = committedGroupNames.get(id) ?? groupActionNames.get(id) ?? '';
+  const nextName = String(value || '').trim();
+  if (!nextName && previousName) {
+    group.name = previousName;
+    if (action) action.customName = previousName;
+    groupActionNames.set(id, previousName);
+    Toast.warn(t('configGenerator.groupNameRequired'));
+    return;
+  }
+  const duplicate = Boolean(nextName)
+    && nextName !== previousName
+    && form.groups.some(
+      item => item !== group && item.name.trim() === nextName,
+    );
+  if (duplicate) {
+    group.name = previousName;
+    if (action) action.customName = previousName;
+    groupActionNames.set(id, previousName);
+    Toast.warn(t('configGenerator.duplicateGroupName'));
+    return;
+  }
+
+  group.name = nextName;
+  if (action) action.customName = nextName;
+  groupActionNames.set(id, nextName);
+  if (!nextName) return;
+
+  const renamed = renamePolicyGroupReferences(form, previousName, nextName);
+  committedGroupNames.set(id, nextName);
+  if (renamed.total) {
+    Toast.success(t('configGenerator.groupReferencesRenamed', {
+      count: renamed.total,
+      name: nextName,
+    }));
+  }
 };
 
 const syncGroupNamesFromActions = () => {
   groupActions.forEach((action) => {
     const group = groupByActionId(action.id);
-    if (group && action.customName !== groupActionNames.get(action.id)) group.name = action.customName;
+    if (group && action.customName !== groupActionNames.get(action.id)) {
+      commitGroupName(group, action.customName);
+    }
   });
 };
 
@@ -1096,7 +1143,7 @@ watch(ruleActions, syncRuleActionEnabled, { deep: true });
 provide('configGeneratorActionContext', {
   form,
   groupByActionId,
-  refreshGroupActionTitle,
+  commitGroupName,
   ruleByActionId,
   ruleSetByActionId,
   updateGroupType,
