@@ -682,10 +682,13 @@ function generateRules(project, ruleSets, warnings) {
             );
         }
         const bindingName = getExplicitRuleBindingName(rule);
-        if (bindingName)
-            currentRemoteBlock.push(`# rule-name: ${bindingName}`);
         currentRemoteBlock.push(
-            `${resolution.url}, policy=${rule.policy}, enabled=true`,
+            serializeSurgeCsv([
+                resolution.url,
+                `policy=${rule.policy}`,
+                ...(bindingName ? [`tag=${bindingName}`] : []),
+                'enabled=true',
+            ]),
         );
     });
     finishRemoteBlock();

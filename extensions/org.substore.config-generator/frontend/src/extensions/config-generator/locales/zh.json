@@ -259,7 +259,7 @@
       "remote": "远程订阅",
       "group": "策略组"
     },
-    "ruleNameHelp": "Quantumult X 将它用作 filter_remote tag，Clash 将它用作 rule-provider 名称；Loon 目标会按其规则集适配使用；Surge 输出会忽略此名称。",
+    "ruleNameHelp": "Quantumult X 将它用作 filter_remote tag，Clash 将它用作 rule-provider 名称，Loon 将它用作 Remote Rule 的 tag；Surge 输出会忽略此名称。",
     "noRemoteProxySource": "不使用远程订阅来源",
     "policyUpdateInterval": "远程订阅更新间隔（秒）",
     "policyUpdateIntervalPlaceholder": "例如：43200",

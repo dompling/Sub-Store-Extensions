@@ -1551,9 +1551,56 @@ test('routes Quantumult X and Loon rule remarks to their matching sections', asy
   assert.match(loonLocal, /# Local heading\nDOMAIN, local\.example, Main/);
   assert.equal(loonLocal.includes('# Remote heading'), false);
   assert.match(loonRemote, /# Remote heading/);
-  assert.match(loonRemote, /# rule-name: Named Rule/);
+  assert.equal(loonRemote.includes('# rule-name:'), false);
+  assert.match(
+    loonRemote,
+    /https:\/\/example\.com\/named\.list, policy=Main, tag=Named Rule, enabled=true/,
+  );
   assert.match(loonRemote, /# Unnamed remote heading/);
+  assert.match(
+    loonRemote,
+    /https:\/\/example\.com\/unnamed\.list, policy=Main, enabled=true/,
+  );
+  assert.equal(loonRemote.includes('tag=unnamed-internal-id'), false);
   assert.equal(loonRemote.includes('# unnamed-internal-id'), false);
+});
+
+test('uses the explicit RULE-SET name as the Loon Remote Rule tag', async () => {
+  const generated = await preview(
+    'loon',
+    projectFor('loon', {
+      name: 'loon-zhihu-ads-tag',
+      rules: [
+        {
+          kind: 'remote',
+          name: 'ZhihuAds',
+          ruleSet: 'zhihu-ads-internal-id',
+          policy: 'REJECT',
+        },
+      ],
+    }),
+    [
+      {
+        name: 'zhihu-ads-internal-id',
+        source: {
+          kind: 'url',
+          url: 'https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Loon/ZhihuAds/ZhihuAds.list',
+          target: 'loon',
+        },
+      },
+    ],
+  );
+
+  assert.match(
+    generated.body,
+    /https:\/\/raw\.githubusercontent\.com\/blackmatrix7\/ios_rule_script\/master\/rule\/Loon\/ZhihuAds\/ZhihuAds\.list, policy=REJECT, tag=ZhihuAds, enabled=true/,
+  );
+  assert.equal(generated.body.includes('tag=zhihu-ads-internal-id'), false);
+
+  const imported = await importConfig('loon', generated.body);
+  const remote = imported.project.rules.find(rule => rule.kind === 'remote');
+  assert.equal(remote?.name, 'ZhihuAds');
+  assert.equal(remote?.policy, 'REJECT');
 });
 
 test('round-trips remote category headings without retaining generated policy headings', async () => {

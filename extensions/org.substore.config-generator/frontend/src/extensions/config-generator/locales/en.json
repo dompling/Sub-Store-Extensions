@@ -259,7 +259,7 @@
       "remote": "Remote subscription",
       "group": "Policy group"
     },
-    "ruleNameHelp": "Quantumult X uses this as the filter_remote tag, Clash uses it as the rule-provider name, Loon uses it through its rule-set adapter, and Surge ignores it.",
+    "ruleNameHelp": "Quantumult X uses this as the filter_remote tag, Clash uses it as the rule-provider name, Loon uses it as the Remote Rule tag, and Surge ignores it.",
     "noRemoteProxySource": "No remote subscription source",
     "policyUpdateInterval": "Remote subscription update interval (seconds)",
     "policyUpdateIntervalPlaceholder": "For example: 43200",

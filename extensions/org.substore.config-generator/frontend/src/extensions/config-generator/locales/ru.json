@@ -259,7 +259,7 @@
       "remote": "Удалённая подписка",
       "group": "Группа политик"
     },
-    "ruleNameHelp": "Quantumult X использует имя как tag filter_remote, Clash — как имя rule-provider, Loon использует его через адаптер наборов правил, а Surge игнорирует это имя.",
+    "ruleNameHelp": "Quantumult X использует имя как tag filter_remote, Clash — как имя rule-provider, Loon — как tag Remote Rule, а Surge игнорирует это имя.",
     "noRemoteProxySource": "Без источника удалённой подписки",
     "policyUpdateInterval": "Интервал обновления удалённой подписки (секунды)",
     "policyUpdateIntervalPlaceholder": "Например: 43200",
