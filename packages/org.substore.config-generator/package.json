@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "source": "org.substore.extensions",
-  "packageDigest": "db82d440fa786d046e4aa7059af86cadf032ca64508de5e6801f8c22e9059655",
-  "payloadDigest": "5f855093dc19ab002b83e7e237f6d38f9a323f646956971c56e694fe26a46d61",
+  "packageDigest": "f2b81140ff18f8709df55e040b0fb4b1d1bc828fdfb3996879c4c1f8fc805962",
+  "payloadDigest": "20e18dc1b9d1906930052f5251cf71a19c9d11f8acaf27dfb1f7cc12513d21fd",
   "selectedVariant": "node",
   "variant": {
     "implementationId": "org.substore.config-generator@1/node",
@@ -14,13 +14,13 @@
   "containsExecutableCode": true,
   "containsInstallHook": false,
   "fileDigests": {
-    "backend/index.cjs": "08e431bcd2c2cd95c22d4caf17fa135a504664411cfd4e21f17350433ae918a2",
-    "frontend/index.js": "501b4591202d271a0b505081fa3fc7c1e81606159eebaf48b436773c2b6046e2",
-    "frontend/style.css": "da63eff89532e5a5f77227b92c18e7424ef7de6f241ab31cc64953eb207a680a"
+    "backend/index.cjs": "45946fc493b3d7e60672d5716d740ba4c1107ca2390a3183dcc957b4c462a4d6",
+    "frontend/index.js": "75827c225cf7ac03e5386287f2ab5fd3b9b0a49daef21b3a35d826f946cbfa2c",
+    "frontend/style.css": "1b1ac692b25ce613352f04fe24ebb456a241ea35fca038f788955826a25e0a3e"
   },
   "signature": {
     "algorithm": "sha256-digest",
-    "digest": "5f855093dc19ab002b83e7e237f6d38f9a323f646956971c56e694fe26a46d61",
-    "value": "5f855093dc19ab002b83e7e237f6d38f9a323f646956971c56e694fe26a46d61"
+    "digest": "20e18dc1b9d1906930052f5251cf71a19c9d11f8acaf27dfb1f7cc12513d21fd",
+    "value": "20e18dc1b9d1906930052f5251cf71a19c9d11f8acaf27dfb1f7cc12513d21fd"
   }
 }

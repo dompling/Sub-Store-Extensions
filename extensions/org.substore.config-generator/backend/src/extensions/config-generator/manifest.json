@@ -5,7 +5,7 @@
   "distribution": "source-executable",
   "name": "配置生成器",
   "description": "生成 Surge、Quantumult X、Clash 和 Loon 配置",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "publisher": {
     "id": "org.substore",
     "name": "Sub-Store"
@@ -32,11 +32,11 @@
     "assets": {
       "entrypoint": {
         "path": "frontend/index.js",
-        "digest": "501b4591202d271a0b505081fa3fc7c1e81606159eebaf48b436773c2b6046e2"
+        "digest": "75827c225cf7ac03e5386287f2ab5fd3b9b0a49daef21b3a35d826f946cbfa2c"
       },
       "style": {
         "path": "frontend/style.css",
-        "digest": "da63eff89532e5a5f77227b92c18e7424ef7de6f241ab31cc64953eb207a680a"
+        "digest": "1b1ac692b25ce613352f04fe24ebb456a241ea35fca038f788955826a25e0a3e"
       }
     }
   },
