@@ -48,6 +48,132 @@ function projectFor(target, overrides = {}) {
   };
 }
 
+function profileSectionNames(content) {
+  return core.parseProfileSections(content).sections.map(section => section.title);
+}
+
+const COMPLETE_EMPTY_PROFILES = {
+  qx: {
+    target: 'QX',
+    legacyConfig: '[general]\n\n[dns]\n\n[mitm]\n',
+    sections: [
+      '[general]',
+      '[rewrite_local]',
+      '[dns]',
+      '[policy]',
+      '[server_local]',
+      '[filter_local]',
+      '[mitm]',
+    ],
+  },
+  loon: {
+    target: 'Loon',
+    legacyConfig: '[General]\n\n[Proxy]\n\n[Proxy Group]\n\n[Rule]\n',
+    sections: [
+      '[General]',
+      '[Proxy]',
+      '[Remote Proxy]',
+      '[Remote Filter]',
+      '[Proxy Group]',
+      '[Rule]',
+      '[Remote Rule]',
+      '[Rewrite]',
+      '[Remote Rewrite]',
+      '[Host]',
+      '[Script]',
+      '[Remote Script]',
+      '[Plugin]',
+      '[MITM]',
+    ],
+  },
+};
+
+test('keeps complete empty QX and Loon sections in defaults, previews, and downloads', async () => {
+  for (const [target, expected] of Object.entries(COMPLETE_EMPTY_PROFILES)) {
+    const defaultPreview = await preview(
+      target,
+      projectFor(target, {
+        name: `${target}-default-empty-sections`,
+        outputs: { [target]: {} },
+      }),
+    );
+    assert.deepEqual(
+      profileSectionNames(defaultPreview.body),
+      expected.sections,
+      `${target} backend default`,
+    );
+
+    const legacyPreview = await preview(
+      target,
+      projectFor(target, {
+        name: `${target}-legacy-empty-sections`,
+        outputs: {
+          [target]: { independentConfig: expected.legacyConfig },
+        },
+      }),
+    );
+    assert.deepEqual(
+      profileSectionNames(legacyPreview.body),
+      expected.sections,
+      `${target} legacy project`,
+    );
+
+    const independentConfig = `${expected.sections.join('\n\n')}\n`;
+    const project = projectFor(target, {
+      name: `${target}-empty-sections`,
+      outputs: { [target]: { independentConfig } },
+    });
+    const generatedPreview = await preview(target, project);
+    assert.deepEqual(
+      profileSectionNames(generatedPreview.body),
+      expected.sections,
+      `${target} preview`,
+    );
+
+    await withRuntime({
+      initialStore: {
+        version: 1,
+        projects: [project],
+        ruleSets: [],
+      },
+    }, async ({ routes }) => {
+      const downloaded = await requestRoute(
+        routes,
+        'GET',
+        '/download/config-project/:name/:target',
+        {
+          params: {
+            name: project.name,
+            target: expected.target,
+          },
+        },
+      );
+      assert.equal(downloaded.statusCode, 200, target);
+      assert.deepEqual(
+        profileSectionNames(downloaded.payload),
+        expected.sections,
+        `${target} download`,
+      );
+
+      const downloadedByQuery = await requestRoute(
+        routes,
+        'GET',
+        '/download/config-project/:name',
+        {
+          params: { name: project.name },
+          query: { target: expected.target },
+        },
+      );
+      assert.equal(downloadedByQuery.statusCode, 200, `${target} query download`);
+      assert.deepEqual(
+        profileSectionNames(downloadedByQuery.payload),
+        expected.sections,
+        `${target} query download`,
+      );
+    });
+  }
+});
+
 test('parses and replaces managed sections while preserving preamble and unmanaged sections', () => {
   const ast = core.parseProfileSections(
     '\uFEFF; preamble\r\n[General]\r\nfoo=bar\r\n[Rule]\r\nold\r\n',

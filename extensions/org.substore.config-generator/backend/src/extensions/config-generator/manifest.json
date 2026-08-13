@@ -32,7 +32,7 @@
     "assets": {
       "entrypoint": {
         "path": "frontend/index.js",
-        "digest": "75827c225cf7ac03e5386287f2ab5fd3b9b0a49daef21b3a35d826f946cbfa2c"
+        "digest": "d965edc968f373762d9bc06d9aa9a62b65f2537f119eaa581bd7d5ce1e7cc093"
       },
       "style": {
         "path": "frontend/style.css",

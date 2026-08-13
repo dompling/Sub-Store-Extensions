@@ -1,5 +1,6 @@
 import { validateProject } from '@/extensions/config-generator/validation';
 import {
+    ensureProfileSections,
     parseProfileSections,
     serializeProfileSections,
 } from '@/extensions/config-generator/core/profile-sections';
@@ -25,8 +26,24 @@ import {
 } from '@/extensions/config-generator/targets/surge/serializer';
 
 const DEFAULT_LOON_INDEPENDENT_CONFIG =
-    '[General]\n\n[Proxy]\n\n[Proxy Group]\n\n[Rule]\n';
+    '[General]\n\n[Proxy]\n\n[Remote Proxy]\n\n[Remote Filter]\n\n[Proxy Group]\n\n[Rule]\n\n[Remote Rule]\n\n[Rewrite]\n\n[Remote Rewrite]\n\n[Host]\n\n[Script]\n\n[Remote Script]\n\n[Plugin]\n\n[MITM]\n';
 const DEFAULT_TEST_URL = 'http://www.gstatic.com/generate_204';
+const LOON_REQUIRED_SECTIONS = [
+    'General',
+    'Proxy',
+    'Remote Proxy',
+    'Remote Filter',
+    'Proxy Group',
+    'Rule',
+    'Remote Rule',
+    'Rewrite',
+    'Remote Rewrite',
+    'Host',
+    'Script',
+    'Remote Script',
+    'Plugin',
+    'MITM',
+].map((title) => ({ name: title.toLowerCase(), title: `[${title}]` }));
 const LOON_MANAGED_SECTION_ORDER = [
     'proxy',
     'remote proxy',
@@ -732,7 +749,10 @@ function mergeIndependentConfig(content, replacements, replaceProxy) {
                     namedAssignment,
                 );
             } else if (generated.length) {
-                existing.body = appendGeneratedLines(existing.body, generated);
+                const existingBody = existing.body.some((line) => line.trim())
+                    ? existing.body
+                    : [];
+                existing.body = appendGeneratedLines(existingBody, generated);
             }
             return;
         }
@@ -754,7 +774,9 @@ function mergeIndependentConfig(content, replacements, replaceProxy) {
         byName.set(name, section);
     });
 
-    return serializeProfileSections(ast);
+    return serializeProfileSections(
+        ensureProfileSections(ast, LOON_REQUIRED_SECTIONS),
+    );
 }
 
 export async function generateLoonConfig({

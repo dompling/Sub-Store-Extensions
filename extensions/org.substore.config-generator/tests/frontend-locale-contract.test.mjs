@@ -17,6 +17,10 @@ const localeRoot = path.join(
 );
 const localeNames = ['zh', 'en', 'ru'];
 
+const profileSectionNames = content => [
+  ...String(content).matchAll(/^\s*\[([^\]]+)\]\s*$/gm),
+].map(match => match[1]);
+
 const flattenMessages = (value, prefix = '', result = new Map()) => {
   for (const [key, child] of Object.entries(value || {})) {
     const pathKey = prefix ? `${prefix}.${key}` : key;
@@ -36,6 +40,67 @@ const placeholders = value => [
 const resolveMessage = (messages, key) => key
   .split('.')
   .reduce((value, segment) => value?.[segment], messages);
+
+test('defaults QX and Loon independent editors to their complete profile skeletons', async () => {
+  const targetsPath = path.join(
+    sourceRoot,
+    'extensions/config-generator/domain/targets.ts',
+  );
+  const bundled = await build({
+    bundle: true,
+    entryPoints: [targetsPath],
+    format: 'esm',
+    platform: 'node',
+    write: false,
+    loader: { '.png': 'dataurl' },
+    plugins: [{
+      name: 'config-generator-target-test-alias',
+      setup(context) {
+        context.onResolve({ filter: /^@\// }, args => ({
+          path: path.join(sourceRoot, args.path.slice(2)),
+        }));
+      },
+    }],
+  });
+  const moduleUrl = `data:text/javascript;base64,${Buffer.from(bundled.outputFiles[0].text).toString('base64')}`;
+  const { CONFIG_GENERATOR_TARGET_REGISTRY } = await import(moduleUrl);
+
+  assert.deepEqual(
+    profileSectionNames(
+      CONFIG_GENERATOR_TARGET_REGISTRY.qx.independentConfig.defaultValue,
+    ),
+    [
+      'general',
+      'rewrite_local',
+      'dns',
+      'policy',
+      'server_local',
+      'filter_local',
+      'mitm',
+    ],
+  );
+  assert.deepEqual(
+    profileSectionNames(
+      CONFIG_GENERATOR_TARGET_REGISTRY.loon.independentConfig.defaultValue,
+    ),
+    [
+      'General',
+      'Proxy',
+      'Remote Proxy',
+      'Remote Filter',
+      'Proxy Group',
+      'Rule',
+      'Remote Rule',
+      'Rewrite',
+      'Remote Rewrite',
+      'Host',
+      'Script',
+      'Remote Script',
+      'Plugin',
+      'MITM',
+    ],
+  );
+});
 
 test('ships complete zh, en and ru messages inside the extension', async () => {
   const messagesByLocale = Object.fromEntries(await Promise.all(

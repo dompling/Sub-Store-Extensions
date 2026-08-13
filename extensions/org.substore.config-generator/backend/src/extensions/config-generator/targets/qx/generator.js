@@ -3,6 +3,7 @@ import {
     validateProject,
 } from '@/extensions/config-generator/validation';
 import {
+    ensureProfileSections,
     parseProfileSections,
     serializeProfileSections,
 } from '@/extensions/config-generator/core/profile-sections';
@@ -29,7 +30,16 @@ import {
 } from '@/extensions/config-generator/core/remote-proxy-source';
 
 const DEFAULT_QX_INDEPENDENT_CONFIG =
-    '[general]\nresource_parser_url=https://raw.githubusercontent.com/KOP-XIAO/QuantumultX/master/Scripts/resource-parser.js\n\n[dns]\n\n[mitm]\n';
+    '[general]\nresource_parser_url=https://raw.githubusercontent.com/KOP-XIAO/QuantumultX/master/Scripts/resource-parser.js\n\n[rewrite_local]\n\n[dns]\n\n[policy]\n\n[server_local]\n\n[filter_local]\n\n[mitm]\n';
+const QX_REQUIRED_SECTIONS = [
+    'general',
+    'rewrite_local',
+    'dns',
+    'policy',
+    'server_local',
+    'filter_local',
+    'mitm',
+].map((name) => ({ name, title: `[${name}]` }));
 const QX_MANAGED_SECTIONS = new Set([
     'server_local',
     'server_remote',
@@ -653,7 +663,9 @@ function mergeIndependentConfig(content, sections) {
         0,
         ...generated,
     );
-    return serializeProfileSections(ast);
+    return serializeProfileSections(
+        ensureProfileSections(ast, QX_REQUIRED_SECTIONS),
+    );
 }
 
 export async function generateQXConfig({

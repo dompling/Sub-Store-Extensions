@@ -621,7 +621,7 @@ test('round-trips exact Quantumult X policy mappings through Node import and pre
   const generated = await previewConfig('qx', project);
   const policySection = generated.body.slice(
     generated.body.indexOf('[policy]'),
-    generated.body.indexOf('[filter_local]'),
+    generated.body.indexOf('[server_local]'),
   );
   assert.equal(
     policySection,

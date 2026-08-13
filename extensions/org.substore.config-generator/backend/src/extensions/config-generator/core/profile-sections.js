@@ -102,6 +102,49 @@ export function replaceManagedSections(ast, replacements) {
     return next;
 }
 
+export function ensureProfileSections(ast, requiredSections) {
+    const next = {
+        ...ast,
+        preamble: [...ast.preamble],
+        sections: ast.sections.map((section) => ({
+            ...section,
+            body: [...section.body],
+        })),
+    };
+    const order = requiredSections.map(({ name }) => name.toLowerCase());
+
+    requiredSections.forEach(({ name, title }) => {
+        const normalizedName = name.toLowerCase();
+        if (
+            next.sections.some((section) => section.name === normalizedName)
+        )
+            return;
+
+        const currentOrder = order.indexOf(normalizedName);
+        let insertAt = next.sections.findIndex((section) => {
+            const sectionOrder = order.indexOf(section.name);
+            return sectionOrder >= 0 && sectionOrder > currentOrder;
+        });
+        if (insertAt < 0) {
+            let lastEarlier = -1;
+            next.sections.forEach((section, index) => {
+                const sectionOrder = order.indexOf(section.name);
+                if (sectionOrder >= 0 && sectionOrder < currentOrder)
+                    lastEarlier = index;
+            });
+            insertAt =
+                lastEarlier >= 0 ? lastEarlier + 1 : next.sections.length;
+        }
+        next.sections.splice(insertAt, 0, {
+            title,
+            name: normalizedName,
+            body: [''],
+        });
+    });
+
+    return next;
+}
+
 export function serializeProfileSections(ast) {
     const lines = [...ast.preamble];
     ast.sections.forEach((section) => {
