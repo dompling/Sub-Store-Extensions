@@ -1,7 +1,141 @@
 {
   "schemaVersion": 1,
   "extensionId": "org.substore.subscription-doctor",
-  "latestVersion": "0.1.0",
+  "latestVersion": "0.1.2",
   "releases": [
+    {
+      "version": "0.1.2",
+      "releasedAt": "2026-08-14T09:35:35.000Z",
+      "manifest": {
+        "schemaVersion": 1,
+        "id": "org.substore.subscription-doctor",
+        "kind": "executable",
+        "distribution": "source-executable",
+        "name": "订阅体检",
+        "description": "只读检查最终节点的结构、重复、四端兼容性、安全设置与节点画像",
+        "icon": "fa-solid fa-shield-halved",
+        "version": "0.1.2",
+        "publisher": {
+          "id": "org.substore",
+          "name": "Sub-Store"
+        },
+        "license": "GPL-3.0",
+        "homepage": "https://github.com/dompling/Sub-Store-Extensions",
+        "host": {
+          "apiVersion": "1.0.0",
+          "frontendApiVersion": "1.0.0",
+          "backend": ">=2.36.38",
+          "implementationAbi": "subscription-doctor@1",
+          "runtimes": [
+            "node"
+          ]
+        },
+        "frontend": {
+          "entrypoint": "frontend/index.js",
+          "style": "frontend/style.css",
+          "sdkSpecifier": "@substore/frontend-sdk/v1",
+          "uiKitAbi": "substore-ui-kit@1",
+          "implementationAbi": "subscription-doctor-ui@1",
+          "routeBase": "/extensions/subscription-doctor",
+          "openPath": "/extensions/subscription-doctor",
+          "assets": {
+            "entrypoint": {
+              "path": "frontend/index.js",
+              "digest": "e4f6990d870dddc6b7f8a2abdd5ab14b5cf50e2d1b8460ec559e5db97439072c"
+            },
+            "style": {
+              "path": "frontend/style.css",
+              "digest": "32f3c638c727c5459535daf87cac8b02b1222c79534864523c1715de733fcfe6"
+            }
+          }
+        },
+        "entrypoints": {
+          "backend": {
+            "path": "backend/index.cjs"
+          }
+        },
+        "variants": {
+          "node": {
+            "implementationId": "org.substore.subscription-doctor@1/node",
+            "implementationAbi": "subscription-doctor@1",
+            "frontendAssetId": "org.substore.subscription-doctor-ui@1",
+            "entrypoint": "backend/index.cjs",
+            "containsExecutableCode": true
+          }
+        },
+        "requires": {
+          "hard": [
+            "resource-broker@1",
+            "route-gateway@1"
+          ]
+        },
+        "permissions": [
+          {
+            "name": "storage.own",
+            "reason": "保存最多二十份脱敏体检摘要"
+          },
+          {
+            "name": "resources.list",
+            "scope": [
+              "subscription",
+              "collection"
+            ],
+            "reason": "列出用户已有订阅和组合订阅"
+          },
+          {
+            "name": "resources.read",
+            "scope": [
+              "subscription",
+              "collection"
+            ],
+            "reason": "读取已选择资源的安全描述信息"
+          },
+          {
+            "name": "resources.produce",
+            "scope": [
+              "subscription",
+              "collection"
+            ],
+            "reason": "只读获取最终有效节点 JSON 快照"
+          },
+          {
+            "name": "routes.namespaced"
+          },
+          {
+            "name": "navigation.register"
+          }
+        ],
+        "contributes": {
+          "features": [
+            "org.substore.subscription-doctor.subscriptionDoctor"
+          ],
+          "routes": [
+            "org.substore.subscription-doctor.home",
+            "org.substore.subscription-doctor.result",
+            "org.substore.subscription-doctor.export"
+          ],
+          "navigation": [
+            "org.substore.subscription-doctor.main"
+          ]
+        },
+        "storage": {
+          "schemaVersion": 1,
+          "namespace": "org.substore.subscription-doctor",
+          "legacyKeys": []
+        }
+      },
+      "distribution": "source-executable",
+      "selectedVariant": "node",
+      "packageUrl": "./packages/org.substore.subscription-doctor/0.1.2/node.json",
+      "packageUrls": {
+        "node": "./packages/org.substore.subscription-doctor/0.1.2/node.json"
+      },
+      "packageDigest": "5e8383e7279df6edc8d0c5f0f5bb4ff8afdf963ee1f23f92b6111d07c9a157b2",
+      "packageDigests": {
+        "node": "5e8383e7279df6edc8d0c5f0f5bb4ff8afdf963ee1f23f92b6111d07c9a157b2"
+      },
+      "installable": true,
+      "gitTag": "org.substore.subscription-doctor@0.1.2"
+    }
   ]
 }

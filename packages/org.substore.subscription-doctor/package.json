@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "source": "org.substore.extensions",
   "packageDigest": "5e8383e7279df6edc8d0c5f0f5bb4ff8afdf963ee1f23f92b6111d07c9a157b2",
-  "payloadDigest": "71e32fa7f588e1658541b52e18b70ef10a5a42e984176e7078f7bb1cc3332b2b",
+  "payloadDigest": "43dc6fa33cd7e78d0b25b499c9d934fcdf5c7f198c94b23b44d3fc4b82843141",
   "selectedVariant": "node",
   "variant": {
     "implementationId": "org.substore.subscription-doctor@1/node",
@@ -20,7 +20,7 @@
   },
   "signature": {
     "algorithm": "sha256-digest",
-    "digest": "71e32fa7f588e1658541b52e18b70ef10a5a42e984176e7078f7bb1cc3332b2b",
-    "value": "71e32fa7f588e1658541b52e18b70ef10a5a42e984176e7078f7bb1cc3332b2b"
+    "digest": "43dc6fa33cd7e78d0b25b499c9d934fcdf5c7f198c94b23b44d3fc4b82843141",
+    "value": "43dc6fa33cd7e78d0b25b499c9d934fcdf5c7f198c94b23b44d3fc4b82843141"
   }
 }
