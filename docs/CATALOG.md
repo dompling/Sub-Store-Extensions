@@ -141,14 +141,16 @@ HTTP 只用于 loopback 开发。外部来源应使用 HTTPS。
 
 ## 7. GitHub 发布
 
-GitHub Actions 的 `Publish extension` workflow 会根据当前 catalog 版本自动计算 patch、minor 或 major 版本，生成 build、dist、package、全集合 catalog、插件 release ledger 和 artifact。验证通过且基础分支没有在构建期间前进时，它会原子推送发布提交与 `<extension-id>@<semver>` annotated tag，并清理同版本遗留的 `automation/publish-*` 分支。tag 已存在时发布失败，禁止覆盖历史版本。它不需要私钥或 Environment Secret。
+GitHub Actions 的 `Publish extensions` workflow 会在 main push 后逐个比较扩展目录与其最新 `<extension-id>@<semver>` tag，自动选择所有尚未发布变化的扩展。自动模式生成 patch；手动 dispatch 仍可指定单个扩展的 patch、minor 或 major。一个或多个目标扩展会共同生成 build、dist、package、全集合 catalog、release ledgers 和 artifact。
+
+验证通过且基础分支没有在构建期间前进时，workflow 会通过一次原子 push 发布一个 release commit 与本批全部 annotated tags，并清理相应版本遗留的 `automation/publish-*` 分支。任一扩展失败、任一 tag 已存在或任一 ref 推送失败时整批都不会发布。它不需要私钥或 Environment Secret。
 
 发布提交包含：
 
-- 目标插件源码与版本；
-- `packages/<id>`；
+- 全部目标插件源码与版本；
+- 各目标插件的 `packages/<id>`；
 - 完整 `repository/catalog.json`；
-- `repository/releases/<id>.json`；
+- 各目标插件的 `repository/releases/<id>.json`；
 - 完整 `repository/packages/`；
 - 必要测试和文档。
 

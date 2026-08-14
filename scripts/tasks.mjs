@@ -189,15 +189,59 @@ const normalizeRepositoryRelease = (release, extensionId, fallback = {}, locatio
   return normalized;
 };
 
-const currentRelease = document => normalizeRepositoryRelease({
-  ...document.entry,
-  releasedAt: new Date(Number(document.verified.receipt.installedAt)).toISOString(),
-  selectedVariant: document.verified.metadata.selectedVariant,
-  ...(process.env.SUB_STORE_EXTENSION_RELEASE_ID === document.entry.id
-    && process.env.SUB_STORE_EXTENSION_RELEASE_TAG
-    ? { gitTag: process.env.SUB_STORE_EXTENSION_RELEASE_TAG }
-    : {}),
-}, document.entry.id);
+export const releaseTagsFromEnvironment = (environment = process.env) => {
+  const batchValue = environment.SUB_STORE_EXTENSION_RELEASE_TAGS;
+  if (!batchValue) return null;
+  let releaseTags;
+  try {
+    releaseTags = JSON.parse(batchValue);
+  } catch {
+    throw new Error('SUB_STORE_EXTENSION_RELEASE_TAGS must be a JSON object');
+  }
+  assert(
+    releaseTags && typeof releaseTags === 'object' && !Array.isArray(releaseTags),
+    'SUB_STORE_EXTENSION_RELEASE_TAGS must be a JSON object',
+  );
+  for (const [extensionId, releaseTag] of Object.entries(releaseTags)) {
+    assert(extensionIdPattern.test(extensionId), `Release tag extension id is invalid: ${extensionId}`);
+    assert(
+      typeof releaseTag === 'string' && releaseTag,
+      `Release tag is invalid for ${extensionId}`,
+    );
+  }
+  return releaseTags;
+};
+
+export const releaseTagFromEnvironment = (extensionId, environment = process.env) => {
+  const releaseTags = releaseTagsFromEnvironment(environment);
+  if (releaseTags?.[extensionId] !== undefined) return releaseTags[extensionId];
+  return environment.SUB_STORE_EXTENSION_RELEASE_ID === extensionId
+    ? environment.SUB_STORE_EXTENSION_RELEASE_TAG || undefined
+    : undefined;
+};
+
+export const assertReleaseTagsMatchExtensions = (
+  extensions,
+  environment = process.env,
+) => {
+  const releaseTags = releaseTagsFromEnvironment(environment);
+  if (!releaseTags) return;
+  assert(
+    canonicalJson(Object.keys(releaseTags).sort())
+      === canonicalJson(extensions.map(extension => extension.id).sort()),
+    'Batch release tags must match the selected extensions',
+  );
+};
+
+const currentRelease = document => {
+  const gitTag = releaseTagFromEnvironment(document.entry.id);
+  return normalizeRepositoryRelease({
+    ...document.entry,
+    releasedAt: new Date(Number(document.verified.receipt.installedAt)).toISOString(),
+    selectedVariant: document.verified.metadata.selectedVariant,
+    ...(gitTag ? { gitTag } : {}),
+  }, document.entry.id);
+};
 
 const mergeRepositoryReleases = (entry, previousEntry, document, previousLocation) => {
   const current = currentRelease(document);
@@ -794,6 +838,7 @@ export const verifyRepository = async (selectedExtensions = null) => {
 };
 
 export const checkExtensions = async extensions => {
+  assertReleaseTagsMatchExtensions(extensions);
   await typecheckExtensions(extensions);
   await buildExtensions(extensions);
   await assembleExtensions(extensions);

@@ -121,20 +121,24 @@ corepack pnpm dev:install -- --extension org.substore.config-generator
 
 ## 发布
 
-GitHub Actions 中的 `Publish extension` workflow 会：
+GitHub Actions 中的 `Publish extensions` workflow 会在 `main` 每次 push 后先做一次轻量选择：逐个比较 `extensions/<id>` 与该扩展最新的不可变 release tag，只发布真正发生变化的扩展。普通根目录或文档提交没有扩展差异时会直接成功退出。
 
 ```text
-从 catalog 计算 patch / minor / major 版本
-→ release:prepare
-→ release:build（typecheck / build / package / repository / test / verify）
+找出 0..N 个尚未发布目录变化的扩展
+→ 自动为已发布扩展生成 patch 版本
+→ 批量 release:prepare
+→ 一次 release:build（typecheck / build / package / repository / test / verify）
 → git diff --check
 → 上传 build / dist / package 候选 artifact
 → 确认目标分支未发生并发更新
-→ 原子推送已验证发布提交和 `<extension-id>@<semver>` tag
-→ 删除同版本遗留的 automation/publish-* 分支
+→ 创建一个包含全部目标扩展的发布提交
+→ 原子推送发布提交和全部 `<extension-id>@<semver>` tag
+→ 删除这些版本遗留的 automation/publish-* 分支
 ```
 
-开发提交不需要手工修改版本或提交 `build/`、`dist/`。workflow 会把源码版本、可发布 package 和 catalog 变更组成一个已验证的发布提交，并直接快进到所选基础分支；`build/`、`dist/` 只作为 Actions artifact 保存。workflow 不需要私钥或 GitHub Environment Secret。
+只修改 `org.substore.config-generator` 就只升级它；同一批未发布提交同时修改 `org.substore.rule-studio` 和 `org.substore.subscription-doctor`，则两个扩展在同一个原子发布事务中一起升级。任一扩展构建或测试失败时整批都不会发布，不会留下只更新了一半的 catalog。
+
+自动发布固定使用 patch。需要 minor 或 major 时仍可手动运行 workflow，选择单个扩展和增量。开发提交不需要手工修改版本或提交 `build/`、`dist/`；`build/`、`dist/` 只作为 Actions artifact 保存。workflow 不需要私钥或 GitHub Environment Secret。
 
 扩展显示版本仍使用 SemVer（例如 `1.2.1`），Git tag 是这个版本的不可变发布指针，而不是另一个版本号。因为一个仓库包含多个插件，tag 必须带插件 ID，例如 `org.substore.config-generator@1.2.1`。`catalog.json` 的顶层 entry 继续表示最新版本，以兼容旧 Host；`entry.releases[]` 和 `repository/releases/<id>.json` 保存可选历史版本。重复发布同一个版本但摘要或 manifest 不同会直接失败。
 
@@ -155,6 +159,7 @@ GitHub Actions 中的 `Publish extension` workflow 会：
 | `package` | 构建并生成 SHA-256 包 |
 | `repository` | 更新选定扩展并保留集合中的其他发布 |
 | `verify` | 验证全集合历史，并核对选定扩展的本地产物 |
+| `release:prepare-batch` | 为 workflow 批量生成扩展版本和 release metadata |
 | `release:build` | 一次生成并验证选定扩展的发布候选 |
 | `check` | 执行完整本地门禁 |
 | `source:add` / `source:refresh` | 管理集合源 |

@@ -1,8 +1,11 @@
-name: Publish extension
+name: Publish extensions
 
-run-name: Publish ${{ inputs.extension_id }} (${{ inputs.version_bump }}) from ${{ inputs.base_branch }}
+run-name: Release extensions from ${{ github.event_name == 'workflow_dispatch' && inputs.base_branch || github.ref_name }}
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       extension_id:
@@ -29,19 +32,24 @@ permissions:
   contents: write
 
 concurrency:
-  group: publish-extension-${{ inputs.base_branch }}
+  group: publish-extension-${{ github.event_name == 'workflow_dispatch' && inputs.base_branch || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
   publish:
-    name: Verify and publish extension
+    name: Verify and publish changed extensions
+    if: >-
+      github.event_name != 'push' ||
+      !contains(github.event.head_commit.message, '[extension-release]')
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      RELEASE_BASE_BRANCH: ${{ github.event_name == 'workflow_dispatch' && inputs.base_branch || github.ref_name }}
     steps:
       - name: Check out release source
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.base_branch }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.base_branch || github.sha }}
           fetch-depth: 0
           token: ${{ secrets.RELEASE_PUBLISH_TOKEN || github.token }}
 
@@ -50,57 +58,91 @@ jobs:
         with:
           node-version: 22
 
+      - name: Select extensions to release
+        id: selection
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_EXTENSION_ID: ${{ inputs.extension_id }}
+        run: |
+          source_sha="$(git rev-parse HEAD)"
+          selection_args=(
+            --head "$source_sha"
+            --github-output "$GITHUB_OUTPUT"
+          )
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            selection_args+=(--extension "$MANUAL_EXTENSION_ID")
+          fi
+          node scripts/select-release-extensions.mjs "${selection_args[@]}"
+
+      - name: Summarize empty release selection
+        if: steps.selection.outputs.release_count == '0'
+        run: |
+          echo "### No extension release required" >> "$GITHUB_STEP_SUMMARY"
+          echo "No extension has changed since its own release baseline." >> "$GITHUB_STEP_SUMMARY"
+
       - name: Enable pnpm
+        if: steps.selection.outputs.release_count != '0'
         run: corepack enable
 
       - name: Install locked dependencies
+        if: steps.selection.outputs.release_count != '0'
         run: corepack pnpm install --frozen-lockfile
 
       - name: Prepare release metadata
         id: metadata
+        if: steps.selection.outputs.release_count != '0'
         shell: bash
+        env:
+          EXTENSION_IDS_JSON: ${{ steps.selection.outputs.extension_ids }}
+          RELEASE_BUMP: ${{ github.event_name == 'workflow_dispatch' && inputs.version_bump || 'patch' }}
+          SOURCE_SHA: ${{ steps.selection.outputs.source_sha }}
         run: |
-          release_time="$(git show -s --format=%cI HEAD)"
-          corepack pnpm release:prepare -- \
-            --extension "${{ inputs.extension_id }}" \
-            --bump "${{ inputs.version_bump }}" \
+          release_time="$(git show -s --format=%cI "$SOURCE_SHA")"
+          corepack pnpm release:prepare-batch -- \
+            --extensions-json "$EXTENSION_IDS_JSON" \
+            --bump "$RELEASE_BUMP" \
             --installed-at "$release_time" \
+            --metadata "$RUNNER_TEMP/extension-releases.json" \
             --github-output "$GITHUB_OUTPUT"
 
-      - name: Build and verify release candidate
+      - name: Build and verify release candidates
+        if: steps.selection.outputs.release_count != '0'
+        shell: bash
         env:
-          SUB_STORE_EXTENSION_RELEASE_ID: ${{ steps.metadata.outputs.extension_id }}
-          SUB_STORE_EXTENSION_RELEASE_TAG: ${{ steps.metadata.outputs.release_tag }}
+          EXTENSION_IDS: ${{ steps.metadata.outputs.extension_ids }}
+          SUB_STORE_EXTENSION_RELEASE_TAGS: ${{ steps.metadata.outputs.release_tags_json }}
         run: |
-          corepack pnpm release:build -- \
-            --extension "${{ steps.metadata.outputs.extension_id }}"
+          read -r -a extension_ids <<< "$EXTENSION_IDS"
+          release_args=()
+          for extension_id in "${extension_ids[@]}"; do
+            release_args+=(--extension "$extension_id")
+          done
+          corepack pnpm release:build -- "${release_args[@]}"
           git diff --check
 
-      - name: Upload release candidate
+      - name: Upload release candidates
+        if: steps.selection.outputs.release_count != '0'
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.metadata.outputs.branch_slug }}-v${{ steps.metadata.outputs.version }}
+          name: extension-releases-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            build/${{ steps.metadata.outputs.extension_id }}
-            dist/packages/${{ steps.metadata.outputs.extension_id }}
-            packages/${{ steps.metadata.outputs.extension_id }}
+            build
+            dist/packages
+            packages
             repository/catalog.json
-            repository/packages/${{ steps.metadata.outputs.extension_id }}
-            repository/releases/${{ steps.metadata.outputs.extension_id }}.json
+            repository/packages
+            repository/releases
           if-no-files-found: error
           retention-days: 14
 
-      - name: Commit release candidate
+      - name: Commit release candidates
         id: commit
+        if: steps.selection.outputs.release_count != '0'
         shell: bash
         env:
-          EXTENSION_ID: ${{ steps.metadata.outputs.extension_id }}
-          EXTENSION_VERSION: ${{ steps.metadata.outputs.version }}
-          PREVIOUS_VERSION: ${{ steps.metadata.outputs.previous_version }}
-          VERSION_BUMP: ${{ steps.metadata.outputs.version_bump }}
-          BRANCH_SLUG: ${{ steps.metadata.outputs.branch_slug }}
-          REPOSITORY_SEQUENCE: ${{ steps.metadata.outputs.repository_sequence }}
-          RELEASE_TAG: ${{ steps.metadata.outputs.release_tag }}
+          RELEASE_COUNT: ${{ steps.metadata.outputs.release_count }}
+          RELEASE_SUMMARY: ${{ steps.metadata.outputs.release_summary }}
         run: |
           if git diff --quiet; then
             echo "Release produced no tracked changes." >&2
@@ -113,105 +155,137 @@ jobs:
           git add --all
           commit_message="$RUNNER_TEMP/extension-release-commit.txt"
           printf '%s\n' \
-            "Make ${EXTENSION_ID}@${EXTENSION_VERSION} installable from the collection source" \
+            "Keep changed extensions installable without manual packaging [extension-release]" \
             "" \
-            "Generate the ${VERSION_BUMP} release from ${PREVIOUS_VERSION:-the initial source version}, including the SHA-256 package and collection catalog." \
+            "Generate ${RELEASE_COUNT} verified extension release(s): ${RELEASE_SUMMARY}." \
             "" \
+            "Constraint: Automatic push releases use patch bumps; manual dispatch controls minor or major bumps" \
             "Constraint: Adding a source and installing its extension are explicit user trust decisions" \
             "Confidence: high" \
             "Scope-risk: moderate" \
             "Directive: Do not edit generated package or repository files by hand" \
-            "Tested: Extension typecheck, build, tests, package assembly, catalog verification, and diff validation" \
+            "Automation: extension-release" \
+            "Tested: Selected extension typechecks, builds, tests, package assembly, catalog verification, and diff validation" \
             "Not-tested: Client refresh latency after GitHub Raw cache propagation" \
             > "$commit_message"
           git commit --file "$commit_message"
           release_head_sha="$(git rev-parse HEAD)"
           echo "head_sha=${release_head_sha}" >> "$GITHUB_OUTPUT"
 
-      - name: Publish verified release to the base branch
+      - name: Publish verified releases to the base branch
         id: publish
+        if: steps.selection.outputs.release_count != '0'
         shell: bash
         env:
-          BASE_BRANCH: ${{ inputs.base_branch }}
+          BASE_BRANCH: ${{ env.RELEASE_BASE_BRANCH }}
           EXPECTED_BASE_SHA: ${{ steps.commit.outputs.base_sha }}
           RELEASE_HEAD_SHA: ${{ steps.commit.outputs.head_sha }}
-          RELEASE_TAG: ${{ steps.metadata.outputs.release_tag }}
+          RELEASE_TAGS: ${{ steps.metadata.outputs.release_tags }}
         run: |
           git fetch --no-tags origin "$BASE_BRANCH"
           current_base_sha="$(git rev-parse FETCH_HEAD)"
           if [ "$current_base_sha" != "$EXPECTED_BASE_SHA" ]; then
-            echo "::error::The base branch advanced while the release was being built. Run the workflow again so the package and catalog are regenerated from the current source."
+            echo "::error::The base branch advanced while the releases were being built. The next main push or a manual rerun will include every extension still changed since its release baseline."
             exit 1
           fi
           if ! git merge-base --is-ancestor "$EXPECTED_BASE_SHA" "$RELEASE_HEAD_SHA"; then
             echo "::error::The generated release commit is not based on the expected source revision."
             exit 1
           fi
-          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
-            echo "::error::Release tag $RELEASE_TAG already exists. Extension versions are immutable; publish a new semantic version instead."
+
+          read -r -a release_tags <<< "$RELEASE_TAGS"
+          if [ "${#release_tags[@]}" -eq 0 ]; then
+            echo "::error::No release tags were prepared."
             exit 1
           fi
-          git tag --annotate "$RELEASE_TAG" "$RELEASE_HEAD_SHA" --message "Release $RELEASE_TAG"
-          if ! git push --atomic origin \
-            "$RELEASE_HEAD_SHA:refs/heads/$BASE_BRANCH" \
-            "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"; then
-            echo "::error::The verified release branch and tag could not be published atomically. If a branch rule blocks GitHub Actions, allow this workflow actor to update the branch or configure a RELEASE_PUBLISH_TOKEN owned by an allowed actor."
+          for release_tag in "${release_tags[@]}"; do
+            if git ls-remote --exit-code --tags origin "refs/tags/$release_tag" >/dev/null 2>&1; then
+              echo "::error::Release tag $release_tag already exists. Extension versions are immutable; publish a new semantic version instead."
+              exit 1
+            fi
+          done
+
+          push_refs=("$RELEASE_HEAD_SHA:refs/heads/$BASE_BRANCH")
+          for release_tag in "${release_tags[@]}"; do
+            git tag --annotate "$release_tag" "$RELEASE_HEAD_SHA" --message "Release $release_tag"
+            push_refs+=("refs/tags/$release_tag:refs/tags/$release_tag")
+          done
+          if ! git push --atomic origin "${push_refs[@]}"; then
+            echo "::error::The verified release commit and tags could not be published atomically. If a branch rule blocks GitHub Actions, allow this workflow actor to update the branch or configure a RELEASE_PUBLISH_TOKEN owned by an allowed actor."
             exit 1
           fi
+
           git fetch --no-tags origin "$BASE_BRANCH"
           published_sha="$(git rev-parse FETCH_HEAD)"
           if [ "$published_sha" != "$RELEASE_HEAD_SHA" ]; then
             echo "::error::The base branch does not point to the verified release commit after publication."
             exit 1
           fi
-          published_tag_sha="$(git ls-remote --tags origin "refs/tags/$RELEASE_TAG^{}" | awk '{print $1}')"
-          if [ "$published_tag_sha" != "$RELEASE_HEAD_SHA" ]; then
-            echo "::error::Release tag $RELEASE_TAG does not resolve to the verified release commit."
-            exit 1
-          fi
+          for release_tag in "${release_tags[@]}"; do
+            published_tag_sha="$(git ls-remote --tags origin "refs/tags/$release_tag^{}" | awk '{print $1}')"
+            if [ "$published_tag_sha" != "$RELEASE_HEAD_SHA" ]; then
+              echo "::error::Release tag $release_tag does not resolve to the verified release commit."
+              exit 1
+            fi
+          done
           echo "published_sha=${published_sha}" >> "$GITHUB_OUTPUT"
-          echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "release_tags=${RELEASE_TAGS}" >> "$GITHUB_OUTPUT"
 
       - name: Delete obsolete generated release branches
+        if: steps.selection.outputs.release_count != '0'
         shell: bash
         env:
-          BRANCH_SLUG: ${{ steps.metadata.outputs.branch_slug }}
-          EXTENSION_VERSION: ${{ steps.metadata.outputs.version }}
+          RELEASE_METADATA: ${{ runner.temp }}/extension-releases.json
         run: |
-          release_prefix="automation/publish-${BRANCH_SLUG}-v${EXTENSION_VERSION}-"
-          git ls-remote --heads origin "refs/heads/${release_prefix}*" \
-            | awk '{print $2}' \
-            | while IFS= read -r stale_ref; do
-                [ -n "$stale_ref" ] || continue
-                stale_branch="${stale_ref#refs/heads/}"
-                case "$stale_branch" in
-                  "${release_prefix}"*)
-                    git push origin --delete "$stale_branch"
-                    ;;
-                  *)
-                    echo "::error::Refusing to delete unexpected branch: ${stale_branch}"
-                    exit 1
-                    ;;
-                esac
-              done
+          while IFS=$'\t' read -r branch_slug extension_version; do
+            release_prefix="automation/publish-${branch_slug}-v${extension_version}-"
+            git ls-remote --heads origin "refs/heads/${release_prefix}*" \
+              | awk '{print $2}' \
+              | while IFS= read -r stale_ref; do
+                  [ -n "$stale_ref" ] || continue
+                  stale_branch="${stale_ref#refs/heads/}"
+                  case "$stale_branch" in
+                    "${release_prefix}"*)
+                      git push origin --delete "$stale_branch"
+                      ;;
+                    *)
+                      echo "::error::Refusing to delete unexpected branch: ${stale_branch}"
+                      exit 1
+                      ;;
+                  esac
+                done
+          done < <(node -e '
+            const document = require(process.env.RELEASE_METADATA);
+            for (const release of document.releases) {
+              process.stdout.write(release.branch_slug + "\t" + release.version + "\n");
+            }
+          ')
 
-      - name: Summarize published release
+      - name: Summarize published releases
+        if: steps.selection.outputs.release_count != '0'
         shell: bash
         env:
-          EXTENSION_ID: ${{ steps.metadata.outputs.extension_id }}
-          EXTENSION_VERSION: ${{ steps.metadata.outputs.version }}
-          PREVIOUS_VERSION: ${{ steps.metadata.outputs.previous_version }}
-          VERSION_BUMP: ${{ steps.metadata.outputs.version_bump }}
-          REPOSITORY_SEQUENCE: ${{ steps.metadata.outputs.repository_sequence }}
-          BASE_BRANCH: ${{ inputs.base_branch }}
+          RELEASE_METADATA: ${{ runner.temp }}/extension-releases.json
+          BASE_BRANCH: ${{ env.RELEASE_BASE_BRANCH }}
           PUBLISHED_SHA: ${{ steps.publish.outputs.published_sha }}
-          RELEASE_TAG: ${{ steps.publish.outputs.release_tag }}
         run: |
-          echo "### Extension published" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Extension: \`${EXTENSION_ID}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Version: \`${PREVIOUS_VERSION:-initial} -> ${EXTENSION_VERSION}\` (\`${VERSION_BUMP}\`)" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Collection sequence: \`${REPOSITORY_SEQUENCE}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Published branch: \`${BASE_BRANCH}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Published commit: \`${PUBLISHED_SHA}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Immutable tag: \`${RELEASE_TAG}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Obsolete generated branches for this version: deleted" >> "$GITHUB_STEP_SUMMARY"
+          node -e '
+            const fs = require("node:fs");
+            const document = require(process.env.RELEASE_METADATA);
+            const lines = ["### Extensions published", ""];
+            for (const release of document.releases) {
+              lines.push(
+                "- `" + release.extension_id + "`: `"
+                  + (release.previous_version || "initial") + " -> " + release.version
+                  + "` (`" + release.version_bump + "`), tag `" + release.release_tag + "`",
+              );
+            }
+            lines.push(
+              "- Collection sequence: `" + document.releases.at(-1).repository_sequence + "`",
+              "- Published branch: `" + process.env.BASE_BRANCH + "`",
+              "- Published commit: `" + process.env.PUBLISHED_SHA + "`",
+              "- Obsolete generated branches for these versions: deleted",
+              "",
+            );
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join("\n"));
+          '

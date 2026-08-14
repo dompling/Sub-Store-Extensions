@@ -25,6 +25,7 @@
     "package": "node scripts/command.mjs package",
     "package:assemble": "node scripts/command.mjs package:assemble",
     "release:prepare": "node scripts/prepare-release.mjs",
+    "release:prepare-batch": "node scripts/prepare-releases.mjs",
     "release:build": "node scripts/command.mjs release:build",
     "repository": "node scripts/command.mjs repository",
     "repository:serve": "node scripts/serve-repository.mjs",

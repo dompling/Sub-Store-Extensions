@@ -64,6 +64,10 @@ test('exposes one selected-extension release build command for local and CI use'
   const packageDocument = JSON.parse(await readFile(path.join(repoRoot, 'package.json'), 'utf8'));
   const command = await readFile(path.join(repoRoot, 'scripts/command.mjs'), 'utf8');
 
+  assert.equal(
+    packageDocument.scripts['release:prepare-batch'],
+    'node scripts/prepare-releases.mjs',
+  );
   assert.equal(packageDocument.scripts['release:build'], 'node scripts/command.mjs release:build');
   assert.match(command, /case 'release:build':\s+case 'check':\s+await checkExtensions\(extensions\)/);
   assert.match(command, /case 'repository':\s+await publishRepository\(extensions\)/);
@@ -87,19 +91,25 @@ test('keeps release-package assertions in release builds without polluting sourc
   assert.match(tasks, /await buildFrontendExtensions\(extensions\);\s+await buildBackendExtensions\(extensions\);/);
 });
 
-test('publishes a reproducible SHA-256 package directly from the verified release commit', async () => {
+test('automatically publishes every changed extension in one atomic release transaction', async () => {
   const workflow = await readFile(
     path.join(repoRoot, '.github/workflows/publish-extension.yml'),
     'utf8',
   );
+  assert.match(workflow, /push:\s+branches:\s+- main/);
+  assert.doesNotMatch(workflow, /^\s+paths:/m);
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /version_bump:/);
   assert.match(workflow, /type: choice/);
   assert.match(workflow, /node-version: 22/);
-  assert.match(workflow, /pnpm release:prepare/);
-  assert.match(workflow, /--bump "\$\{\{ inputs\.version_bump \}\}"/);
+  assert.match(workflow, /scripts\/select-release-extensions\.mjs/);
+  assert.match(workflow, /pnpm release:prepare-batch/);
+  assert.match(workflow, /--extensions-json "\$EXTENSION_IDS_JSON"/);
+  assert.match(workflow, /inputs\.version_bump \|\| 'patch'/);
   assert.match(workflow, /pnpm release:build/);
-  assert.match(workflow, /SUB_STORE_EXTENSION_RELEASE_TAG/);
+  assert.match(workflow, /release_args\+=\(--extension "\$extension_id"\)/);
+  assert.match(workflow, /SUB_STORE_EXTENSION_RELEASE_TAGS/);
+  assert.doesNotMatch(workflow, /SUB_STORE_EXTENSION_RELEASE_ID:/);
   assert.doesNotMatch(workflow, /pnpm typecheck/);
   assert.doesNotMatch(workflow, /pnpm test:built/);
   assert.doesNotMatch(workflow, /pnpm package:assemble/);
@@ -107,25 +117,28 @@ test('publishes a reproducible SHA-256 package directly from the verified releas
   assert.doesNotMatch(workflow, /pnpm verify(?:\s|$)/);
   assert.match(workflow, /git diff --check/);
   assert.match(workflow, /actions\/upload-artifact@v4/);
-  assert.match(workflow, /build\/\$\{\{ steps\.metadata\.outputs\.extension_id \}\}/);
-  assert.match(workflow, /dist\/packages\/\$\{\{ steps\.metadata\.outputs\.extension_id \}\}/);
-  assert.match(workflow, /repository\/releases\/\$\{\{ steps\.metadata\.outputs\.extension_id \}\}\.json/);
-  assert.match(workflow, /group: publish-extension-\$\{\{ inputs\.base_branch \}\}/);
+  assert.match(workflow, /group: publish-extension-\$\{\{ github\.event_name == 'workflow_dispatch'/);
+  assert.match(workflow, /release_count != '0'/);
+  assert.match(workflow, /\[extension-release\]/);
+  assert.match(workflow, /Automation: extension-release/);
   assert.match(workflow, /base_sha=\$\{base_sha\}/);
   assert.match(workflow, /current_base_sha/);
   assert.match(workflow, /secrets\.RELEASE_PUBLISH_TOKEN \|\| github\.token/);
   assert.match(workflow, /git merge-base --is-ancestor/);
-  assert.match(workflow, /git ls-remote --exit-code --tags origin "refs\/tags\/\$RELEASE_TAG"/);
-  assert.match(workflow, /git tag --annotate "\$RELEASE_TAG" "\$RELEASE_HEAD_SHA"/);
+  assert.match(workflow, /read -r -a release_tags <<< "\$RELEASE_TAGS"/);
+  assert.match(workflow, /git ls-remote --exit-code --tags origin "refs\/tags\/\$release_tag"/);
+  assert.match(workflow, /git tag --annotate "\$release_tag" "\$RELEASE_HEAD_SHA"/);
+  assert.match(workflow, /push_refs\+=\("refs\/tags\/\$release_tag:refs\/tags\/\$release_tag"\)/);
   assert.match(workflow, /git push --atomic origin/);
-  assert.match(workflow, /"\$RELEASE_HEAD_SHA:refs\/heads\/\$BASE_BRANCH"/);
-  assert.match(workflow, /"refs\/tags\/\$RELEASE_TAG:refs\/tags\/\$RELEASE_TAG"/);
+  assert.match(workflow, /git push --atomic origin "\$\{push_refs\[@\]\}"/);
   assert.match(workflow, /published_sha/);
-  assert.match(workflow, /release_prefix="automation\/publish-\$\{BRANCH_SLUG\}-v\$\{EXTENSION_VERSION\}-"/);
+  assert.match(workflow, /release_prefix="automation\/publish-\$\{branch_slug\}-v\$\{extension_version\}-"/);
   assert.match(workflow, /git push origin --delete "\$stale_branch"/);
   assert.ok(workflow.indexOf('pnpm release:build') < workflow.indexOf('git diff --check'));
   assert.ok(workflow.indexOf('git diff --check') < workflow.indexOf('git push --atomic origin'));
   assert.ok(workflow.indexOf('git push --atomic origin') < workflow.indexOf('git push origin --delete "$stale_branch"'));
+  assert.doesNotMatch(workflow, /matrix:/);
+  assert.doesNotMatch(workflow, /eval /);
   assert.doesNotMatch(workflow, /gh pr create/);
   assert.doesNotMatch(workflow, /gh pr merge/);
   assert.doesNotMatch(workflow, /RELEASE_PR_TOKEN/);

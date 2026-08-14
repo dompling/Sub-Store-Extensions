@@ -16,7 +16,7 @@ extension.config.json    构建、SHA-256 package 和 catalog 配置
 package.json             workspace 身份与版本
 ```
 
-正式发布时不要手工递增这里或 manifest 的版本。`Publish extension` workflow 会从 catalog 当前版本计算 patch、minor 或 major 版本；frontend bundle 的版本由 Vite 从 manifest 注入。
+正式发布时不要手工递增这里或 manifest 的版本。`Publish extensions` workflow 会在该目录相对最新 release tag 有变化时自动生成 patch；需要 minor 或 major 时使用手动 dispatch。frontend bundle 的版本由 Vite 从 manifest 注入。
 
 生成物：
 
@@ -35,7 +35,7 @@ corepack pnpm test -- --extension org.substore.config-generator
 corepack pnpm dev:install -- --extension org.substore.config-generator
 ```
 
-正式 package、catalog 和 tag 由 `Publish extension` workflow 先生成下一版本，再统一执行 `release:build`。
+正式 package、catalog 和 tag 由 `Publish extensions` workflow 批量准备版本，再统一执行 `release:build`。
 
 ## Package 边界
 
