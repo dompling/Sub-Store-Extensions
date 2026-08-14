@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "extensionId": "org.substore.config-generator",
-  "version": "1.2.7",
+  "version": "1.2.8",
   "publisher": {
     "id": "org.substore",
     "name": "Sub-Store"
   },
   "selectedVariant": "node",
-  "manifestDigest": "ad3926ee1ea1ccd22e09e0211fc02d41bbfb6a4e967aba38f5927745856b48c7",
-  "packageDigest": "1b49963a3c3de985f843ec29ff44a1472591941fe43bc0aa3afdd2dd6277ba49",
+  "manifestDigest": "2e0d8c839f23ee246216cb8e5db5e089a021b64206e63d1eaba54da85f215f72",
+  "packageDigest": "beed73768bd115899baa344a93fd9fa66b7e39de3ab6572323478ac967036c9c",
   "implementation": {
     "id": "org.substore.config-generator@1/node",
     "abi": "config-generator@1",
@@ -17,6 +17,6 @@
     "lanes": {},
     "containsExecutableCode": true
   },
-  "installedAt": 1786603875000,
-  "receiptDigest": "d48c19ea5b7f3a1b01f073fe19306deac3eb7a9f7d55ee5c9bde2e41f2d03f23"
+  "installedAt": 1786697460000,
+  "receiptDigest": "e0dae7c36797d50f2555a14d5e11a0b592ddd910393a80d73f5cd373401ed565"
 }

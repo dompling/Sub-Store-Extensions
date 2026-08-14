@@ -1,8 +1,205 @@
 {
   "schemaVersion": 1,
   "extensionId": "org.substore.config-generator",
-  "latestVersion": "1.2.7",
+  "latestVersion": "1.2.8",
   "releases": [
+    {
+      "version": "1.2.8",
+      "releasedAt": "2026-08-14T08:51:00.000Z",
+      "manifest": {
+        "schemaVersion": 1,
+        "id": "org.substore.config-generator",
+        "kind": "executable",
+        "distribution": "source-executable",
+        "name": "配置生成器",
+        "description": "生成 Surge、Quantumult X、Clash 和 Loon 配置",
+        "version": "1.2.8",
+        "publisher": {
+          "id": "org.substore",
+          "name": "Sub-Store"
+        },
+        "license": "GPL-3.0",
+        "homepage": "https://github.com/dompling/Sub-Store-Extensions",
+        "host": {
+          "apiVersion": "1.0.0",
+          "frontendApiVersion": "1.0.0",
+          "backend": ">=2.36.38",
+          "implementationAbi": "config-generator@1",
+          "runtimes": [
+            "node"
+          ]
+        },
+        "frontend": {
+          "entrypoint": "frontend/index.js",
+          "style": "frontend/style.css",
+          "sdkSpecifier": "@substore/frontend-sdk/v1",
+          "uiKitAbi": "substore-ui-kit@1",
+          "implementationAbi": "config-generator-ui@1",
+          "routeBase": "/extensions/config-generator",
+          "openPath": "/extensions/config-generator",
+          "assets": {
+            "entrypoint": {
+              "path": "frontend/index.js",
+              "digest": "4ceab1a362b5d1c9d8ace0de774fd6c0f6b9b5ef78c2588d6acd7ab39c0b6e20"
+            },
+            "style": {
+              "path": "frontend/style.css",
+              "digest": "1dc05fcb9a2f305dae352ca01bd14d10e75a65990d76143578aa56f115ea7d66"
+            }
+          }
+        },
+        "entrypoints": {
+          "backend": {
+            "path": "backend/index.cjs"
+          }
+        },
+        "variants": {
+          "node": {
+            "implementationId": "org.substore.config-generator@1/node",
+            "implementationAbi": "config-generator@1",
+            "frontendAssetId": "org.substore.config-generator-ui@1",
+            "entrypoint": "backend/index.cjs",
+            "containsExecutableCode": true
+          }
+        },
+        "requires": {
+          "hard": [
+            "resource-broker@1",
+            "artifact-source-registry@1",
+            "route-gateway@1"
+          ]
+        },
+        "permissions": [
+          {
+            "name": "storage.own",
+            "reason": "保存配置项目与规则集"
+          },
+          {
+            "name": "resources.list",
+            "scope": [
+              "rule-set"
+            ],
+            "reason": "发现实现 substore.rule-set@1 的插件资源"
+          },
+          {
+            "name": "resources.read",
+            "scope": [
+              "rule-set",
+              "artifacts"
+            ],
+            "reason": "读取规则资源描述，并保持旧配置托管引用检查"
+          },
+          {
+            "name": "resources.produce",
+            "scope": [
+              "rule-set"
+            ],
+            "reason": "按生成目标生产规则集资源"
+          },
+          {
+            "name": "references.manage-own",
+            "scope": [
+              "config-project"
+            ],
+            "reason": "维护配置项目到规则集资源的可修复引用索引"
+          },
+          {
+            "name": "network.fetch",
+            "scope": [
+              "user-configured-https",
+              "user-configured-http"
+            ],
+            "reason": "读取用户配置的远程订阅和规则集"
+          },
+          {
+            "name": "artifact.produce",
+            "scope": [
+              "subscription",
+              "collection",
+              "file",
+              "rule"
+            ]
+          },
+          {
+            "name": "artifact-source.register",
+            "scope": [
+              "config-project"
+            ]
+          },
+          {
+            "name": "routes.namespaced"
+          },
+          {
+            "name": "navigation.register"
+          }
+        ],
+        "contributes": {
+          "features": [
+            "org.substore.config-generator.configGenerator"
+          ],
+          "routes": [
+            "org.substore.config-generator.list",
+            "org.substore.config-generator.edit",
+            "org.substore.config-generator.import",
+            "org.substore.config-generator.preview",
+            "org.substore.config-generator.download"
+          ],
+          "artifactSources": [
+            {
+              "id": "org.substore.config-generator.config-project",
+              "type": "config-project",
+              "contract": "substore.config-project@1",
+              "representations": [
+                "surge-config",
+                "qx-config",
+                "clash-config",
+                "loon-config"
+              ],
+              "labelKey": "artifactSource",
+              "platforms": [
+                "Surge",
+                "QX",
+                "Clash",
+                "Loon"
+              ]
+            }
+          ],
+          "navigation": [
+            "org.substore.config-generator.main"
+          ],
+          "pageActions": [
+            "org.substore.config-generator.add",
+            "org.substore.config-generator.import"
+          ]
+        },
+        "storage": {
+          "schemaVersion": 2,
+          "legacyKeys": [
+            "configGenerator"
+          ]
+        },
+        "legacy": {
+          "id": "config-generator",
+          "feature": "configGenerator",
+          "routes": [
+            "/api/extensions/config-generator/**",
+            "/download/config-project/**"
+          ]
+        }
+      },
+      "distribution": "source-executable",
+      "selectedVariant": "node",
+      "packageUrl": "./packages/org.substore.config-generator/1.2.8/node.json",
+      "packageUrls": {
+        "node": "./packages/org.substore.config-generator/1.2.8/node.json"
+      },
+      "packageDigest": "beed73768bd115899baa344a93fd9fa66b7e39de3ab6572323478ac967036c9c",
+      "packageDigests": {
+        "node": "beed73768bd115899baa344a93fd9fa66b7e39de3ab6572323478ac967036c9c"
+      },
+      "installable": true,
+      "gitTag": "org.substore.config-generator@1.2.8"
+    },
     {
       "version": "1.2.7",
       "releasedAt": "2026-08-13T06:49:58.000Z",
