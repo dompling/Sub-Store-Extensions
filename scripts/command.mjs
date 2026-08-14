@@ -52,11 +52,12 @@ const main = async () => {
       await assembleExtensions(extensions);
       break;
     case 'repository':
-      await publishRepository();
+      await publishRepository(extensions);
       break;
     case 'verify':
-      await verifyRepository();
+      await verifyRepository(extensions);
       break;
+    case 'release:build':
     case 'check':
       await checkExtensions(extensions);
       break;

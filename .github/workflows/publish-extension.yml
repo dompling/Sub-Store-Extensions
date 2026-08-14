@@ -67,35 +67,13 @@ jobs:
             --installed-at "$release_time" \
             --github-output "$GITHUB_OUTPUT"
 
-      - name: Type-check extension
-        run: >-
-          corepack pnpm typecheck --
-          --extension "${{ steps.metadata.outputs.extension_id }}"
-
-      - name: Build extension
-        run: >-
-          corepack pnpm build --
-          --extension "${{ steps.metadata.outputs.extension_id }}"
-
-      - name: Assemble SHA-256 package
-        run: >-
-          corepack pnpm package:assemble --
-          --extension "${{ steps.metadata.outputs.extension_id }}"
-
-      - name: Publish collection catalog
+      - name: Build and verify release candidate
         env:
           SUB_STORE_EXTENSION_RELEASE_ID: ${{ steps.metadata.outputs.extension_id }}
           SUB_STORE_EXTENSION_RELEASE_TAG: ${{ steps.metadata.outputs.release_tag }}
-        run: corepack pnpm repository
-
-      - name: Test assembled release candidate
-        run: >-
-          corepack pnpm test:built --
-          --extension "${{ steps.metadata.outputs.extension_id }}"
-
-      - name: Verify release candidate
         run: |
-          corepack pnpm verify
+          corepack pnpm release:build -- \
+            --extension "${{ steps.metadata.outputs.extension_id }}"
           git diff --check
 
       - name: Upload release candidate

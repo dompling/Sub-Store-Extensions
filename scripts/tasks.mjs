@@ -31,9 +31,12 @@ const sha256Pattern = /^[a-f0-9]{64}$/;
 const extensionIdPattern = /^[a-z0-9]+(?:[.-][a-z0-9]+)*\.[a-z0-9][a-z0-9.-]*$/;
 const variantPattern = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/;
 
-const parseReleaseVersion = value => {
+const parseReleaseVersion = (value, { extensionId, location } = {}) => {
   const match = `${value || ''}`.match(releaseVersionPattern);
-  assert(match, `Repository release version is invalid: ${value || '(missing)'}`);
+  const releaseLocation = extensionId
+    ? ` for ${extensionId}${location ? ` at ${location}` : ''}`
+    : '';
+  assert(match, `Repository release version is invalid${releaseLocation}: ${value || '(missing)'}`);
   return {
     core: match.slice(1, 4).map(Number),
     prerelease: match[4]?.split('.') || [],
@@ -98,55 +101,70 @@ const assertSameRelease = (left, right, message) => {
   );
 };
 
-const normalizeReleasePackageUrl = (value, extensionId, version, variant) => {
-  assert(typeof value === 'string' && value, `${extensionId}@${version} package URL is missing`);
+const normalizeReleasePackageUrl = (value, extensionId, version, variant, location) => {
+  const subject = location ? `${extensionId} at ${location}` : `${extensionId}@${version}`;
+  assert(typeof value === 'string' && value, `${subject} package URL is missing`);
   const expected = `./packages/${extensionId}/${version}/${variant}.json`;
-  assert(value === expected, `${extensionId}@${version} package URL must be ${expected}`);
+  assert(value === expected, `${subject} package URL must be ${expected}`);
   return value;
 };
 
-const normalizeRepositoryRelease = (release, extensionId, fallback = {}) => {
-  assert(release && typeof release === 'object' && !Array.isArray(release), `${extensionId} release is invalid`);
-  const version = `${release.version || ''}`;
-  parseReleaseVersion(version);
-  assert(extensionIdPattern.test(extensionId), `Repository release extension id is invalid: ${extensionId}`);
+const normalizeRepositoryRelease = (release, extensionId, fallback = {}, location) => {
+  const subject = location ? `${extensionId} at ${location}` : extensionId;
+  assert(release && typeof release === 'object' && !Array.isArray(release), `${subject} release is invalid`);
   const manifest = release.manifest;
-  assert(manifest?.id === extensionId, `${extensionId}@${version} release manifest id differs`);
-  assert(manifest.version === version, `${extensionId}@${version} release manifest version differs`);
+  const hasTopLevelVersion = Object.hasOwn(release, 'version');
+  const version = `${hasTopLevelVersion ? release.version || '' : manifest?.version || ''}`;
+  parseReleaseVersion(version, { extensionId, location });
+  assert(extensionIdPattern.test(extensionId), `Repository release extension id is invalid: ${extensionId}`);
+  const versionedSubject = location ? subject : `${extensionId}@${version}`;
+  assert(manifest?.id === extensionId, `${versionedSubject} release manifest id differs`);
+  assert(manifest.version === version, `${versionedSubject} release manifest version differs`);
   const variants = Object.keys(release.packageUrls || {});
-  assert(variants.length > 0, `${extensionId}@${version} release has no package variants`);
+  assert(variants.length > 0, `${versionedSubject} release has no package variants`);
   assert(
     canonicalJson(variants.sort()) === canonicalJson(Object.keys(release.packageDigests || {}).sort()),
-    `${extensionId}@${version} release package variants and digests differ`,
+    `${versionedSubject} release package variants and digests differ`,
   );
   const packageUrls = {};
   const packageDigests = {};
   for (const variant of variants) {
-    assert(variantPattern.test(variant), `${extensionId}@${version} package variant is invalid: ${variant}`);
+    assert(variantPattern.test(variant), `${versionedSubject} package variant is invalid: ${variant}`);
     packageUrls[variant] = normalizeReleasePackageUrl(
       release.packageUrls[variant],
       extensionId,
       version,
       variant,
+      location,
     );
     const digest = `${release.packageDigests[variant] || ''}`;
-    assert(sha256Pattern.test(digest), `${extensionId}@${version} ${variant} package digest is invalid`);
+    assert(sha256Pattern.test(digest), `${versionedSubject} ${variant} package digest is invalid`);
     packageDigests[variant] = digest;
   }
   const selectedVariant = release.selectedVariant
     || Object.keys(manifest.variants || {}).find(variant => packageUrls[variant])
     || variants[0];
-  assert(packageUrls[selectedVariant], `${extensionId}@${version} selected package variant is missing`);
+  assert(packageUrls[selectedVariant], `${versionedSubject} selected package variant is missing`);
+  if (!hasTopLevelVersion) {
+    assert(
+      release.packageUrl === undefined || release.packageUrl === packageUrls[selectedVariant],
+      `${versionedSubject} release package URL differs from the selected variant`,
+    );
+    assert(
+      release.packageDigest === undefined || release.packageDigest === packageDigests[selectedVariant],
+      `${versionedSubject} release package digest differs from the selected variant`,
+    );
+  }
   const releasedAtValue = release.releasedAt || fallback.releasedAt;
   const releasedAtTimestamp = Date.parse(releasedAtValue);
-  assert(Number.isFinite(releasedAtTimestamp), `${extensionId}@${version} releasedAt is invalid`);
+  assert(Number.isFinite(releasedAtTimestamp), `${versionedSubject} releasedAt is invalid`);
   const gitCommit = release.gitCommit || fallback.gitCommit || undefined;
   const gitTag = release.gitTag || fallback.gitTag || undefined;
   if (gitCommit !== undefined) {
-    assert(/^[a-f0-9]{40}$/.test(gitCommit), `${extensionId}@${version} gitCommit is invalid`);
+    assert(/^[a-f0-9]{40}$/.test(gitCommit), `${versionedSubject} gitCommit is invalid`);
   }
   if (gitTag !== undefined) {
-    assert(gitTag === `${extensionId}@${version}`, `${extensionId}@${version} gitTag is invalid`);
+    assert(gitTag === `${extensionId}@${version}`, `${versionedSubject} gitTag is invalid`);
   }
   const normalized = {
     version,
@@ -165,7 +183,7 @@ const normalizeRepositoryRelease = (release, extensionId, fallback = {}) => {
   if (normalized.installable) {
     assert(
       manifest.kind === 'content' || manifest.kind === 'executable',
-      `${extensionId}@${version} installable release kind is unsupported`,
+      `${versionedSubject} installable release kind is unsupported`,
     );
   }
   return normalized;
@@ -181,11 +199,11 @@ const currentRelease = document => normalizeRepositoryRelease({
     : {}),
 }, document.entry.id);
 
-const mergeRepositoryReleases = (entry, previousEntry, document) => {
+const mergeRepositoryReleases = (entry, previousEntry, document, previousLocation) => {
   const current = currentRelease(document);
   const previousReleases = previousEntry?.releases?.length
     ? previousEntry.releases
-    : previousEntry
+    : previousEntry?.manifest
       ? [{
           ...previousEntry,
           releasedAt: previousEntry.releasedAt
@@ -194,8 +212,11 @@ const mergeRepositoryReleases = (entry, previousEntry, document) => {
         }]
       : [];
   const releases = new Map();
-  for (const release of previousReleases) {
-    const normalized = normalizeRepositoryRelease(release, entry.id);
+  for (const [releaseIndex, release] of previousReleases.entries()) {
+    const location = previousEntry?.releases?.length
+      ? `${previousLocation}.releases[${releaseIndex}]`
+      : previousLocation;
+    const normalized = normalizeRepositoryRelease(release, entry.id, {}, location);
     const existing = releases.get(normalized.version);
     if (existing) assertSameRelease(
       existing,
@@ -298,14 +319,34 @@ const verifyReleaseEnvelope = (release, variant, envelope, extensionId) => {
 
 const mergeCatalogAndLedgerHistory = (previousCatalog, ledgers) => {
   const previousEntries = new Map(
-    (previousCatalog?.entries || []).map(entry => [entry.id, entry]),
+    (previousCatalog?.entries || []).map((entry, entryIndex) => [entry.id, {
+      ...entry,
+      ...(Array.isArray(entry.releases)
+        ? {
+            releases: entry.releases.map((release, releaseIndex) => normalizeRepositoryRelease(
+              release,
+              entry.id,
+              {},
+              `catalog.entries[${entryIndex}].releases[${releaseIndex}]`,
+            )),
+          }
+        : {}),
+    }]),
   );
   for (const ledger of ledgers) {
     assert(ledger.schemaVersion === 1, `Unsupported release ledger schema for ${ledger.extensionId}`);
     assert(ledger.extensionId, 'Release ledger extensionId is missing');
+    const hasPreviousEntry = previousEntries.has(ledger.extensionId);
     const previous = previousEntries.get(ledger.extensionId) || { id: ledger.extensionId };
+    const ledgerReleases = (ledger.releases || []).map((release, releaseIndex) => normalizeRepositoryRelease(
+      release,
+      ledger.extensionId,
+      {},
+      `release ledger.releases[${releaseIndex}]`,
+    ));
+    if (!hasPreviousEntry && ledgerReleases.length === 0) continue;
     const releases = new Map();
-    for (const release of [...(ledger.releases || []), ...(previous.releases || [])]) {
+    for (const release of [...ledgerReleases, ...(previous.releases || [])]) {
       const existing = releases.get(release.version);
       if (existing) assertSameRelease(
         existing,
@@ -428,12 +469,19 @@ const findTests = async directory => {
     .map(name => path.join(directory, name));
 };
 
-export const testBuiltExtensions = async extensions => {
+export const testBuiltExtensions = async (
+  extensions,
+  { releasePackageContracts = true } = {},
+) => {
+  const extensionTestEnvironment = {
+    ...process.env,
+    SUB_STORE_RELEASE_PACKAGE_TESTS: releasePackageContracts ? '1' : '0',
+  };
   for (const extension of extensions) {
     const tests = await findTests(extension.testsDirectory);
     if (!tests.length) continue;
     heading('test', extension);
-    await run(process.execPath, ['--test', ...tests]);
+    await run(process.execPath, ['--test', ...tests], { env: extensionTestEnvironment });
   }
   const repositoryTests = await findTests(path.join(repoRoot, 'tests'));
   if (repositoryTests.length) {
@@ -443,8 +491,9 @@ export const testBuiltExtensions = async extensions => {
 };
 
 export const testExtensions = async extensions => {
-  await buildExtensions(extensions);
-  await testBuiltExtensions(extensions);
+  await buildFrontendExtensions(extensions);
+  await buildBackendExtensions(extensions);
+  await testBuiltExtensions(extensions, { releasePackageContracts: false });
 };
 
 export const assembleExtensions = async extensions => {
@@ -496,21 +545,47 @@ export const buildRepositoryCatalog = (repositoryConfig, inputDocuments, previou
   const ids = documents.map(document => document.entry.id);
   assert(new Set(ids).size === ids.length, 'Repository contains duplicate extension ids');
   const previousEntries = new Map(
-    (previousCatalog?.entries || []).map(entry => [entry.id, entry]),
+    (previousCatalog?.entries || []).map((entry, entryIndex) => [entry.id, {
+      entry,
+      location: `catalog.entries[${entryIndex}]`,
+    }]),
   );
   for (const document of documents) {
+    const previous = previousEntries.get(document.entry.id);
     document.entry.releases = mergeRepositoryReleases(
       document.entry,
-      previousEntries.get(document.entry.id),
+      previous?.entry,
       document,
+      previous?.location,
     );
+    previousEntries.set(document.entry.id, {
+      entry: document.entry,
+      location: `current release ${document.entry.id}`,
+    });
   }
-  const installedTimes = documents
+  const generatedTimestamps = documents
     .map(document => Number(document.verified.receipt.installedAt))
     .filter(Number.isFinite);
-  const generatedAt = installedTimes.length
-    ? new Date(Math.max(...installedTimes)).toISOString()
+  const previousGeneratedAt = Date.parse(previousCatalog?.generatedAt);
+  if (Number.isFinite(previousGeneratedAt)) generatedTimestamps.push(previousGeneratedAt);
+  const generatedAt = generatedTimestamps.length
+    ? new Date(Math.max(...generatedTimestamps)).toISOString()
     : new Date(0).toISOString();
+  const entries = [...previousEntries.values()]
+    .map(({ entry, location }) => {
+      if (!entry?.version && !entry?.manifest) return null;
+      assert(entry.version && entry.manifest, `${entry.id || '(missing)'} previous catalog entry is incomplete`);
+      if (entry.releases?.length) return entry;
+      const releasedAt = entry.releasedAt
+        || entry.manifest.releasedAt
+        || previousCatalog?.generatedAt;
+      return {
+        ...entry,
+        releases: [normalizeRepositoryRelease({ ...entry, releasedAt }, entry.id, {}, location)],
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.id.localeCompare(right.id));
   const catalog = {
     schemaVersion: 1,
     id: repositoryConfig.id,
@@ -519,7 +594,7 @@ export const buildRepositoryCatalog = (repositoryConfig, inputDocuments, previou
     sequence: repositoryConfig.sequence,
     generatedAt,
     publisher: repositoryConfig.publisher,
-    entries: documents.map(document => document.entry),
+    entries,
   };
   return { catalog, documents };
 };
@@ -537,9 +612,11 @@ export const writeRepositoryDocuments = async ({
     : null;
   const releasesRoot = path.join(outputRoot, 'releases');
   const ledgers = [];
-  for (const document of inputDocuments) {
-    const ledgerPath = path.join(releasesRoot, `${document.entry.id}.json`);
-    if (await pathExists(ledgerPath)) ledgers.push(await readJson(ledgerPath));
+  if (await pathExists(releasesRoot)) {
+    for (const relative of await listRegularFiles(releasesRoot)) {
+      if (!relative.endsWith('.json')) continue;
+      ledgers.push(await readJson(path.join(releasesRoot, relative)));
+    }
   }
   const { catalog, documents } = buildRepositoryCatalog(
     repositoryConfig,
@@ -566,7 +643,9 @@ export const writeRepositoryDocuments = async ({
       `${document.entry.id}@${document.entry.version} release envelope is immutable`,
     );
     if (existingEnvelope === null) await writeJson(destination, document.envelope);
-    for (const release of document.entry.releases) {
+  }
+  for (const entry of catalog.entries) {
+    for (const release of entry.releases || []) {
       for (const packageUrl of Object.values(release.packageUrls || {})) {
         if (!packageUrl.startsWith('./packages/')) continue;
         expectedPackageFiles.add(packageUrl.slice('./packages/'.length));
@@ -595,13 +674,16 @@ export const writeRepositoryDocuments = async ({
   return catalog;
 };
 
-export const publishRepository = async () => {
+export const publishRepository = async (selectedExtensions = null) => {
   const repositoryConfig = await readRepositoryConfig();
-  const extensions = await loadAllExtensions();
+  const extensions = selectedExtensions || await loadAllExtensions();
   const documents = [];
   for (const extension of extensions) documents.push(await repositoryDocument(extension));
   const catalog = await writeRepositoryDocuments({ repositoryConfig, documents });
-  process.stdout.write(`Published ${catalog.entries.length} extensions to ${repositoryConfig.name}\n`);
+  process.stdout.write(
+    `Published ${documents.length} extension${documents.length === 1 ? '' : 's'} `
+      + `to ${repositoryConfig.name} (${catalog.entries.length} total)\n`,
+  );
 };
 
 const verifyBuildAndDist = async (extension, source) => {
@@ -633,75 +715,91 @@ const verifyBuildAndDist = async (extension, source) => {
   }
 };
 
-export const verifyRepository = async () => {
+export const verifyRepository = async (selectedExtensions = null) => {
   const repositoryConfig = await readRepositoryConfig();
-  const extensions = await loadAllExtensions();
+  const extensions = selectedExtensions || await loadAllExtensions();
+  const selectedById = new Map(extensions.map(extension => [extension.id, extension]));
   const catalog = await readJson(path.join(repositoryDirectory, 'catalog.json'));
   assert(catalog.id === repositoryConfig.id, 'Repository catalog id differs from repository config');
   assert(catalog.name === repositoryConfig.name, 'Repository catalog name differs from repository config');
   assert(canonicalJson(catalog.publisher) === canonicalJson(repositoryConfig.publisher), 'Repository publisher differs');
-  assert(catalog.entries?.length === extensions.length, 'Repository catalog entry count differs from extension workspaces');
+  const catalogIds = (catalog.entries || []).map(entry => entry.id);
+  assert(new Set(catalogIds).size === catalogIds.length, 'Repository catalog contains duplicate extension ids');
 
   const expectedEnvelopeFiles = [];
-  for (const extension of extensions) {
-    const source = await verifyPackageDirectory(extension.packageDirectory, extension);
-    await verifyBuildAndDist(extension, source);
-    const entry = catalog.entries.find(item => item.id === extension.id);
-    assert(entry, `Repository catalog entry is missing: ${extension.id}`);
-    assert(canonicalJson(entry.manifest) === canonicalJson(source.manifest), `${extension.id} repository manifest differs`);
-    const variant = source.metadata.selectedVariant;
-    assert(entry.packageDigests?.[variant] === source.packageDigest, `${extension.id} repository digest differs`);
+  for (const [entryIndex, entry] of (catalog.entries || []).entries()) {
+    const extension = selectedById.get(entry.id);
     const releases = entry.releases || [];
-    assert(releases.length > 0, `${extension.id} repository release history is missing`);
-    assert(releases[0].version === entry.version, `${extension.id} latest release history is stale`);
+    assert(releases.length > 0, `${entry.id} repository release history is missing`);
+    assert(releases[0].version === entry.version, `${entry.id} latest release history is stale`);
     assert(
       canonicalJson(packageProjection(releases[0])) === canonicalJson(packageProjection(entry)),
-      `${extension.id} latest release package differs from the catalog entry`,
+      `${entry.id} latest release package differs from the catalog entry`,
     );
     assert(
       new Set(releases.map(release => release.version)).size === releases.length,
-      `${extension.id} repository contains duplicate release versions`,
+      `${entry.id} repository contains duplicate release versions`,
     );
     const ledger = await readJson(
-      path.join(repositoryDirectory, 'releases', `${extension.id}.json`),
+      path.join(repositoryDirectory, 'releases', `${entry.id}.json`),
     );
     assert(
       canonicalJson(ledger) === canonicalJson(releaseLedgerDocument(entry)),
-      `${extension.id} release ledger differs from the catalog`,
+      `${entry.id} release ledger differs from the catalog`,
     );
-    for (const release of releases) {
-      const normalized = normalizeRepositoryRelease(release, extension.id);
+    for (const [releaseIndex, release] of releases.entries()) {
+      const normalized = normalizeRepositoryRelease(
+        release,
+        entry.id,
+        {},
+        `catalog.entries[${entryIndex}].releases[${releaseIndex}]`,
+      );
       for (const [releaseVariant, packageUrl] of Object.entries(normalized.packageUrls)) {
         if (!packageUrl.startsWith('./packages/')) continue;
         expectedEnvelopeFiles.push(packageUrl.slice('./packages/'.length));
         const releaseEnvelope = await readJson(
           path.join(repositoryDirectory, packageUrl.slice('./'.length)),
         );
-        verifyReleaseEnvelope(normalized, releaseVariant, releaseEnvelope, extension.id);
+        verifyReleaseEnvelope(normalized, releaseVariant, releaseEnvelope, entry.id);
       }
     }
+
+    if (!extension) continue;
+    const source = await verifyPackageDirectory(extension.packageDirectory, extension);
+    await verifyBuildAndDist(extension, source);
+    assert(canonicalJson(entry.manifest) === canonicalJson(source.manifest), `${extension.id} repository manifest differs`);
+    const variant = source.metadata.selectedVariant;
+    assert(entry.packageDigests?.[variant] === source.packageDigest, `${extension.id} repository digest differs`);
     const packageUrl = new URL(entry.packageUrls[variant], 'https://example.invalid/catalog.json');
     const relativeEnvelope = packageUrl.pathname.replace(/^\//, '');
     const envelope = await readJson(path.join(repositoryDirectory, relativeEnvelope));
     assert(canonicalJson(envelope.payload) === canonicalJson(source.payload), `${extension.id} repository payload differs`);
     assert(canonicalJson(envelope.signature) === canonicalJson(source.metadata.signature), `${extension.id} repository signature differs`);
+    selectedById.delete(extension.id);
   }
+  assert(
+    selectedById.size === 0,
+    `Repository catalog entry is missing: ${[...selectedById.keys()].sort().join(', ')}`,
+  );
 
   const actualEnvelopeFiles = await listRegularFiles(path.join(repositoryDirectory, 'packages'));
   assert(
     canonicalJson(actualEnvelopeFiles) === canonicalJson([...new Set(expectedEnvelopeFiles)].sort()),
     'Repository contains stale or missing package envelopes',
   );
-  process.stdout.write(`Verified ${extensions.length} extensions in ${repositoryConfig.name}\n`);
+  process.stdout.write(
+    `Verified ${catalogIds.length} published extension${catalogIds.length === 1 ? '' : 's'} `
+      + `in ${repositoryConfig.name}; ${extensions.length} matched local packages\n`,
+  );
 };
 
 export const checkExtensions = async extensions => {
   await typecheckExtensions(extensions);
   await buildExtensions(extensions);
   await assembleExtensions(extensions);
-  await publishRepository();
+  await publishRepository(extensions);
   await testBuiltExtensions(extensions);
-  await verifyRepository();
+  await verifyRepository(extensions);
 };
 
 export const cleanGenerated = async () => {

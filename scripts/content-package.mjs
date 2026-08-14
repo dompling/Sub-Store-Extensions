@@ -205,10 +205,23 @@ const filesForExtension = async extension => {
   );
 };
 
-export const writeDigestPackage = async extension => {
+export const writeDigestPackageToDirectory = async (
+  extension,
+  outputDirectory,
+  { updateSourceManifest = false } = {},
+) => {
   assert(
     extension.config.signature?.algorithm === 'sha256-digest',
     `${extension.id} must use sha256-digest package integrity`,
+  );
+  assert(
+    typeof outputDirectory === 'string' && path.isAbsolute(outputDirectory),
+    `${extension.id} package output directory must be absolute`,
+  );
+  const packageDirectory = path.resolve(outputDirectory);
+  assert(
+    packageDirectory !== path.parse(packageDirectory).root,
+    `${extension.id} package output directory cannot be the filesystem root`,
   );
   const files = await filesForExtension(extension);
   const manifest = await readJson(extension.manifestPath);
@@ -220,17 +233,19 @@ export const writeDigestPackage = async extension => {
     createdAt: extension.config.package?.createdAt,
   });
 
-  await writeJson(extension.manifestPath, packageValue.manifest);
-  extension.manifest = packageValue.manifest;
-  await fs.rm(extension.packageDirectory, { recursive: true, force: true });
-  await fs.mkdir(extension.packageDirectory, { recursive: true });
-  await writeJson(path.join(extension.packageDirectory, 'manifest.json'), packageValue.manifest);
-  await writeJson(path.join(extension.packageDirectory, 'receipt.json'), packageValue.receipt);
-  await writeJson(path.join(extension.packageDirectory, 'package.json'), packageValue.metadata);
+  if (updateSourceManifest) {
+    await writeJson(extension.manifestPath, packageValue.manifest);
+    extension.manifest = packageValue.manifest;
+  }
+  await fs.rm(packageDirectory, { recursive: true, force: true });
+  await fs.mkdir(packageDirectory, { recursive: true });
+  await writeJson(path.join(packageDirectory, 'manifest.json'), packageValue.manifest);
+  await writeJson(path.join(packageDirectory, 'receipt.json'), packageValue.receipt);
+  await writeJson(path.join(packageDirectory, 'package.json'), packageValue.metadata);
   for (const [relative, content] of Object.entries(files)) {
-    const destination = path.resolve(extension.packageDirectory, relative);
+    const destination = path.resolve(packageDirectory, relative);
     assert(
-      destination.startsWith(`${extension.packageDirectory}${path.sep}`),
+      destination.startsWith(`${packageDirectory}${path.sep}`),
       `${extension.id} package file escapes its package directory: ${relative}`,
     );
     await fs.mkdir(path.dirname(destination), { recursive: true });
@@ -238,3 +253,9 @@ export const writeDigestPackage = async extension => {
   }
   return packageValue;
 };
+
+export const writeDigestPackage = async extension => writeDigestPackageToDirectory(
+  extension,
+  extension.packageDirectory,
+  { updateSourceManifest: true },
+);

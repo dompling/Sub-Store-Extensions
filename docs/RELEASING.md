@@ -96,26 +96,17 @@ corepack pnpm release:prepare -- \
   --extension org.substore.config-generator \
   --bump patch \
   --installed-at "$(git show -s --format=%cI HEAD)"
-corepack pnpm typecheck -- --extension org.substore.config-generator
-corepack pnpm build -- --extension org.substore.config-generator
-corepack pnpm package:assemble -- --extension org.substore.config-generator
-corepack pnpm repository
-corepack pnpm test:built -- --extension org.substore.config-generator
-corepack pnpm verify
+corepack pnpm release:build -- --extension org.substore.config-generator
 git diff --check
 ```
 
-未执行升版、只验证当前已发布版本的日常开发可以使用较短路径：
+未执行升版的日常 Host 联调不需要生成正式发布目录：
 
 ```bash
-corepack pnpm typecheck -- --extension org.substore.config-generator
-corepack pnpm test -- --extension org.substore.config-generator
-corepack pnpm package -- --extension org.substore.config-generator
-corepack pnpm repository
-corepack pnpm verify
+corepack pnpm dev:install -- --extension org.substore.config-generator
 ```
 
-执行过 `release:prepare` 后，必须先重建 package 和 catalog，再运行包含 package 契约的 `test:built`。也可以直接运行 `corepack pnpm check -- --extension <id>`；完整门禁采用相同顺序。
+`release:build` 与 `check` 使用相同门禁顺序：typecheck、build、package assembly、选定扩展的 repository 更新、测试和验证。repository 更新会保留未选中扩展的已发布 entry、ledger 和 envelope，不要求重建它们的本地 package。
 
 ## 6. Package 生成内容
 

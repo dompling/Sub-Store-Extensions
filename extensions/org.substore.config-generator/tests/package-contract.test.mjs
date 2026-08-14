@@ -14,6 +14,9 @@ import {
 
 const extensionId = 'org.substore.config-generator';
 const extension = await loadExtension(extensionId);
+const releasePackageTest = process.env.SUB_STORE_RELEASE_PACKAGE_TESTS === '1'
+  ? test
+  : test.skip;
 
 const resolveModule = async (importer, specifier) => {
   if (!specifier.startsWith('.') && !specifier.startsWith('@/')) return null;
@@ -49,7 +52,7 @@ const collectBackendGraph = async entrypoint => {
   return { visited, externals };
 };
 
-test('keeps source, package, and repository versions on one extension identity', async () => {
+releasePackageTest('keeps source, package, and repository versions on one extension identity', async () => {
   const workspacePackage = await readJson(path.join(extension.workspaceDirectory, 'package.json'));
   const sourceManifest = await readJson(extension.manifestPath);
   const packagedManifest = await readJson(path.join(extension.packageDirectory, 'manifest.json'));
@@ -172,7 +175,7 @@ test('builds the Node entrypoint without unresolved Host-private imports', async
   assert.equal(bundle.includes('../registry'), false);
 });
 
-test('reproduces every packaged executable asset byte-for-byte', async () => {
+releasePackageTest('reproduces every packaged executable asset byte-for-byte', async () => {
   const verified = await verifyPackageDirectory(extension.packageDirectory, extension);
   for (const relative of [
     'backend/index.cjs',

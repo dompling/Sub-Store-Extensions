@@ -25,8 +25,8 @@ https://raw.githubusercontent.com/dompling/Sub-Store-Extensions/main/repository/
 ## 2. 本地集合源回归
 
 ```bash
-corepack pnpm package
-corepack pnpm repository
+corepack pnpm package -- --extension org.substore.config-generator
+corepack pnpm repository -- --extension org.substore.config-generator
 corepack pnpm repository:serve
 ```
 
@@ -117,6 +117,14 @@ packageIntegrity.status = verified
 ## 6. 本地目录安装
 
 只用于显式开发、离线或恢复：
+
+```bash
+corepack pnpm dev:install -- --extension org.substore.config-generator
+```
+
+该命令构建目标扩展，在系统临时目录生成并验证 package，然后以 `purgeData: false` 重装和启用；成功或失败都会清理临时目录，不修改正式 `packages/` 或 `repository/`。
+
+已有完整目录包时，可使用底层入口：
 
 ```bash
 corepack pnpm extension:install-local -- \

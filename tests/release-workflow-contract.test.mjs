@@ -60,6 +60,33 @@ test('uses the extension semantic version as a namespaced immutable Git tag', ()
   assert.throws(() => releaseTagFor('org.substore@invalid', '1.2.1'), /extension id is invalid/);
 });
 
+test('exposes one selected-extension release build command for local and CI use', async () => {
+  const packageDocument = JSON.parse(await readFile(path.join(repoRoot, 'package.json'), 'utf8'));
+  const command = await readFile(path.join(repoRoot, 'scripts/command.mjs'), 'utf8');
+
+  assert.equal(packageDocument.scripts['release:build'], 'node scripts/command.mjs release:build');
+  assert.match(command, /case 'release:build':\s+case 'check':\s+await checkExtensions\(extensions\)/);
+  assert.match(command, /case 'repository':\s+await publishRepository\(extensions\)/);
+  assert.match(command, /case 'verify':\s+await verifyRepository\(extensions\)/);
+});
+
+test('keeps release-package assertions in release builds without polluting source-test runs', async () => {
+  const tasks = await readFile(path.join(repoRoot, 'scripts/tasks.mjs'), 'utf8');
+  const packageContract = await readFile(
+    path.join(
+      repoRoot,
+      'extensions/org.substore.config-generator/tests/package-contract.test.mjs',
+    ),
+    'utf8',
+  );
+
+  assert.match(packageContract, /SUB_STORE_RELEASE_PACKAGE_TESTS/);
+  assert.match(tasks, /releasePackageContracts = true/);
+  assert.match(tasks, /SUB_STORE_RELEASE_PACKAGE_TESTS/);
+  assert.match(tasks, /testBuiltExtensions\(extensions, \{ releasePackageContracts: false \}\)/);
+  assert.match(tasks, /await buildFrontendExtensions\(extensions\);\s+await buildBackendExtensions\(extensions\);/);
+});
+
 test('publishes a reproducible SHA-256 package directly from the verified release commit', async () => {
   const workflow = await readFile(
     path.join(repoRoot, '.github/workflows/publish-extension.yml'),
@@ -71,16 +98,13 @@ test('publishes a reproducible SHA-256 package directly from the verified releas
   assert.match(workflow, /node-version: 22/);
   assert.match(workflow, /pnpm release:prepare/);
   assert.match(workflow, /--bump "\$\{\{ inputs\.version_bump \}\}"/);
-  assert.match(workflow, /pnpm typecheck/);
-  assert.match(workflow, /pnpm build/);
-  assert.match(workflow, /pnpm test:built/);
-  assert.match(workflow, /pnpm package:assemble/);
-  assert.match(workflow, /pnpm repository/);
+  assert.match(workflow, /pnpm release:build/);
   assert.match(workflow, /SUB_STORE_EXTENSION_RELEASE_TAG/);
-  assert.match(workflow, /pnpm verify/);
-  assert.ok(workflow.indexOf('pnpm package:assemble') < workflow.indexOf('pnpm test:built'));
-  assert.ok(workflow.indexOf('pnpm repository') < workflow.indexOf('pnpm test:built'));
-  assert.ok(workflow.indexOf('pnpm test:built') < workflow.indexOf('pnpm verify'));
+  assert.doesNotMatch(workflow, /pnpm typecheck/);
+  assert.doesNotMatch(workflow, /pnpm test:built/);
+  assert.doesNotMatch(workflow, /pnpm package:assemble/);
+  assert.doesNotMatch(workflow, /pnpm repository(?:\s|$)/);
+  assert.doesNotMatch(workflow, /pnpm verify(?:\s|$)/);
   assert.match(workflow, /git diff --check/);
   assert.match(workflow, /actions\/upload-artifact@v4/);
   assert.match(workflow, /build\/\$\{\{ steps\.metadata\.outputs\.extension_id \}\}/);
@@ -99,7 +123,8 @@ test('publishes a reproducible SHA-256 package directly from the verified releas
   assert.match(workflow, /published_sha/);
   assert.match(workflow, /release_prefix="automation\/publish-\$\{BRANCH_SLUG\}-v\$\{EXTENSION_VERSION\}-"/);
   assert.match(workflow, /git push origin --delete "\$stale_branch"/);
-  assert.ok(workflow.indexOf('pnpm verify') < workflow.indexOf('git push --atomic origin'));
+  assert.ok(workflow.indexOf('pnpm release:build') < workflow.indexOf('git diff --check'));
+  assert.ok(workflow.indexOf('git diff --check') < workflow.indexOf('git push --atomic origin'));
   assert.ok(workflow.indexOf('git push --atomic origin') < workflow.indexOf('git push origin --delete "$stale_branch"'));
   assert.doesNotMatch(workflow, /gh pr create/);
   assert.doesNotMatch(workflow, /gh pr merge/);

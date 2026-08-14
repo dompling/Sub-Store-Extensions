@@ -52,20 +52,17 @@ Sub-Store-Extensions/
 ```bash
 corepack pnpm install
 corepack pnpm extension:list
-corepack pnpm check
+corepack pnpm typecheck
+node --test tests/*.test.mjs
 ```
 
-只处理配置生成器：
+只联调配置生成器：
 
 ```bash
-corepack pnpm typecheck -- --extension org.substore.config-generator
-corepack pnpm test -- --extension org.substore.config-generator
-corepack pnpm package -- --extension org.substore.config-generator
-corepack pnpm repository
-corepack pnpm verify
+corepack pnpm dev:install -- --extension org.substore.config-generator
 ```
 
-`package` 会从构建产物生成 SHA-256 package 闭包，并更新 frontend asset digest；不要手工修改生成后的 package、receipt 或 catalog。
+`dev:install` 会构建临时 SHA-256 package、保留扩展数据地重装并启用，且不修改正式 `packages/` 或 `repository/`。正式发布由 workflow 先生成版本，再调用 `release:build` 生成可提交的 package、catalog 和 release ledger；不要手工修改这些生成物。
 
 ## 创建新插件
 
@@ -86,8 +83,8 @@ content 扩展不能执行前后端 JavaScript。需要 executable 能力时，�
 先生成并启动本地集合源：
 
 ```bash
-corepack pnpm package
-corepack pnpm repository
+corepack pnpm package -- --extension org.substore.config-generator
+corepack pnpm repository -- --extension org.substore.config-generator
 corepack pnpm repository:serve
 ```
 
@@ -114,15 +111,13 @@ SUB_STORE_EXTENSION_PACKAGE_SEED_PATH=packages corepack pnpm host:start
 
 ## 本地目录安装
 
-本地目录安装也是显式管理操作，只用于开发、离线或恢复：
+日常 Host 联调使用一条命令构建、保留数据重装并启用：
 
 ```bash
-corepack pnpm extension:install-local -- \
-  --extension org.substore.config-generator \
-  --reinstall
+corepack pnpm dev:install -- --extension org.substore.config-generator
 ```
 
-它不会成为默认发现来源，也不会绕过 manifest、receipt、SHA-256、路径、ABI、入口和 install-hook 检查。
+临时 package 在安装后自动清理，不会写入正式发布目录。已有完整目录包时仍可使用 `extension:install-local -- --extension <id> --reinstall`。两种方式都不会成为默认发现来源，也不会绕过 manifest、receipt、SHA-256、路径、ABI、入口和 install-hook 检查。
 
 ## 发布
 
@@ -131,9 +126,7 @@ GitHub Actions 中的 `Publish extension` workflow 会：
 ```text
 从 catalog 计算 patch / minor / major 版本
 → release:prepare
-→ typecheck / build
-→ package / repository
-→ test / verify
+→ release:build（typecheck / build / package / repository / test / verify）
 → git diff --check
 → 上传 build / dist / package 候选 artifact
 → 确认目标分支未发生并发更新
@@ -154,12 +147,15 @@ GitHub Actions 中的 `Publish extension` workflow 会：
 | `extension:list` | 列出全部插件 |
 | `extension:create` | 创建 content 扩展 |
 | `dev` | watch 构建 |
+| `dev:install` | 构建临时包并保留数据重装到本地 Host |
 | `typecheck` | 前端类型检查 |
 | `build` | 构建前后端产物 |
-| `test` | 构建后运行插件和仓库测试 |
+| `test` | 构建后运行源码/构建测试，不写正式发布目录 |
+| `test:built` | 对已组装 package 追加发布产物一致性测试 |
 | `package` | 构建并生成 SHA-256 包 |
-| `repository` | 生成全集合 catalog/envelope |
-| `verify` | 验证源码、包、构建和集合一致性 |
+| `repository` | 更新选定扩展并保留集合中的其他发布 |
+| `verify` | 验证全集合历史，并核对选定扩展的本地产物 |
+| `release:build` | 一次生成并验证选定扩展的发布候选 |
 | `check` | 执行完整本地门禁 |
 | `source:add` / `source:refresh` | 管理集合源 |
 | `extension:install` | 从已添加来源安装 |

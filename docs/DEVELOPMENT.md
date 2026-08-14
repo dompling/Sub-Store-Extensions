@@ -121,17 +121,20 @@ executable 使用同一个 `sha256-digest` 完整性闭包，并通过 `backend`
 ```bash
 corepack pnpm typecheck -- --extension org.substore.config-generator
 corepack pnpm test -- --extension org.substore.config-generator
-corepack pnpm package -- --extension org.substore.config-generator
+corepack pnpm dev:install -- --extension org.substore.config-generator
 ```
 
-更新整个集合：
+生成正式发布候选：
 
 ```bash
-corepack pnpm repository
-corepack pnpm verify
+corepack pnpm release:build -- --extension org.substore.config-generator
 ```
 
-`repository` 和 `verify` 总是以全集合为准，避免只发布一个插件时意外丢掉其他 entry。
+`dev:install` 只更新 `build/<id>`，在系统临时目录组包，通过 Host 完整性检查后以 `purgeData: false` 重装并启用；它不写 `packages/`、`repository/` 或源 manifest。`release:build` 应在 workflow 的 `release:prepare` 之后使用，按顺序执行 typecheck、build、正式组包、集合更新、测试和验证；不要用它绕过版本准备重复发布已有 SemVer。
+
+普通 `test` 同样只更新忽略提交的 `build/<id>`，不会为了测试而改写 source manifest 或正式 package。依赖当前 package/catalog 的发布一致性断言只在 `test:built` 和 `release:build` 中启用。
+
+`repository -- --extension <id>` 只重建目标插件，同时保留 catalog 中其他插件的 entry、release ledger 和历史 envelope；`verify -- --extension <id>` 会验证全集合历史闭包，但只要求目标插件的本地源码、build、dist 和 package 一致。因此一个插件尚未发布的开发状态不会阻塞另一个插件。
 
 `package` 会：
 
@@ -151,11 +154,19 @@ corepack pnpm dev -- --extension org.substore.config-generator
 
 watch 只更新 `build/<id>`，不会替换 Host 已安装代码。
 
+快速把当前构建安装到已经运行的 Host：
+
+```bash
+corepack pnpm dev:install -- --extension org.substore.config-generator
+```
+
+该命令保留扩展项目数据。Host 开启管理令牌时传 `--token`，或设置 `SUB_STORE_EXTENSION_ADMIN_TOKEN`。
+
 真实来源链路：
 
 ```bash
-corepack pnpm package
-corepack pnpm repository
+corepack pnpm package -- --extension org.substore.config-generator
+corepack pnpm repository -- --extension org.substore.config-generator
 corepack pnpm repository:serve
 corepack pnpm host:start
 corepack pnpm source:add -- \
@@ -172,7 +183,7 @@ corepack pnpm extension:install -- \
 SUB_STORE_EXTENSION_PACKAGE_SEED_PATH=packages corepack pnpm host:start
 ```
 
-本地目录安装同样必须显式执行 `extension:install-local`，不能作为默认发现或自动安装机制。
+本地目录安装同样必须显式执行 `dev:install` 或 `extension:install-local`，不能作为默认发现或自动安装机制。
 
 ## 7. 配置生成器边界
 
@@ -196,7 +207,7 @@ Host 没有添加包含该插件的集合源。先添加/刷新来源，再安�
 
 ### package digest / payload digest mismatch
 
-catalog、envelope 或目录包不是同一次生成结果。重新运行 `package`、`repository`、`verify` 并完整发布 `repository/`。
+catalog、envelope 或目录包不是同一次生成结果。重新运行 `release:build -- --extension <id>`，不要手工修补生成文件。
 
 ### `EXTENSION_ADMIN_AUTH_REQUIRED`
 

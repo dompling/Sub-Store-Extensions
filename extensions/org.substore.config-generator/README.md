@@ -32,10 +32,10 @@ repository/packages/org.substore.config-generator/<version>/node.json
 ```bash
 corepack pnpm typecheck -- --extension org.substore.config-generator
 corepack pnpm test -- --extension org.substore.config-generator
-corepack pnpm package -- --extension org.substore.config-generator
-corepack pnpm repository
-corepack pnpm verify
+corepack pnpm dev:install -- --extension org.substore.config-generator
 ```
+
+正式 package、catalog 和 tag 由 `Publish extension` workflow 先生成下一版本，再统一执行 `release:build`。
 
 ## Package 边界
 

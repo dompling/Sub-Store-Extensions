@@ -35,21 +35,21 @@ catalog 负责发现，variant envelope 负责交付完整 package payload。
 ## 3. 生成
 
 ```bash
-corepack pnpm package
-corepack pnpm repository
-corepack pnpm verify
+corepack pnpm package -- --extension org.substore.config-generator
+corepack pnpm repository -- --extension org.substore.config-generator
+corepack pnpm verify -- --extension org.substore.config-generator
 ```
 
 `repository` 会：
 
-- 扫描全部 `extensions/*/extension.config.json`；
-- 验证每个 `packages/<id>`；
+- 验证并更新选定扩展的 `packages/<id>`；
+- 保留 catalog 中其他扩展的 entry、release ledger 和历史 envelope；
 - 按 ID 稳定排序；
-- 重建全部 envelope；
+- 只写入选定扩展的新 envelope；
 - 删除 stale envelope；
 - 生成一个全集合 catalog。
 
-不能只发布当前插件的局部 catalog，也不要手工编辑生成物。
+不传 `--extension` 时仍会处理全部 workspace。传入目标扩展时生成的仍是完整 catalog，不是局部 catalog；未选中的已发布扩展不会丢失，也不需要因其源码正在开发而重建 package。不要手工编辑生成物。
 
 ## 4. Catalog entry
 
