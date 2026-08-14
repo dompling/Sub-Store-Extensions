@@ -1,0 +1,27 @@
+{
+  "scope": "rule-doctor-ui-polish",
+  "iteration": 2,
+  "threshold": 90,
+  "passed": true,
+  "reference_images": [
+    "/var/folders/8r/c8ljq8g12tdfm4v9mgw47b0m0000gn/T/codex-clipboard-142f698e-f7b9-470d-8395-9d990b4ed3b6.png",
+    "/var/folders/8r/c8ljq8g12tdfm4v9mgw47b0m0000gn/T/codex-clipboard-cc9d2d48-7d8a-49b1-b628-6efe59550091.png",
+    "/var/folders/8r/c8ljq8g12tdfm4v9mgw47b0m0000gn/T/codex-clipboard-19f9a8f8-ae1f-422d-9024-9e0fcea05058.png"
+  ],
+  "verdict": {
+    "score": 99,
+    "verdict": "pass",
+    "category_match": true,
+    "differences": [
+      "没有发现影响来源行对齐的剩余问题"
+    ],
+    "suggestions": [
+      "维持当前单行来源名称与最右侧箭头结构"
+    ],
+    "reasoning": "“订阅”副标题已经移除，来源名称和箭头处于同一垂直中心，右侧边界一致且没有横向溢出。"
+  },
+  "next_actions": [
+    "执行订阅体检完整测试和类型检查",
+    "检查最终差异"
+  ]
+}

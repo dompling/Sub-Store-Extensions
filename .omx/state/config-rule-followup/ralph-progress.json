@@ -1,0 +1,26 @@
+{
+  "scope": "config-rule-followup",
+  "iteration": 2,
+  "threshold": 90,
+  "score": 96,
+  "passed": true,
+  "verdict": "pass",
+  "category_match": true,
+  "reference_images": [
+    "/var/folders/8r/c8ljq8g12tdfm4v9mgw47b0m0000gn/T/codex-clipboard-1f5d1976-29c3-4521-88bc-37d9f6add539.png",
+    "/var/folders/8r/c8ljq8g12tdfm4v9mgw47b0m0000gn/T/codex-clipboard-632c4029-4458-456b-beab-1e629b154be5.png"
+  ],
+  "generated_screenshots": [
+    "/Users/dompling/WebstormProjects/GIT/Sub-Store-Extensions/.omx/state/config-rule-followup/screenshots/after-rule-set-collapse.jpg",
+    "/Users/dompling/WebstormProjects/GIT/Sub-Store-Extensions/.omx/state/config-rule-followup/screenshots/after-catalog-item-background.jpg",
+    "/Users/dompling/WebstormProjects/GIT/Sub-Store-Extensions/.omx/state/config-rule-followup/screenshots/after-publish-targets.jpg"
+  ],
+  "differences": [
+    "RULE-SET 折叠后表单区域已完全隐藏，标题行高度和其他规则项一致。",
+    "选择规则集 Item 使用独立卡片背景，与弹窗内容背景形成清晰但克制的层次。",
+    "规则集订阅弹窗仅保留 Surge、Quantumult X、Clash、Loon，布局与参考弹窗一致。"
+  ],
+  "suggestions": [],
+  "reasoning": "三个目标界面均已匹配宿主的卡片和弹窗语言，交互状态与视觉状态一致；未发现需要继续修改的阻断性差异。",
+  "next_actions": []
+}
