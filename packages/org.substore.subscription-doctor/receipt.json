@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "extensionId": "org.substore.subscription-doctor",
+  "version": "0.1.2",
+  "publisher": {
+    "id": "org.substore",
+    "name": "Sub-Store"
+  },
+  "selectedVariant": "node",
+  "manifestDigest": "7532ef7fdd0d6dcbe51d6f2873bacb665665323070ed0d8389bec1807fa116f5",
+  "packageDigest": "5e8383e7279df6edc8d0c5f0f5bb4ff8afdf963ee1f23f92b6111d07c9a157b2",
+  "implementation": {
+    "id": "org.substore.subscription-doctor@1/node",
+    "abi": "subscription-doctor@1",
+    "frontendAssetId": "org.substore.subscription-doctor-ui@1",
+    "entrypoint": "backend/index.cjs",
+    "lanes": {},
+    "containsExecutableCode": true
+  },
+  "installedAt": 1786579200000,
+  "receiptDigest": "ed9cf56330adc9bc12746675766e50cc889dadbe9159086188b42aaa13436adb"
+}

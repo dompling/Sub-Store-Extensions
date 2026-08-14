@@ -10,7 +10,7 @@
       class="sub-item-wrapper"
       :class="{ 'is-dual-column': isDualColumn }"
       :style="{ padding: itemPadding }"
-      @click="$emit('publish')"
+      @click="handlePrimaryClick"
     >
       <div class="sub-img-wrappers">
         <div
@@ -38,7 +38,17 @@
             <button
               type="button"
               class="copy-sub-link"
+              :title="$t('configGenerator.copyLink')"
+              :aria-label="$t('configGenerator.copyLink')"
+              @click.stop="$emit('copy')"
+            >
+              <font-awesome-icon icon="fa-solid fa-clone" />
+            </button>
+            <button
+              type="button"
+              class="copy-sub-link"
               :title="$t('configGenerator.edit')"
+              :aria-label="$t('configGenerator.edit')"
               @click.stop="$emit('edit')"
             >
               <font-awesome-icon icon="fa-solid fa-pen-nib" />
@@ -98,8 +108,9 @@ const props = defineProps<{
   isDualColumn?: boolean;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   publish: [];
+  copy: [];
   edit: [];
   remove: [];
 }>();
@@ -122,6 +133,14 @@ const setActionsOpen = () => {
 
 const setActionsClosed = () => {
   actionsOpen.value = false;
+};
+
+const handlePrimaryClick = () => {
+  if (actionsOpen.value) {
+    swipe.value?.close();
+    return;
+  }
+  emit('publish');
 };
 
 const toggleActions = () => {

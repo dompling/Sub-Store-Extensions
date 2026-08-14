@@ -272,6 +272,15 @@ export function resolveRuleSetSource(ruleSet, target) {
             : { kind: 'unsupported', ...resolution };
     }
 
+    if (source.kind === 'resource') {
+        return {
+            kind: 'unsupported',
+            warning: warning(
+                'Rule-set resources must be produced through the Host resource broker before target serialization.',
+            ),
+        };
+    }
+
     if (source.kind !== 'builtin') {
         return {
             kind: 'unsupported',

@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "id": "org.substore.rule-studio",
+  "manifest": "backend/src/extensions/rule-studio/manifest.json",
+  "packageDirectory": "packages/org.substore.rule-studio",
+  "signature": {
+    "algorithm": "sha256-digest"
+  },
+  "package": {
+    "variant": "node",
+    "source": "org.substore.extensions",
+    "createdAt": "2026-08-13T06:51:15.000Z"
+  },
+  "backend": {
+    "sourceRoot": "backend/src",
+    "entrypoint": "backend/src/extensions/rule-studio/package-entry.js",
+    "output": "backend/index.cjs"
+  },
+  "frontend": {
+    "config": "frontend/vite.config.ts",
+    "tsconfig": "frontend/tsconfig.json",
+    "outputs": [
+      "frontend/index.js",
+      "frontend/style.css"
+    ]
+  },
+  "artifacts": [
+    {
+      "build": "backend/index.cjs",
+      "package": "backend/index.cjs"
+    },
+    {
+      "build": "frontend/index.js",
+      "package": "frontend/index.js"
+    },
+    {
+      "build": "frontend/style.css",
+      "package": "frontend/style.css"
+    }
+  ],
+  "repository": {
+    "distribution": "source-executable",
+    "author": {
+      "id": "org.substore",
+      "name": "Sub-Store"
+    }
+  }
+}

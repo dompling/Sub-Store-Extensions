@@ -27,3 +27,10 @@ export {
     validateProject,
     validateRuleSet,
 } from '@/extensions/config-generator/validation';
+export {
+    configProjectResourceRef,
+    normalizeResourceRef,
+    projectResourceTargets,
+    resourceRuleSetDownloadUrl,
+    ruleSetRepresentation,
+} from '@/extensions/config-generator/core/resource-rule-set';

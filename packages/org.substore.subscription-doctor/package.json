@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "source": "org.substore.extensions",
+  "packageDigest": "5e8383e7279df6edc8d0c5f0f5bb4ff8afdf963ee1f23f92b6111d07c9a157b2",
+  "payloadDigest": "71e32fa7f588e1658541b52e18b70ef10a5a42e984176e7078f7bb1cc3332b2b",
+  "selectedVariant": "node",
+  "variant": {
+    "implementationId": "org.substore.subscription-doctor@1/node",
+    "implementationAbi": "subscription-doctor@1",
+    "frontendAssetId": "org.substore.subscription-doctor-ui@1",
+    "entrypoint": "backend/index.cjs",
+    "containsExecutableCode": true
+  },
+  "containsExecutableCode": true,
+  "containsInstallHook": false,
+  "fileDigests": {
+    "backend/index.cjs": "4f9009590b4b930394fc73f27ecce8eb8f169df4ba8afa3ef3bd713bc999047b",
+    "frontend/index.js": "e4f6990d870dddc6b7f8a2abdd5ab14b5cf50e2d1b8460ec559e5db97439072c",
+    "frontend/style.css": "32f3c638c727c5459535daf87cac8b02b1222c79534864523c1715de733fcfe6"
+  },
+  "signature": {
+    "algorithm": "sha256-digest",
+    "digest": "71e32fa7f588e1658541b52e18b70ef10a5a42e984176e7078f7bb1cc3332b2b",
+    "value": "71e32fa7f588e1658541b52e18b70ef10a5a42e984176e7078f7bb1cc3332b2b"
+  }
+}

@@ -206,6 +206,7 @@ function generateRuleLine(rule, byName, warnings) {
     }
     const ruleSet = byName.get(rule.ruleSet);
     if (!ruleSet || ruleSet.enabled === false) return null;
+    if (ruleSet.source.kind === 'resource') return null;
     let source = ruleSet.source.value;
     if (ruleSet.source.kind === 'url') {
         const resolution = resolveRuleSetUrl(ruleSet, 'surge');

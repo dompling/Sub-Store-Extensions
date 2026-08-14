@@ -91,6 +91,7 @@ export const useConfigGeneratorStore = defineStore('configGenerator', {
   state: () => ({
     projects: [] as ConfigProject[],
     ruleSets: [] as RemoteRuleSet[],
+    resourceRuleSets: [] as ResourceDescriptorV1[],
     previewDraft: null as ConfigGeneratorPreviewDraft | null,
     importedProject: null as ConfigProject | null,
     importedRuleSets: [] as RemoteRuleSet[],
@@ -117,6 +118,19 @@ export const useConfigGeneratorStore = defineStore('configGenerator', {
         return true;
       } catch (error: any) {
         this.error = getErrorMessage(error, 'CONFIG_GENERATOR_RULE_SET_LOAD_FAILED');
+        return false;
+      }
+    },
+    async fetchResourceRuleSets() {
+      try {
+        this.resourceRuleSets = unwrapList<ResourceDescriptorV1>(
+          await api.getResourceRuleSets(),
+          'resources',
+        );
+        return true;
+      } catch (error: any) {
+        this.resourceRuleSets = [];
+        this.error = getErrorMessage(error, 'CONFIG_GENERATOR_RESOURCE_RULE_SET_LOAD_FAILED');
         return false;
       }
     },

@@ -6,6 +6,7 @@ import {
     network,
     RequestInvalidError,
     ResourceNotFoundError,
+    request as hostRequest,
     resources,
     runBackendRequestTask,
     success,
@@ -34,6 +35,17 @@ import {
 } from './core/remote-proxy-source';
 import { resolveRuleSetSource } from './core/rule-set-source-resolver';
 import { sanitizeClashRuleProvider } from './targets/clash/rule-provider';
+import {
+    configProjectResourceRef,
+    isResourceRuleSet,
+    produceResourceRuleSet,
+    projectResourceRuleSets,
+} from './core/resource-rule-set';
+import {
+    clearProjectResourceReferences,
+    repairConfigGeneratorReferences,
+    replaceProjectResourceReferences,
+} from './core/reference-index';
 import manifest from './manifest.json';
 import { hex_md5 } from '@/vendor/md5';
 
@@ -98,9 +110,166 @@ function errorFrom(error) {
 
 function projectItems() {
     return readConfigGeneratorStore().projects.map((project) => ({
+        id: project.name,
         name: project.name,
         displayName: project.displayName || project.name,
+        revision: project.revision,
+        updatedAt: project.updated,
+        lifecycle: { state: 'active' },
+        sourceRef: configProjectResourceRef(project),
     }));
+}
+
+function projectIdentity(input) {
+    if (typeof input === 'string') return input;
+    return input?.ref?.id || input?.id || input?.name || input?.source;
+}
+
+function requireConfigProject(input) {
+    const name = projectIdentity(input);
+    const project = findByName(readConfigGeneratorStore().projects, name);
+    if (!project)
+        throw new ResourceNotFoundError(
+            'CONFIG_GENERATOR_PROJECT_NOT_FOUND',
+            `找不到配置项目 ${name || ''}`.trim(),
+        );
+    return project;
+}
+
+function projectDescriptor(input) {
+    const project = requireConfigProject(input);
+    return {
+        id: project.name,
+        name: project.name,
+        displayName: project.displayName || project.name,
+        revision: project.revision,
+        updatedAt: project.updated,
+        lifecycle: { state: 'active' },
+        sourceRef: configProjectResourceRef(project),
+    };
+}
+
+const CONFIG_PROJECT_TARGET_BY_REPRESENTATION = Object.freeze({
+    'surge-config': 'surge',
+    'qx-config': 'qx',
+    'clash-config': 'clash',
+    'loon-config': 'loon',
+});
+
+async function produceConfigProject(input = {}) {
+    const project = requireConfigProject(input);
+    const explicitRepresentation =
+        typeof input.representation === 'string' && input.representation;
+    const target = explicitRepresentation
+        ? CONFIG_PROJECT_TARGET_BY_REPRESENTATION[explicitRepresentation]
+        : normalizeTargetId(input.platform || input.target);
+    if (!target)
+        throw new RequestInvalidError(
+            'RESOURCE_REPRESENTATION_UNSUPPORTED',
+            `配置项目不支持 ${
+                input.representation || input.platform || input.target || '(empty)'
+            }`,
+        );
+    const representation = explicitRepresentation || `${target}-config`;
+    const result = await generateProject({
+        project,
+        ruleSets: readConfigGeneratorStore().ruleSets,
+        produceBuiltinArtifact: input.produceBuiltinArtifact,
+        target,
+    });
+    return {
+        result,
+        output: {
+            schema: 'substore.resource-output@1',
+            ref: configProjectResourceRef(project),
+            representation,
+            body: result.body,
+            mediaType:
+                target === 'clash' ? 'application/yaml' : 'text/plain',
+            sourceRevision: project.revision,
+            freshness: { state: 'fresh' },
+            diagnostics: [
+                ...(result.warnings || []).map((item) => ({
+                    ...item,
+                    severity: 'warning',
+                    code: item.code || 'CONFIG_GENERATOR_WARNING',
+                })),
+                ...(result.errors || []).map((item) => ({
+                    ...item,
+                    severity: 'error',
+                    code: item.code || 'CONFIG_GENERATOR_ERROR',
+                })),
+            ],
+        },
+    };
+}
+
+async function resourceRuleSetItems() {
+    const listed = await resources.list({
+        types: ['rule-set'],
+        contracts: ['substore.rule-set@1'],
+    });
+    const descriptors = new Map(
+        (listed || []).map((item) => [
+            [
+                item.ref?.providerId,
+                item.ref?.providerContributionId,
+                item.ref?.type,
+                item.ref?.id,
+                item.ref?.contract,
+            ].join('\u0000'),
+            item,
+        ]),
+    );
+    const referenced = readConfigGeneratorStore().ruleSets.filter(
+        isResourceRuleSet,
+    );
+    await Promise.all(
+        referenced.map(async (ruleSet) => {
+            const ref = ruleSet.source.ref;
+            const key = [
+                ref?.providerId,
+                ref?.providerContributionId,
+                ref?.type,
+                ref?.id,
+                ref?.contract,
+            ].join('\u0000');
+            if (descriptors.has(key)) return;
+            try {
+                descriptors.set(key, await resources.get(ref));
+            } catch (error) {
+                descriptors.set(key, {
+                    schema: 'substore.resource-descriptor@1',
+                    ref,
+                    name:
+                        ruleSet.source.lastKnownName ||
+                        ruleSet.name ||
+                        ref?.id,
+                    displayName:
+                        ruleSet.source.lastKnownName ||
+                        ruleSet.name ||
+                        ref?.id,
+                    contracts: ref?.contract ? [ref.contract] : [],
+                    representations: [],
+                    lifecycle: { state: 'active' },
+                    availability: {
+                        status: 'missing',
+                        reasonCode:
+                            error?.code || 'RESOURCE_PROVIDER_UNAVAILABLE',
+                    },
+                });
+            }
+        }),
+    );
+    return [...descriptors.values()];
+}
+
+async function listResourceRuleSets(req, res) {
+    try {
+        success(res, await resourceRuleSetItems());
+    } catch (error) {
+        failed(res, errorFrom(error), error?.statusCode || 400);
+    }
 }
 
 function parseName(req) {
@@ -142,11 +311,19 @@ async function generateProject({
     target,
 }) {
     const handler = resolveTargetHandler(target);
-    const result = await handler.generate({
+    const resourceProjection = await projectResourceRuleSets({
         project,
         ruleSets,
+        target: handler.route,
+    });
+    const result = await handler.generate({
+        project,
+        ruleSets: resourceProjection.ruleSets,
         produceBuiltinArtifact,
-        downloadRuleSet: downloadCachedRuleSet,
+        downloadRuleSet: async (url) =>
+            resourceProjection.bodies.has(url)
+                ? resourceProjection.bodies.get(url)
+                : downloadCachedRuleSet(url),
     });
     const transformed = await transform.processResponse(
         { status: 200, headers: {}, body: result.body },
@@ -154,7 +331,41 @@ async function generateProject({
         handler.platform,
         { type: 'config-project', name: project.name },
     );
-    return { ...result, body: transformed.body };
+    return {
+        ...result,
+        body: transformed.body,
+        warnings: [
+            ...(result.warnings || []),
+            ...resourceProjection.warnings,
+        ],
+        errors: [...(result.errors || []), ...resourceProjection.errors],
+        resourceOutputs: [...resourceProjection.outputs.entries()].map(
+            ([ruleSet, output]) => ({
+                ruleSet,
+                sourceRevision: output.sourceRevision,
+                representation: output.representation,
+                freshness: output.freshness,
+            }),
+        ),
+    };
+}
+
+function scheduleProjectReferenceReplace(project, ruleSets) {
+    Promise.resolve()
+        .then(() => replaceProjectResourceReferences(project, ruleSets))
+        .catch(() => undefined);
+}
+
+function scheduleProjectReferenceClear(projectName) {
+    Promise.resolve()
+        .then(() => clearProjectResourceReferences(projectName))
+        .catch(() => undefined);
+}
+
+function scheduleReferenceRepair() {
+    Promise.resolve()
+        .then(() => repairConfigGeneratorReferences())
+        .catch(() => undefined);
 }
 
 function importConfig(req, res, handler) {
@@ -183,6 +394,7 @@ function createProject(req, res) {
         const project = { ...req.body, revision: 1, updated: Date.now() };
         store.projects.push(project);
         writeConfigGeneratorStore(store);
+        scheduleProjectReferenceReplace(project, store.ruleSets);
         success(res, project, 201);
     } catch (error) {
         failed(
@@ -213,6 +425,7 @@ function updateProject(req, res) {
         validateProject(next, store.ruleSets);
         updateByName(store.projects, name, next);
         writeConfigGeneratorStore(store);
+        scheduleProjectReferenceReplace(next, store.ruleSets);
         success(res, next);
     } catch (error) {
         failed(
@@ -232,7 +445,7 @@ function deleteProject(req, res) {
                 'CONFIG_GENERATOR_PROJECT_NOT_FOUND',
                 `找不到项目 ${name}`,
             );
-        const references = resources
+        const artifactReferences = resources
             .listArtifacts()
             .filter(
                 (artifact) =>
@@ -240,15 +453,16 @@ function deleteProject(req, res) {
                     artifact.source === name,
             )
             .map((artifact) => artifact.name);
-        if (references.length) {
+        if (artifactReferences.length) {
             throw new RequestInvalidError(
                 'CONFIG_GENERATOR_PROJECT_IN_USE',
                 `项目 ${name} 正被远程配置引用`,
-                { references },
+                { references: artifactReferences },
             );
         }
         deleteByName(store.projects, name);
         writeConfigGeneratorStore(store);
+        scheduleProjectReferenceClear(name);
         success(res, { name });
     } catch (error) {
         failed(
@@ -270,6 +484,7 @@ function createRuleSet(req, res) {
             );
         store.ruleSets.push({ ...req.body });
         writeConfigGeneratorStore(store);
+        scheduleReferenceRepair();
         success(res, req.body, 201);
     } catch (error) {
         failed(res, errorFrom(error), 400);
@@ -290,6 +505,7 @@ function updateRuleSet(req, res) {
         validateRuleSet(next);
         updateByName(store.ruleSets, name, next);
         writeConfigGeneratorStore(store);
+        scheduleReferenceRepair();
         success(res, next);
     } catch (error) {
         failed(
@@ -324,6 +540,7 @@ function deleteRuleSet(req, res) {
             );
         deleteByName(store.ruleSets, name);
         writeConfigGeneratorStore(store);
+        scheduleReferenceRepair();
         success(res, { name });
     } catch (error) {
         failed(
@@ -369,11 +586,39 @@ async function downloadProject(req, res, produceBuiltinArtifact, target) {
                 'CONFIG_GENERATOR_PROJECT_NOT_FOUND',
                 '找不到配置项目',
             );
+        const explicitTarget =
+            target ||
+            req.query?.platform ||
+            req.params?.target ||
+            req.query?.target;
+        const requestForResolution = req.params?.target
+            ? {
+                  ...req,
+                  query: {
+                      ...(req.query || {}),
+                      target: req.params.target,
+                  },
+              }
+            : req;
+        const resolvedTarget = hostRequest.resolveClientTarget(
+            requestForResolution,
+        );
+        const automaticallyDetectedTarget = {
+            Surge: 'surge',
+            SurgeMac: 'surge',
+            QX: 'qx',
+            Clash: 'clash',
+            ClashMeta: 'clash',
+            Loon: 'loon',
+        }[resolvedTarget?.value];
+        const downloadTarget = explicitTarget
+            ? resolvedTarget?.value || explicitTarget
+            : automaticallyDetectedTarget || 'surge';
         const result = await generateProject({
             project,
             ruleSets: store.ruleSets,
             produceBuiltinArtifact,
-            target: target || req.params.target || req.query?.target,
+            target: downloadTarget,
         });
         res.type('text/plain').send(result.body);
     } catch (error) {
@@ -570,7 +815,7 @@ async function downloadRemoteProxySource(req, res, produceBuiltinArtifact) {
     }
 }
 
-async function downloadClashRuleProvider(req, res) {
+async function downloadRuleSetArtifact(req, res) {
     try {
         const store = readConfigGeneratorStore();
         const projectName = parseName(req);
@@ -581,12 +826,12 @@ async function downloadClashRuleProvider(req, res) {
                 `找不到配置项目 ${projectName}`,
             );
         }
-        if (normalizeTargetId(req.params.target) !== 'clash') {
+        const targetId = normalizeTargetId(req.params.target);
+        if (!targetId)
             throw new RequestInvalidError(
                 'CONFIG_GENERATOR_RULE_PROVIDER_TARGET_UNSUPPORTED',
-                '规则缓存目前仅支持 Clash',
+                `不支持规则集目标 ${req.params.target}`,
             );
-        }
         const ruleSetName = decodeURIComponent(req.params.ruleSet);
         const ruleSet = findByName(store.ruleSets, ruleSetName);
         if (!ruleSet || ruleSet.enabled === false) {
@@ -595,7 +840,21 @@ async function downloadClashRuleProvider(req, res) {
                 `找不到可用规则集 ${ruleSetName}`,
             );
         }
-        const resolution = resolveRuleSetSource(ruleSet, 'clash');
+        if (isResourceRuleSet(ruleSet)) {
+            const output = await produceResourceRuleSet(ruleSet, targetId);
+            res.type(
+                output.mediaType ||
+                    (targetId === 'clash' ? 'text/yaml' : 'text/plain'),
+            ).send(output.body);
+            return;
+        }
+        if (targetId !== 'clash') {
+            throw new RequestInvalidError(
+                'CONFIG_GENERATOR_RULE_PROVIDER_TARGET_UNSUPPORTED',
+                'URL 规则缓存目前仅用于 Clash；其他目标直接使用原始远程 URL',
+            );
+        }
+        const resolution = resolveRuleSetSource(ruleSet, targetId);
         if (resolution.kind !== 'remote-url' || !resolution.url) {
             throw new RequestInvalidError(
                 'CONFIG_GENERATOR_RULE_PROVIDER_UNAVAILABLE',
@@ -657,6 +916,10 @@ export function registerConfigGeneratorRoutes(
     $app.get('/api/extensions/config-generator/rule-sets', (req, res) =>
         success(res, readConfigGeneratorStore().ruleSets),
     );
+    $app.get(
+        '/api/extensions/config-generator/resource-rule-sets',
+        listResourceRuleSets,
+    );
     $app.post('/api/extensions/config-generator/rule-sets', createRuleSet);
     $app.patch(
         '/api/extensions/config-generator/rule-set/:name',
@@ -686,7 +949,7 @@ export function registerConfigGeneratorRoutes(
     );
     $app.get(
         '/download/config-project/:name/rule-set/:ruleSet/:target',
-        downloadClashRuleProvider,
+        downloadRuleSetArtifact,
     );
     $app.get('/download/config-project/:name/:target', (req, res) =>
         downloadProject(req, res, produceBuiltinArtifact),
@@ -697,42 +960,43 @@ export function registerConfigGeneratorRoutes(
 }
 
 export const configGeneratorArtifactSource = {
+    id: 'org.substore.config-generator.config-project',
     type: 'config-project',
+    contract: 'substore.config-project@1',
+    representations: [
+        'surge-config',
+        'qx-config',
+        'clash-config',
+        'loon-config',
+    ],
     labelKey: 'configGenerator.artifactSource',
     platforms: TARGET_HANDLER_LIST.map((handler) => handler.platform),
     list: projectItems,
-    get: (name) => findByName(readConfigGeneratorStore().projects, name),
+    get: projectDescriptor,
     findSourceConfig: (name) =>
         findByName(readConfigGeneratorStore().projects, name),
     collectDependencies: (name) => {
         const project = findByName(readConfigGeneratorStore().projects, name);
         return project?.embeddedSource ? [project.embeddedSource] : [];
     },
-    async produce({ name, platform, produceBuiltinArtifact }) {
-        const project = findByName(readConfigGeneratorStore().projects, name);
-        if (!project)
-            throw new ResourceNotFoundError(
-                'CONFIG_GENERATOR_PROJECT_NOT_FOUND',
-                `找不到配置项目 ${name}`,
-            );
-        const result = await generateProject({
-            project,
-            ruleSets: readConfigGeneratorStore().ruleSets,
-            produceBuiltinArtifact,
-            target: platform,
-        });
-        return result.body;
+    async produce(input) {
+        const produced = await produceConfigProject(input);
+        return input?.representation ? produced.output : produced.output.body;
     },
     async produceForSync(input) {
-        const result = await this.produce(input);
-        const project = findByName(
-            readConfigGeneratorStore().projects,
-            input.name,
-        );
+        const { output } = await produceConfigProject(input);
         return {
-            body: result,
-            sourceRevision: project?.revision,
-            assertFresh() {},
+            body: output.body,
+            sourceRevision: output.sourceRevision,
+            diagnostics: output.diagnostics,
+            assertFresh() {
+                if (output.freshness?.state === 'stale') {
+                    throw new RequestInvalidError(
+                        'RESOURCE_STALE',
+                        '配置项目当前使用 stale 资源',
+                    );
+                }
+            },
         };
     },
 };

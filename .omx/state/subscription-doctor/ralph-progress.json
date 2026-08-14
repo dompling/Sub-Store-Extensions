@@ -1,0 +1,10 @@
+{
+  "score": 92,
+  "threshold": 90,
+  "passed": true,
+  "verdict": "pass",
+  "category_match": true,
+  "reasoning": "The Subscription Doctor uses the host card hierarchy and keeps dense diagnostics paged. Its mobile result summary now allows long resource names, dates, and compatibility values to shrink and wrap without escaping their cards.",
+  "suggestions": [],
+  "next_actions": []
+}

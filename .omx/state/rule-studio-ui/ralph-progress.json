@@ -1,0 +1,11 @@
+{
+  "score": 95,
+  "verdict": "pass",
+  "category_match": true,
+  "differences": [],
+  "suggestions": [],
+  "reasoning": "Rule Studio now matches Config Generator's host-native list cards, form sections, source summary interactions, popup editing, fixed 40/60 action bar, theme variables and responsive spacing. Runtime checks at 1440x900 and 375x812 found no horizontal overflow in the list, catalog settings, editor, source popup, 860-item catalog picker, or Subscription Doctor action report.",
+  "threshold": 90,
+  "passed": true,
+  "next_actions": []
+}

@@ -36,6 +36,7 @@
                 :detail="projectDetail(project)"
                 :is-dual-column="isDualColumnMode"
                 @publish="openPublishDialog(project)"
+                @copy="copyProjectLink(project)"
                 @edit="editProject(project.name)"
                 @remove="removeProject(project)"
               />
@@ -114,6 +115,31 @@ const projectDetail = (project: ConfigProject) => [
   t('configGenerator.rulesCount', { count: actualRuleCount(project) }),
   sourceModeLabel(project),
 ].join(' · ');
+
+const copyText = async (value: string) => {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  const textarea = document.createElement('textarea');
+  textarea.value = value;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand('copy');
+  textarea.remove();
+  if (!copied) throw new Error('Clipboard is unavailable');
+};
+
+const copyProjectLink = async (project: ConfigProject) => {
+  try {
+    await copyText(`${currentUrl.value}/download/config-project/${encodeURIComponent(project.name)}`);
+    Toast.success(t('configGenerator.linkCopied'));
+  } catch {
+    Toast.fail(t('configGenerator.copyFailed'));
+  }
+};
 
 const openPublishDialog = (project: ConfigProject) => {
   Dialog({

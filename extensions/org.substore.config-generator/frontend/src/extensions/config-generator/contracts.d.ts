@@ -1,5 +1,32 @@
 type ConfigGeneratorTarget = 'surge' | 'qx' | 'clash' | 'loon';
 
+interface ResourceRefV1 {
+  schema: 'substore.resource-ref@1';
+  providerId: string;
+  providerContributionId: string;
+  type: string;
+  id: string;
+  contract: string;
+}
+
+interface ResourceDescriptorV1 {
+  schema: 'substore.resource-descriptor@1';
+  ref: ResourceRefV1;
+  name: string;
+  displayName?: string;
+  description?: string;
+  revision?: string | number;
+  updatedAt?: number;
+  contracts: string[];
+  representations: string[];
+  lifecycle: { state: 'active' | 'archived'; archivedAt?: number };
+  availability: {
+    status: 'available' | 'disabled' | 'missing' | 'incompatible' | 'updating';
+    reasonCode?: string;
+  };
+  metadata?: Record<string, string | number | boolean | null>;
+}
+
 interface RemoteProxySource {
   name: string;
   source:
@@ -84,7 +111,13 @@ interface RemoteRuleSet {
   name: string;
   source:
     | { kind: 'url'; url: string; target?: ConfigGeneratorTarget }
-    | { kind: 'builtin'; value: 'SYSTEM' | 'LAN' };
+    | { kind: 'builtin'; value: 'SYSTEM' | 'LAN' }
+    | {
+        kind: 'resource';
+        ref: ResourceRefV1;
+        expectedContract: 'substore.rule-set@1';
+        lastKnownName?: string;
+      };
   enabled?: boolean;
   updateInterval?: number;
   remark?: string;
@@ -129,6 +162,7 @@ interface ConfigProject {
   name: string;
   displayName?: string;
   remark?: string;
+  delivery?: { publicBaseUrl?: string };
   embeddedSource?: { type: 'subscription' | 'collection'; name: string };
   remoteProxySources: RemoteProxySource[];
   groups: PolicyGroup[];

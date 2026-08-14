@@ -11,6 +11,10 @@ import {
 } from './core/remote-proxy-source';
 import { projectIncludedPolicyGroups } from './core/policy-group-projection';
 import { resolveRuleSetSource } from './core/rule-set-source-resolver';
+import {
+    normalizeResourceRef,
+    RULE_SET_RESOURCE_CONTRACT,
+} from './core/resource-rule-set';
 
 const GROUP_TYPES = getKnownPolicyGroupTypes();
 const TARGETS_WITH_SAFE_GENERATION_FALLBACKS = new Set(['clash', 'loon']);
@@ -373,8 +377,8 @@ function validateTargetPolicyReferences(project, ruleSets, target, issues) {
 export function validateRuleSet(ruleSet) {
     const issues = [];
     requiredString(ruleSet?.name, 'name', issues);
-    if (!['url', 'builtin'].includes(ruleSet?.source?.kind)) {
-        issues.push(issue('source.kind', 'must be url or builtin'));
+    if (!['url', 'builtin', 'resource'].includes(ruleSet?.source?.kind)) {
+        issues.push(issue('source.kind', 'must be url, builtin, or resource'));
     } else if (ruleSet.source.kind === 'url') {
         try {
             const url = new URL(ruleSet.source.url);
@@ -388,6 +392,31 @@ export function validateRuleSet(ruleSet) {
         ) {
             issues.push(
                 issue('source.target', `must be ${getTargetIds().join(', ')}`),
+            );
+        }
+    } else if (ruleSet.source.kind === 'resource') {
+        try {
+            normalizeResourceRef(
+                ruleSet.source.ref,
+                RULE_SET_RESOURCE_CONTRACT,
+            );
+        } catch (error) {
+            issues.push(
+                issue(
+                    'source.ref',
+                    error.message || 'must be a complete rule-set ResourceRef',
+                ),
+            );
+        }
+        if (
+            ruleSet.source.expectedContract !== undefined &&
+            ruleSet.source.expectedContract !== RULE_SET_RESOURCE_CONTRACT
+        ) {
+            issues.push(
+                issue(
+                    'source.expectedContract',
+                    `must be ${RULE_SET_RESOURCE_CONTRACT}`,
+                ),
             );
         }
     } else if (!['SYSTEM', 'LAN'].includes(ruleSet.source.value)) {
@@ -427,6 +456,19 @@ export function validateRuleSet(ruleSet) {
 export function validateProject(project, ruleSets = [], target) {
     const issues = [];
     requiredString(project?.name, 'name', issues);
+    if (project?.delivery?.publicBaseUrl !== undefined) {
+        try {
+            const url = new URL(project.delivery.publicBaseUrl);
+            if (!['http:', 'https:'].includes(url.protocol)) throw new Error();
+        } catch (_) {
+            issues.push(
+                issue(
+                    'delivery.publicBaseUrl',
+                    'must be an absolute HTTP(S) URL',
+                ),
+            );
+        }
+    }
     (ruleSets || []).forEach((ruleSet, index) => {
         try {
             validateRuleSet(ruleSet);

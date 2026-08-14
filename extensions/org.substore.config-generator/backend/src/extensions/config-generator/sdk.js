@@ -33,6 +33,14 @@ export const storage = Object.freeze({
 
 export const resources = Object.freeze({
     listArtifacts: () => services().resources.listArtifacts(),
+    list: (options) => services().resources.list(options),
+    get: (ref) => services().resources.get(ref),
+    produce: (ref, options) => services().resources.produce(ref, options),
+});
+
+export const references = Object.freeze({
+    replaceOwn: (input) => services().references.replaceOwn(input),
+    listIncoming: (ref) => services().references.listIncoming(ref),
 });
 
 export const network = Object.freeze({
@@ -46,6 +54,13 @@ export const transform = Object.freeze({
 export const cache = Object.freeze({
     get: (...args) => services().cache.get(...args),
     set: (...args) => services().cache.set(...args),
+});
+
+export const request = Object.freeze({
+    resolveClientTarget(value) {
+        const method = services().request?.resolveClientTarget;
+        return typeof method === 'function' ? method(value) : null;
+    },
 });
 
 export function runBackendRequestTask(task, label) {

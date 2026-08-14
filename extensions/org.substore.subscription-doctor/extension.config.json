@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "id": "org.substore.subscription-doctor",
+  "manifest": "backend/src/extensions/subscription-doctor/manifest.json",
+  "packageDirectory": "packages/org.substore.subscription-doctor",
+  "signature": {
+    "algorithm": "sha256-digest"
+  },
+  "package": {
+    "variant": "node",
+    "source": "org.substore.extensions",
+    "createdAt": "2026-08-13T00:00:00.000Z"
+  },
+  "backend": {
+    "sourceRoot": "backend/src",
+    "entrypoint": "backend/src/extensions/subscription-doctor/package-entry.js",
+    "output": "backend/index.cjs"
+  },
+  "frontend": {
+    "config": "frontend/vite.config.ts",
+    "tsconfig": "frontend/tsconfig.json",
+    "outputs": [
+      "frontend/index.js",
+      "frontend/style.css"
+    ]
+  },
+  "artifacts": [
+    {
+      "build": "backend/index.cjs",
+      "package": "backend/index.cjs"
+    },
+    {
+      "build": "frontend/index.js",
+      "package": "frontend/index.js"
+    },
+    {
+      "build": "frontend/style.css",
+      "package": "frontend/style.css"
+    }
+  ],
+  "repository": {
+    "distribution": "source-executable",
+    "author": {
+      "id": "org.substore",
+      "name": "Sub-Store"
+    }
+  }
+}

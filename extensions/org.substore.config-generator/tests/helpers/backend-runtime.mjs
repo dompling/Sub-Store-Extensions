@@ -53,6 +53,9 @@ function createHost({
   networkGet = async () => ({ statusCode: 200, body: '' }),
   processResponse = async response => response,
   cache = new Map(),
+  resourceDescriptors = [],
+  resourceOutputs = new Map(),
+  resolveClientTarget,
 } = {}) {
   let storedValue = initialStore;
   let adapter;
@@ -66,7 +69,35 @@ function createHost({
         storedValue = value;
       },
     },
-    resources: { listArtifacts: () => [] },
+    resources: {
+      listArtifacts: () => [],
+      list: async ({ types, contracts } = {}) => resourceDescriptors.filter(item =>
+        (!types?.length || types.includes(item.ref.type))
+          && (!contracts?.length || contracts.includes(item.ref.contract))),
+      get: async ref => {
+        const descriptor = resourceDescriptors.find(item => JSON.stringify(item.ref) === JSON.stringify(ref));
+        if (!descriptor) {
+          const error = new Error('Resource not found');
+          error.code = 'RESOURCE_NOT_FOUND';
+          throw error;
+        }
+        return descriptor;
+      },
+      produce: async (ref, options) => {
+        const key = `${ref.providerContributionId}\0${ref.id}\0${options.representation}`;
+        const output = resourceOutputs.get(key);
+        if (!output) {
+          const error = new Error('Resource output not found');
+          error.code = 'RESOURCE_NOT_FOUND';
+          throw error;
+        }
+        return output;
+      },
+    },
+    references: {
+      replaceOwn: async () => undefined,
+      listIncoming: async () => [],
+    },
     network: { get: networkGet },
     transform: { processResponse },
     cache: {
@@ -75,6 +106,9 @@ function createHost({
     },
     tasks: { runRequest: task => task() },
   };
+  if (resolveClientTarget) {
+    services.request = { resolveClientTarget };
+  }
   return {
     host: {
       apiVersion: '1.0.0',

@@ -28,7 +28,24 @@ function createHost({
         storedValue = value;
       },
     },
-    resources: { listArtifacts: () => [] },
+    resources: {
+      listArtifacts: () => [],
+      list: async () => [],
+      get: async () => {
+        const error = new Error('Resource not found');
+        error.code = 'RESOURCE_NOT_FOUND';
+        throw error;
+      },
+      produce: async () => {
+        const error = new Error('Resource not found');
+        error.code = 'RESOURCE_NOT_FOUND';
+        throw error;
+      },
+    },
+    references: {
+      replaceOwn: async () => undefined,
+      listIncoming: async () => [],
+    },
     network: { get: async () => ({ statusCode: 200, body: '' }) },
     transform: { processResponse },
     cache: { get: () => null, set: () => undefined },
@@ -165,9 +182,10 @@ test('registers, initializes, deactivates, and unregisters through the Host API'
   });
   assert.equal(fixture.state().contribution.id, 'config-generator');
   assert.deepEqual(fixture.state().storedValue, {
-    version: 1,
+    version: 2,
     projects: [],
     ruleSets: [],
+    referenceIndex: { state: 'unknown' },
   });
 
   assert.deepEqual(extension.deactivate(fixture.host), {
@@ -236,6 +254,48 @@ test('keeps all four target generators available through the Node package routes
   for (const output of outputs) {
     assert.equal(typeof output.body, 'string');
     assert.match(output.body, /Proxy/);
+  }
+});
+
+test('exposes one provider ABI for legacy config hosting and the Resource Broker', async () => {
+  const fixture = createHost({
+    initialStore: {
+      version: 2,
+      projects: [{
+        name: 'provider-project',
+        revision: 3,
+        updated: 123,
+        remoteProxySources: [],
+        groups: [],
+        rules: [],
+        outputs: { surge: {}, qx: {}, clash: {}, loon: {} },
+      }],
+      ruleSets: [],
+    },
+  });
+  extension.activate(fixture.host);
+  try {
+    const source = fixture.state().contribution.artifactSources[0];
+    assert.deepEqual(
+      ['get', 'list', 'produce'].filter(method => typeof source[method] === 'function'),
+      ['get', 'list', 'produce'],
+    );
+    for (const deprecated of ['listResources', 'getResource', 'produceResource']) {
+      assert.equal(deprecated in source, false, deprecated);
+    }
+    const descriptor = source.get({ ref: { id: 'provider-project' } });
+    assert.equal(descriptor.sourceRef.id, 'provider-project');
+    const brokerOutput = await source.produce({
+      ref: descriptor.sourceRef,
+      representation: 'surge-config',
+    });
+    assert.equal(brokerOutput.schema, 'substore.resource-output@1');
+    assert.equal(brokerOutput.ref.id, 'provider-project');
+    assert.equal(brokerOutput.representation, 'surge-config');
+    assert.equal(typeof brokerOutput.body, 'string');
+    assert.equal(typeof await source.produce({ name: 'provider-project', platform: 'Surge' }), 'string');
+  } finally {
+    extension.deactivate(fixture.host);
   }
 });
 

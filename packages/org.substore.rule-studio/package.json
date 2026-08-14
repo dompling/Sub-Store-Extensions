@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "source": "org.substore.extensions",
+  "packageDigest": "ef802aaf6bbecd7373c43b5105a4bb8af09f5d41cd46aa1aa0ab3896f07f1785",
+  "payloadDigest": "b7eb08a6ee20c7cc17bdfd3bedebe218263074f3dfaa0caef60d7c1b655718ba",
+  "selectedVariant": "node",
+  "variant": {
+    "implementationId": "org.substore.rule-studio@1/node",
+    "implementationAbi": "rule-studio@1",
+    "frontendAssetId": "org.substore.rule-studio-ui@1",
+    "entrypoint": "backend/index.cjs",
+    "containsExecutableCode": true
+  },
+  "containsExecutableCode": true,
+  "containsInstallHook": false,
+  "fileDigests": {
+    "backend/index.cjs": "1958df3f48ab0011a0b5d9c7ab22d49d864d122f9f3126e963665eb90c5f0614",
+    "frontend/index.js": "6487cb512612fde39faaccf73accc51d374232d88293b5362e97c122ed6667e0",
+    "frontend/style.css": "b89b6d34889ac3a1570c1ec6200a4a88c42cf22240f0f05fe61ac6d230b79e10"
+  },
+  "signature": {
+    "algorithm": "sha256-digest",
+    "digest": "b7eb08a6ee20c7cc17bdfd3bedebe218263074f3dfaa0caef60d7c1b655718ba",
+    "value": "b7eb08a6ee20c7cc17bdfd3bedebe218263074f3dfaa0caef60d7c1b655718ba"
+  }
+}

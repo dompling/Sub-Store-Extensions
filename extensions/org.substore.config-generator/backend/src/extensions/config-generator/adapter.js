@@ -1,5 +1,6 @@
 import manifest from './manifest.json';
 import { initializeConfigGeneratorStore } from './store';
+import { scheduleConfigGeneratorReferenceRepair } from './core/reference-index';
 
 export const CONFIG_GENERATOR_EXTENSION_ID = manifest.id;
 
@@ -13,6 +14,7 @@ export function createConfigGeneratorAdapter({ initializeStore } = {}) {
             if (active) return this.health();
             initialize();
             active = true;
+            scheduleConfigGeneratorReferenceRepair();
             return this.health();
         },
         deactivate() {

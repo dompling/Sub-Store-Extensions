@@ -1,0 +1,10 @@
+{
+  "score": 94,
+  "threshold": 90,
+  "passed": true,
+  "verdict": "pass",
+  "category_match": true,
+  "reasoning": "The Rule Studio pages match the host card-and-toolbar style, avoid horizontal overflow at 320px, and keep existing projects collapsed by default. Mobile project and source actions now retain 44px touch targets.",
+  "suggestions": [],
+  "next_actions": []
+}

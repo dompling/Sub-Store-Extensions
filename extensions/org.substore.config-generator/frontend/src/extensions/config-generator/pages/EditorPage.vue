@@ -440,11 +440,11 @@ const subsStore = useSubsStore();
 const globalStore = useGlobalStore();
 const settingsStore = useSettingsStore();
 const systemStore = useSystemStore();
-const { currentUrl } = useHostAPI();
+const { currentUrl, currentShareBaseUrl } = useHostAPI();
 const { appearanceSetting } = storeToRefs(settingsStore);
 const { bottomSafeArea } = storeToRefs(globalStore);
 const { navBarHeight } = storeToRefs(systemStore);
-const { ruleSets } = storeToRefs(configStore);
+const { ruleSets, resourceRuleSets } = storeToRefs(configStore);
 const padding = computed(() => `${bottomSafeArea.value}px`);
 
 const createTargetOutputs = () => Object.fromEntries(
@@ -874,6 +874,12 @@ const addRuleSet = () => {
   ruleSets.value.push({ name, source: { kind: 'url', url: '', target: DEFAULT_CONFIG_GENERATOR_TARGET } });
   form.rules.push({ kind: 'remote', name: bindingName, ruleSet: name, policy: 'DIRECT' });
 };
+const ensureResourceDeliveryUrl = () => {
+  form.delivery ||= {};
+  if (!form.delivery.publicBaseUrl) {
+    form.delivery.publicBaseUrl = currentShareBaseUrl.value || currentUrl.value || window.location.origin;
+  }
+};
 const isPersistedRuleSet = (name: string) => persistedRuleSetNames.value.has(name);
 const removeRule = (index: number) => form.rules.splice(index, 1);
 const isRuleSetReferencedByForm = (name: string) => form.rules.some(
@@ -1180,6 +1186,8 @@ provide('configGeneratorActionContext', {
   rulePolicy,
   updateRulePolicy,
   rulePlaceholder,
+  resourceRuleSets,
+  ensureResourceDeliveryUrl,
 });
 
 const validate = () => {
@@ -1236,6 +1244,20 @@ const normalizeLegacyRuleSetTarget = (ruleSet: RemoteRuleSet) => {
     ruleSet.source.target = DEFAULT_CONFIG_GENERATOR_TARGET;
   }
   return ruleSet;
+};
+
+const refreshResourceRuleSetNames = () => {
+  const descriptors = resourceRuleSets.value || [];
+  ruleSets.value.forEach((ruleSet) => {
+    if (ruleSet.source.kind !== 'resource') return;
+    const ref = ruleSet.source.ref;
+    const descriptor = descriptors.find(item => item.ref.providerId === ref.providerId
+      && item.ref.providerContributionId === ref.providerContributionId
+      && item.ref.type === ref.type
+      && item.ref.id === ref.id
+      && item.ref.contract === ref.contract);
+    if (descriptor) ruleSet.source.lastKnownName = descriptor.displayName || descriptor.name;
+  });
 };
 
 const save = async () => {
@@ -1530,8 +1552,10 @@ onMounted(async () => {
   await Promise.all([
     !subsStore.subs.length && !subsStore.collections.length ? subsStore.fetchSubsData() : Promise.resolve(),
     configStore.fetchRuleSets(),
+    configStore.fetchResourceRuleSets(),
   ]);
   upgradeRecognizedSubStoreRemoteSources();
+  refreshResourceRuleSetNames();
   ruleSets.value.forEach(normalizeLegacyRuleSetTarget);
   persistedRuleSetNames.value = new Set(ruleSets.value.map(ruleSet => ruleSet.name));
   if (isNewProject) {

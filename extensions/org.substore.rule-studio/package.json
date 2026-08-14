@@ -1,0 +1,9 @@
+{
+  "name": "@sub-store/extension-rule-studio",
+  "version": "0.1.4",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "yaml": "2.9.0"
+  }
+}

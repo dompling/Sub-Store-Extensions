@@ -5,7 +5,7 @@
   "distribution": "source-executable",
   "name": "配置生成器",
   "description": "生成 Surge、Quantumult X、Clash 和 Loon 配置",
-  "version": "1.2.7",
+  "version": "1.3.1",
   "publisher": {
     "id": "org.substore",
     "name": "Sub-Store"
@@ -15,7 +15,7 @@
   "host": {
     "apiVersion": "1.0.0",
     "frontendApiVersion": "1.0.0",
-    "backend": ">=2.36.31",
+    "backend": ">=2.36.38",
     "implementationAbi": "config-generator@1",
     "runtimes": [
       "node"
@@ -32,11 +32,11 @@
     "assets": {
       "entrypoint": {
         "path": "frontend/index.js",
-        "digest": "152b57344d1ae2d7a8ed4d816dc46dd866d2724cd5e3285297358f5ba3a57c48"
+        "digest": "b5f9d3d29d2276badcb5e9d1c0e41bbe1c3eaf8f8a8404bd50fa50e84195f103"
       },
       "style": {
         "path": "frontend/style.css",
-        "digest": "1b1ac692b25ce613352f04fe24ebb456a241ea35fca038f788955826a25e0a3e"
+        "digest": "1dc05fcb9a2f305dae352ca01bd14d10e75a65990d76143578aa56f115ea7d66"
       }
     }
   },
@@ -54,20 +54,46 @@
       "containsExecutableCode": true
     }
   },
+  "requires": {
+    "hard": [
+      "resource-broker@1",
+      "artifact-source-registry@1",
+      "route-gateway@1"
+    ]
+  },
   "permissions": [
     {
       "name": "storage.own",
       "reason": "保存配置项目与规则集"
     },
     {
+      "name": "resources.list",
+      "scope": [
+        "rule-set"
+      ],
+      "reason": "发现实现 substore.rule-set@1 的插件资源"
+    },
+    {
       "name": "resources.read",
       "scope": [
-        "subscriptions",
-        "collections",
-        "files",
+        "rule-set",
         "artifacts"
       ],
-      "reason": "把现有节点与文件融合到配置项目"
+      "reason": "读取规则资源描述，并保持旧配置托管引用检查"
+    },
+    {
+      "name": "resources.produce",
+      "scope": [
+        "rule-set"
+      ],
+      "reason": "按生成目标生产规则集资源"
+    },
+    {
+      "name": "references.manage-own",
+      "scope": [
+        "config-project"
+      ],
+      "reason": "维护配置项目到规则集资源的可修复引用索引"
     },
     {
       "name": "network.fetch",
@@ -114,6 +140,13 @@
       {
         "id": "org.substore.config-generator.config-project",
         "type": "config-project",
+        "contract": "substore.config-project@1",
+        "representations": [
+          "surge-config",
+          "qx-config",
+          "clash-config",
+          "loon-config"
+        ],
         "labelKey": "artifactSource",
         "platforms": [
           "Surge",
@@ -132,7 +165,7 @@
     ]
   },
   "storage": {
-    "schemaVersion": 1,
+    "schemaVersion": 2,
     "legacyKeys": [
       "configGenerator"
     ]

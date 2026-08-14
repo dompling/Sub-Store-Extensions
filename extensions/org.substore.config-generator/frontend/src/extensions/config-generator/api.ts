@@ -29,6 +29,10 @@ export function useConfigGeneratorApi() {
       url: '/api/extensions/config-generator/rule-sets',
       method: 'get',
     }),
+    getResourceRuleSets: (): AxiosPromise<MyAxiosRes> => request({
+      url: '/api/extensions/config-generator/resource-rule-sets',
+      method: 'get',
+    }),
     createRuleSet: (data: RemoteRuleSet): AxiosPromise<MyAxiosRes> => request({
       url: '/api/extensions/config-generator/rule-sets',
       method: 'post',

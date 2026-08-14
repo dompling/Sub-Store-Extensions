@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "extensionId": "org.substore.rule-studio",
+  "version": "0.1.4",
+  "publisher": {
+    "id": "org.substore",
+    "name": "Sub-Store"
+  },
+  "selectedVariant": "node",
+  "manifestDigest": "18df695ac3d7a4975ba48605db5b9e8edd4f67f9aa6f4622c8424161ff92a321",
+  "packageDigest": "ef802aaf6bbecd7373c43b5105a4bb8af09f5d41cd46aa1aa0ab3896f07f1785",
+  "implementation": {
+    "id": "org.substore.rule-studio@1/node",
+    "abi": "rule-studio@1",
+    "frontendAssetId": "org.substore.rule-studio-ui@1",
+    "entrypoint": "backend/index.cjs",
+    "lanes": {},
+    "containsExecutableCode": true
+  },
+  "installedAt": 1786603875000,
+  "receiptDigest": "cd5d7bcefab046396c8b7be8896b5e1ace20ed7be5eeac07200dd71812adab4b"
+}
