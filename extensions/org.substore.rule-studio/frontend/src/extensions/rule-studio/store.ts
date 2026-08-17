@@ -84,6 +84,16 @@ export const useRuleStudioStore = defineStore('ruleStudio', {
         return false;
       }
     },
+    async deleteProject(id: string) {
+      try {
+        unwrap(await api.deleteProject(id), null);
+        await this.fetchProjects(true);
+        return true;
+      } catch (error) {
+        this.error = messageFrom(error, 'RULE_STUDIO_DELETE_FAILED');
+        return false;
+      }
+    },
     async restoreProject(id: string) {
       try {
         unwrap(await api.restoreProject(id), null);

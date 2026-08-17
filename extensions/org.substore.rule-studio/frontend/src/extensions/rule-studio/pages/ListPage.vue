@@ -35,6 +35,7 @@
               @refresh="refreshProject(project.ref.id)"
               @preview="preview(project.ref.id)"
               @archive="archive(project.ref.id)"
+              @delete="remove(project)"
             />
           </div>
         </div>
@@ -49,6 +50,7 @@
               :detail="projectDetail(project)"
               :is-dual-column="isDualColumnMode"
               @restore="restore(project.ref.id)"
+              @delete="remove(project)"
             />
           </div>
         </div>
@@ -189,6 +191,22 @@ const archive = (id: string) => {
     popClass: 'auto-dialog',
     onOk: async () => {
       if (await ruleStore.archiveProject(id)) Toast.success(t('ruleStudio.archivedToast'));
+      else Toast.fail(ruleStore.error);
+    },
+  });
+};
+
+const remove = (project: RuleStudioDescriptor) => {
+  Dialog({
+    title: t('ruleStudio.deleteTitle'),
+    content: t('ruleStudio.deleteDescription', {
+      name: project.displayName || project.name,
+    }),
+    okText: t('ruleStudio.confirm'),
+    cancelText: t('ruleStudio.cancel'),
+    popClass: 'auto-dialog',
+    onOk: async () => {
+      if (await ruleStore.deleteProject(project.ref.id)) Toast.success(t('ruleStudio.deletedToast'));
       else Toast.fail(ruleStore.error);
     },
   });

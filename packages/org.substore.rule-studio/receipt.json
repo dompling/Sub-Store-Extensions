@@ -7,8 +7,8 @@
     "name": "Sub-Store"
   },
   "selectedVariant": "node",
-  "manifestDigest": "4e2728d9e6aa6b4a82f067d41cba13eaef1025619f5f3cbc5a90e102a522c220",
-  "packageDigest": "caeaedfaeb21a20ec8b75e32814412eb514968a9372ab1ba136e5de208b13797",
+  "manifestDigest": "493440b6ee251d8f9fea50802549f0f3e19a685c348ea7e896bd7c88c0c65150",
+  "packageDigest": "111dfc42337f5903b3dccb6c77d525935eb773112bd21c1a9cfacc8e076d764e",
   "implementation": {
     "id": "org.substore.rule-studio@1/node",
     "abi": "rule-studio@1",
@@ -18,5 +18,5 @@
     "containsExecutableCode": true
   },
   "installedAt": 1786936254000,
-  "receiptDigest": "9fb368276a09138c85748824b49dfb249cc02f4c117e8dbd0a4a50ee75319ebd"
+  "receiptDigest": "e4b00aa00c72c3f320f409a32fb122803ffe550465865d3a1dd17e2d9b94acc4"
 }

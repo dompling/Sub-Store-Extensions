@@ -25,6 +25,10 @@ export function useRuleStudioApi() {
       url: `/api/extensions/rule-studio/project/${encodeURIComponent(id)}`,
       method: 'delete',
     }),
+    deleteProject: (id: string) => request({
+      url: `/api/extensions/rule-studio/project/${encodeURIComponent(id)}/permanent`,
+      method: 'delete',
+    }),
     restoreProject: (id: string) => request({
       url: `/api/extensions/rule-studio/project/${encodeURIComponent(id)}/restore`,
       method: 'post',

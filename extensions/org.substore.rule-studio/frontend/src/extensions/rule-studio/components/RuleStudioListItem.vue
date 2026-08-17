@@ -94,12 +94,24 @@
             <font-awesome-icon icon="fa-solid fa-box-archive" />
           </nut-button>
         </div>
+        <div class="swipe-action-wrapper">
+          <nut-button shape="square" type="danger" class="swipe-action" :title="t('ruleStudio.delete')" :aria-label="t('ruleStudio.delete')" @click="$emit('delete')">
+            <font-awesome-icon icon="fa-solid fa-trash-can" />
+          </nut-button>
+        </div>
       </template>
-      <div v-else class="swipe-action-wrapper">
-        <nut-button shape="square" type="primary" class="swipe-action" :title="t('ruleStudio.restore')" :aria-label="t('ruleStudio.restore')" @click="$emit('restore')">
-          <font-awesome-icon icon="fa-solid fa-arrow-rotate-left" />
-        </nut-button>
-      </div>
+      <template v-else>
+        <div class="swipe-action-wrapper">
+          <nut-button shape="square" type="primary" class="swipe-action" :title="t('ruleStudio.restore')" :aria-label="t('ruleStudio.restore')" @click="$emit('restore')">
+            <font-awesome-icon icon="fa-solid fa-arrow-rotate-left" />
+          </nut-button>
+        </div>
+        <div class="swipe-action-wrapper">
+          <nut-button shape="square" type="danger" class="swipe-action" :title="t('ruleStudio.delete')" :aria-label="t('ruleStudio.delete')" @click="$emit('delete')">
+            <font-awesome-icon icon="fa-solid fa-trash-can" />
+          </nut-button>
+        </div>
+      </template>
     </template>
 
     <template v-else #right>
@@ -119,12 +131,24 @@
             <font-awesome-icon icon="fa-solid fa-box-archive" />
           </nut-button>
         </div>
+        <div class="swipe-action-wrapper">
+          <nut-button shape="square" type="danger" class="swipe-action" :title="t('ruleStudio.delete')" :aria-label="t('ruleStudio.delete')" @click="$emit('delete')">
+            <font-awesome-icon icon="fa-solid fa-trash-can" />
+          </nut-button>
+        </div>
       </template>
-      <div v-else class="swipe-action-wrapper">
-        <nut-button shape="square" type="primary" class="swipe-action" :title="t('ruleStudio.restore')" :aria-label="t('ruleStudio.restore')" @click="$emit('restore')">
-          <font-awesome-icon icon="fa-solid fa-arrow-rotate-left" />
-        </nut-button>
-      </div>
+      <template v-else>
+        <div class="swipe-action-wrapper">
+          <nut-button shape="square" type="primary" class="swipe-action" :title="t('ruleStudio.restore')" :aria-label="t('ruleStudio.restore')" @click="$emit('restore')">
+            <font-awesome-icon icon="fa-solid fa-arrow-rotate-left" />
+          </nut-button>
+        </div>
+        <div class="swipe-action-wrapper">
+          <nut-button shape="square" type="danger" class="swipe-action" :title="t('ruleStudio.delete')" :aria-label="t('ruleStudio.delete')" @click="$emit('delete')">
+            <font-awesome-icon icon="fa-solid fa-trash-can" />
+          </nut-button>
+        </div>
+      </template>
     </template>
   </nut-swipe>
 </template>
@@ -152,6 +176,7 @@ const emit = defineEmits<{
   preview: [];
   archive: [];
   restore: [];
+  delete: [];
 }>();
 
 const { t } = useRuleStudioI18n();

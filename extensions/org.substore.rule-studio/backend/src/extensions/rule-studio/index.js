@@ -30,6 +30,7 @@ import {
     findProjectByName,
     readRuleStudioStore,
     removeCustomCatalog,
+    removeProject,
     replaceCatalogSettings,
     replaceCustomCatalog,
     replaceProject,
@@ -309,6 +310,29 @@ async function archiveProject(request, response) {
     }
 }
 
+async function deleteProject(request, response) {
+    try {
+        const store = readRuleStudioStore();
+        const current = findProjectById(store, projectId(request));
+        if (!current) throw new RuleStudioError('RESOURCE_NOT_FOUND', '找不到规则集项目', undefined, 404);
+        const incoming = await incomingSummary(current);
+        if (incoming.available && incoming.count > 0) {
+            throw new RuleStudioError(
+                'RULE_STUDIO_PROJECT_IN_USE',
+                `该规则集仍被 ${incoming.count} 个项目引用，请先移除引用或改用归档`,
+                { incoming },
+                409,
+            );
+        }
+        removeProject(store, current.id);
+        writeRuleStudioStore(store);
+        success(response, { id: current.id });
+    } catch (error) {
+        const resolved = asRuleStudioError(error);
+        failed(response, resolved, resolved.statusCode);
+    }
+}
+
 function restoreProject(request, response) {
     try {
         const store = readRuleStudioStore();
@@ -457,6 +481,7 @@ export function registerRuleStudioRoutes(app) {
     app.post('/api/extensions/rule-studio/projects', createProject);
     app.patch('/api/extensions/rule-studio/project/:id', updateProject);
     app.delete('/api/extensions/rule-studio/project/:id', archiveProject);
+    app.delete('/api/extensions/rule-studio/project/:id/permanent', deleteProject);
     app.post('/api/extensions/rule-studio/project/:id/restore', restoreProject);
     app.post('/api/extensions/rule-studio/preview', previewProject);
     app.post('/api/extensions/rule-studio/project/:id/refresh', refreshProject);

@@ -88,6 +88,11 @@ export function replaceProject(store, next) {
     return next;
 }
 
+export function removeProject(store, id) {
+    const index = store.projects.findIndex(project => project.id === id);
+    if (index >= 0) store.projects.splice(index, 1);
+}
+
 export function replaceCatalogSettings(store, settings) {
     store.catalogSettings = normalizeCatalogSettings({
         ...store.catalogSettings,

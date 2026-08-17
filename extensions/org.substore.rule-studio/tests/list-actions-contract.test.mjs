@@ -37,9 +37,13 @@ test('uses the Host list pattern with one swipe action surface on desktop and mo
   assert.equal(item.includes('isDesktop'), false);
   assert.equal(item.includes('matchMedia'), false);
   assert.match(item, /\$emit\('edit'\)/);
-  for (const event of ['refresh', 'preview', 'archive', 'restore']) {
+  for (const event of ['refresh', 'preview', 'archive', 'restore', 'delete']) {
     assert.match(item, new RegExp(`\\$emit\\('${event}'\\)`));
   }
+  assert.match(item, /fa-solid fa-trash-can/);
+  assert.match(list, /@delete="remove\(project\)"/);
+  assert.match(list, /ruleStore\.deleteProject\(project\.ref\.id\)/);
+  assert.match(list, /ruleStudio\.deleteTitle/);
   assert.match(routes, /supportsListViewMode:\s*true/);
   assert.match(routes, /settingsCommand:\s*RULE_STUDIO_COMMANDS\.catalogs/);
   assert.match(routes, /\/extensions\/rule-studio\/catalogs/);

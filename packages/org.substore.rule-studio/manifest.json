@@ -33,11 +33,11 @@
     "assets": {
       "entrypoint": {
         "path": "frontend/index.js",
-        "digest": "92c4e803449f71572fbf9ba7984c1ee558dc906e468e4b1845ec0d85df09637b"
+        "digest": "1c40d1697e28b0b183f24a4feefb28a253f481f47d969f1f043109de7aa2cf20"
       },
       "style": {
         "path": "frontend/style.css",
-        "digest": "b89b6d34889ac3a1570c1ec6200a4a88c42cf22240f0f05fe61ac6d230b79e10"
+        "digest": "a5b724b4654dcf62c1fa24cd052b9d931d9958b70d25ef67526600facea89b37"
       }
     }
   },

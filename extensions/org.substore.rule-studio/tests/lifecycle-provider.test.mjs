@@ -81,6 +81,56 @@ test('fails closed when restoring an archived project would create an active nam
   }
 });
 
+test('permanently deletes an unreferenced project from the store', async () => {
+  const runtime = createRuntime();
+  try {
+    const created = await requestRoute(runtime, 'POST', '/api/extensions/rule-studio/projects', {
+      body: inlineProject(),
+    });
+    const project = created.payload.data;
+
+    const deleted = await requestRoute(runtime, 'DELETE', '/api/extensions/rule-studio/project/:id/permanent', {
+      params: { id: project.id },
+    });
+    assert.equal(deleted.statusCode, 200);
+    assert.deepEqual(deleted.payload.data, { id: project.id });
+
+    const activeList = await requestRoute(runtime, 'GET', '/api/extensions/rule-studio/projects');
+    const archivedList = await requestRoute(runtime, 'GET', '/api/extensions/rule-studio/projects', {
+      query: { archived: 'true' },
+    });
+    const details = await requestRoute(runtime, 'GET', '/api/extensions/rule-studio/project/:id', {
+      params: { id: project.id },
+    });
+    assert.deepEqual(activeList.payload.data, []);
+    assert.deepEqual(archivedList.payload.data, []);
+    assert.equal(details.statusCode, 404);
+  } finally {
+    runtime.close();
+  }
+});
+
+test('rejects permanent deletion when another project references the rule set', async () => {
+  const runtime = createRuntime({
+    referencesListIncoming: async () => [{ owner: { providerId: 'config-generator', name: 'Main' } }],
+  });
+  try {
+    const created = await requestRoute(runtime, 'POST', '/api/extensions/rule-studio/projects', {
+      body: inlineProject(),
+    });
+    const project = created.payload.data;
+
+    const deleted = await requestRoute(runtime, 'DELETE', '/api/extensions/rule-studio/project/:id/permanent', {
+      params: { id: project.id },
+    });
+    assert.equal(deleted.statusCode, 409);
+    assert.equal(deleted.payload.error.code, 'RULE_STUDIO_PROJECT_IN_USE');
+    assert.equal(runtime.storedValue().projects.length, 1);
+  } finally {
+    runtime.close();
+  }
+});
+
 test('persists an optional project icon and exposes it through resource metadata', async () => {
   const runtime = createRuntime();
   try {
