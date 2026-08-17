@@ -35,6 +35,74 @@ export const network = Object.freeze({
     get: options => services().network.get(options),
 });
 
+function cleanGitHubToken(value) {
+    const token = typeof value === 'string'
+        ? value.trim().replace(/^(?:bearer|token)\s+/i, '')
+        : '';
+    if (!token || /[\r\n]/.test(token)) return '';
+    return token;
+}
+
+function tokenFromRecord(record, keys) {
+    if (!record || typeof record !== 'object') return '';
+    for (const key of keys) {
+        const token = cleanGitHubToken(record[key]);
+        if (token) return token;
+    }
+    return '';
+}
+
+async function tokenFromReader(reader, keys) {
+    if (typeof reader !== 'function') return '';
+    for (const key of keys) {
+        try {
+            const value = await reader(key);
+            const token = cleanGitHubToken(value) ||
+                tokenFromRecord(value, ['token', 'accessToken', 'githubToken', 'value']);
+            if (token) return token;
+        } catch {
+            // Optional Host services may reject unknown keys; keep anonymous fetch as fallback.
+        }
+    }
+    return '';
+}
+
+function boundReader(record, method) {
+    const reader = record?.[method];
+    return typeof reader === 'function' ? key => reader.call(record, key) : null;
+}
+
+export const credentials = Object.freeze({
+    async githubToken() {
+        const current = services();
+        const direct = cleanGitHubToken(current.githubToken) ||
+            cleanGitHubToken(current.github?.token) ||
+            cleanGitHubToken(current.github?.accessToken) ||
+            tokenFromRecord(current.credentials, ['githubToken', 'github', 'GITHUB_TOKEN', 'GH_TOKEN']) ||
+            tokenFromRecord(current.tokens, ['githubToken', 'github', 'GITHUB_TOKEN', 'GH_TOKEN']) ||
+            tokenFromRecord(current.settings, ['githubToken', 'GITHUB_TOKEN', 'GH_TOKEN']) ||
+            tokenFromRecord(current.config, ['githubToken', 'GITHUB_TOKEN', 'GH_TOKEN']) ||
+            tokenFromRecord(current.environment, ['GITHUB_TOKEN', 'GH_TOKEN', 'SUB_STORE_GITHUB_TOKEN', 'SUBSTORE_GITHUB_TOKEN']);
+        if (direct) return direct;
+
+        const keys = [
+            'github.token',
+            'githubToken',
+            'GITHUB_TOKEN',
+            'GH_TOKEN',
+            'SUB_STORE_GITHUB_TOKEN',
+            'SUBSTORE_GITHUB_TOKEN',
+        ];
+        return await tokenFromReader(boundReader(current.github, 'getToken'), ['github']) ||
+            await tokenFromReader(boundReader(current.credentials, 'get'), keys) ||
+            await tokenFromReader(boundReader(current.secrets, 'get'), keys) ||
+            await tokenFromReader(boundReader(current.settings, 'get'), keys) ||
+            await tokenFromReader(boundReader(current.config, 'get'), keys) ||
+            await tokenFromReader(boundReader(current.environment, 'get'), keys) ||
+            tokenFromRecord(globalThis.process?.env, keys);
+    },
+});
+
 export const cache = Object.freeze({
     get: (...args) => services().cache.get(...args),
     set: (...args) => services().cache.set(...args),

@@ -38,6 +38,8 @@ function registerRoutes(contribution) {
 export function createRuntime({
   initialStore = null,
   networkGet,
+  githubToken,
+  serviceOverrides = {},
   referencesListIncoming,
   resolveClientTarget,
   now = Date.now(),
@@ -45,6 +47,7 @@ export function createRuntime({
   let storedValue = initialStore;
   let adapter;
   let contribution;
+  const previousGitHubToken = process.env.GITHUB_TOKEN;
   const cacheValues = new Map();
   const services = {
     apiVersion: '1.0.0',
@@ -70,6 +73,13 @@ export function createRuntime({
     },
     tasks: { runRequest: task => task() },
   };
+  if (githubToken) {
+    services.credentials = {
+      get: async key => key === 'github.token' ? githubToken : null,
+    };
+    process.env.GITHUB_TOKEN = githubToken;
+  }
+  Object.assign(services, serviceOverrides);
   if (resolveClientTarget) services.request = { resolveClientTarget };
   const host = {
     apiVersion: '1.0.0', extensionId, services,
@@ -87,7 +97,11 @@ export function createRuntime({
     storedValue: () => storedValue,
     cacheValues,
     now,
-    close: () => extension.deactivate(host),
+    close: () => {
+      if (previousGitHubToken === undefined) delete process.env.GITHUB_TOKEN;
+      else process.env.GITHUB_TOKEN = previousGitHubToken;
+      return extension.deactivate(host);
+    },
   };
 }
 

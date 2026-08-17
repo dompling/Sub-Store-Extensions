@@ -128,6 +128,29 @@ test('walks to the configured subtree before recursively indexing list files', a
   }
 });
 
+test('uses a configured GitHub token for catalog API requests', async () => {
+  const calls = [];
+  const sequence = successSequence();
+  const runtime = createRuntime({
+    githubToken: 'github_pat_catalog_test_token',
+    networkGet: sequencedNetwork(sequence, calls),
+  });
+  try {
+    const result = await requestRoute(
+      runtime,
+      'GET',
+      '/api/extensions/rule-studio/source-catalogs/:id/items',
+      { params: { id: 'blackmatrix7-surge' } },
+    );
+    assert.equal(result.statusCode, 200);
+    assert.equal(calls.length, 3);
+    assert.ok(calls.every(item => item.headers.Authorization === 'Bearer github_pat_catalog_test_token'));
+    assert.equal(JSON.stringify(result.payload).includes('github_pat_catalog_test_token'), false);
+  } finally {
+    runtime.close();
+  }
+});
+
 test('serves a fresh catalog from cache and refresh=true bypasses it', async () => {
   const calls = [];
   const sequence = [

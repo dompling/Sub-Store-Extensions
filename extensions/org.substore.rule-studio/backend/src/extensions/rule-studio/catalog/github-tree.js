@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { RULE_STUDIO_CATALOG_LIMITS } from '../constants';
 import { RuleStudioError } from '../errors';
-import { network, runBackendRequestTask } from '../sdk';
+import { credentials, network, runBackendRequestTask } from '../sdk';
 
 const GITHUB_API_VERSION = '2022-11-28';
 const GITHUB_ACCEPT = 'application/vnd.github+json';
@@ -21,17 +21,24 @@ function apiTreeUrl(catalog, ref, recursive = false) {
     return `https://api.github.com/repos/${owner}/${repository}/git/trees/${tree}${recursive ? '?recursive=1' : ''}`;
 }
 
+async function githubHeaders() {
+    const token = await credentials.githubToken();
+    return {
+        Accept: GITHUB_ACCEPT,
+        'X-GitHub-Api-Version': GITHUB_API_VERSION,
+        'User-Agent': 'Sub-Store-Rule-Studio',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+}
+
 async function loadTree(catalog, ref, { recursive = false } = {}) {
     let response;
     try {
+        const headers = await githubHeaders();
         response = await runBackendRequestTask(
             () => network.get({
                 url: apiTreeUrl(catalog, ref, recursive),
-                headers: {
-                    Accept: GITHUB_ACCEPT,
-                    'X-GitHub-Api-Version': GITHUB_API_VERSION,
-                    'User-Agent': 'Sub-Store-Rule-Studio',
-                },
+                headers,
                 timeout: RULE_STUDIO_CATALOG_LIMITS.networkTimeoutMs,
             }),
             'rule-studio-source-catalog',
