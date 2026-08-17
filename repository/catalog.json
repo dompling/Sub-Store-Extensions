@@ -3,8 +3,8 @@
   "id": "org.substore.extensions",
   "name": "Sub-Store Extensions",
   "description": "Sub-Store 扩展集合订阅源",
-  "sequence": 15,
-  "generatedAt": "2026-08-17T03:10:54.000Z",
+  "sequence": 16,
+  "generatedAt": "2026-08-17T04:48:42.000Z",
   "publisher": {
     "id": "org.substore",
     "name": "Sub-Store"
@@ -1297,7 +1297,7 @@
     },
     {
       "id": "org.substore.rule-studio",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "manifest": {
         "schemaVersion": 1,
         "id": "org.substore.rule-studio",
@@ -1306,7 +1306,7 @@
         "name": "规则集配置",
         "description": "导入、规范化、诊断并发布多客户端规则集",
         "icon": "fa-solid fa-list-check",
-        "version": "0.1.5",
+        "version": "0.1.6",
         "publisher": {
           "id": "org.substore",
           "name": "Sub-Store"
@@ -1333,11 +1333,11 @@
           "assets": {
             "entrypoint": {
               "path": "frontend/index.js",
-              "digest": "92c4e803449f71572fbf9ba7984c1ee558dc906e468e4b1845ec0d85df09637b"
+              "digest": "c50570c64de18eeddec682d6d3d9a534563936f15521df2002641676449176dc"
             },
             "style": {
               "path": "frontend/style.css",
-              "digest": "b89b6d34889ac3a1570c1ec6200a4a88c42cf22240f0f05fe61ac6d230b79e10"
+              "digest": "a5b724b4654dcf62c1fa24cd052b9d931d9958b70d25ef67526600facea89b37"
             }
           }
         },
@@ -1451,13 +1451,13 @@
         }
       },
       "distribution": "source-executable",
-      "packageUrl": "./packages/org.substore.rule-studio/0.1.5/node.json",
+      "packageUrl": "./packages/org.substore.rule-studio/0.1.6/node.json",
       "packageUrls": {
-        "node": "./packages/org.substore.rule-studio/0.1.5/node.json"
+        "node": "./packages/org.substore.rule-studio/0.1.6/node.json"
       },
-      "packageDigest": "caeaedfaeb21a20ec8b75e32814412eb514968a9372ab1ba136e5de208b13797",
+      "packageDigest": "de92862f7a07717682360e94d6fbdfb9307a9f85e41786e023df75b9302f91c4",
       "packageDigests": {
-        "node": "caeaedfaeb21a20ec8b75e32814412eb514968a9372ab1ba136e5de208b13797"
+        "node": "de92862f7a07717682360e94d6fbdfb9307a9f85e41786e023df75b9302f91c4"
       },
       "source": "org.substore.extensions",
       "sourceName": "Sub-Store Extensions",
@@ -1466,6 +1466,174 @@
         "name": "Sub-Store"
       },
       "releases": [
+        {
+          "version": "0.1.6",
+          "releasedAt": "2026-08-17T04:48:42.000Z",
+          "manifest": {
+            "schemaVersion": 1,
+            "id": "org.substore.rule-studio",
+            "kind": "executable",
+            "distribution": "source-executable",
+            "name": "规则集配置",
+            "description": "导入、规范化、诊断并发布多客户端规则集",
+            "icon": "fa-solid fa-list-check",
+            "version": "0.1.6",
+            "publisher": {
+              "id": "org.substore",
+              "name": "Sub-Store"
+            },
+            "license": "GPL-3.0",
+            "homepage": "https://github.com/dompling/Sub-Store-Extensions",
+            "host": {
+              "apiVersion": "1.0.0",
+              "frontendApiVersion": "1.0.0",
+              "backend": ">=2.36.38",
+              "implementationAbi": "rule-studio@1",
+              "runtimes": [
+                "node"
+              ]
+            },
+            "frontend": {
+              "entrypoint": "frontend/index.js",
+              "style": "frontend/style.css",
+              "sdkSpecifier": "@substore/frontend-sdk/v1",
+              "uiKitAbi": "substore-ui-kit@1",
+              "implementationAbi": "rule-studio-ui@1",
+              "routeBase": "/extensions/rule-studio",
+              "openPath": "/extensions/rule-studio",
+              "assets": {
+                "entrypoint": {
+                  "path": "frontend/index.js",
+                  "digest": "c50570c64de18eeddec682d6d3d9a534563936f15521df2002641676449176dc"
+                },
+                "style": {
+                  "path": "frontend/style.css",
+                  "digest": "a5b724b4654dcf62c1fa24cd052b9d931d9958b70d25ef67526600facea89b37"
+                }
+              }
+            },
+            "entrypoints": {
+              "backend": {
+                "path": "backend/index.cjs"
+              }
+            },
+            "variants": {
+              "node": {
+                "implementationId": "org.substore.rule-studio@1/node",
+                "implementationAbi": "rule-studio@1",
+                "frontendAssetId": "org.substore.rule-studio-ui@1",
+                "entrypoint": "backend/index.cjs",
+                "containsExecutableCode": true
+              }
+            },
+            "requires": {
+              "hard": [
+                "resource-broker@1",
+                "artifact-source-registry@1",
+                "route-gateway@1"
+              ],
+              "optional": [
+                "reference-graph@1"
+              ]
+            },
+            "permissions": [
+              {
+                "name": "storage.own",
+                "reason": "保存规则集项目、来源和轻量摘要"
+              },
+              {
+                "name": "network.fetch",
+                "scope": [
+                  "user-configured-https",
+                  "user-configured-http",
+                  "api.github.com",
+                  "raw.githubusercontent.com"
+                ],
+                "reason": "读取用户配置的远程规则集，并索引内置 GitHub 规则库目录"
+              },
+              {
+                "name": "artifact-source.register",
+                "scope": [
+                  "rule-set"
+                ],
+                "reason": "向资源 Broker 和配置托管提供规则集"
+              },
+              {
+                "name": "references.read-own",
+                "scope": [
+                  "rule-set"
+                ],
+                "reason": "展示规则集被其他配置引用的数量"
+              },
+              {
+                "name": "routes.namespaced"
+              },
+              {
+                "name": "navigation.register"
+              }
+            ],
+            "contributes": {
+              "features": [
+                "org.substore.rule-studio.ruleStudio"
+              ],
+              "routes": [
+                "org.substore.rule-studio.list",
+                "org.substore.rule-studio.edit",
+                "org.substore.rule-studio.preview",
+                "org.substore.rule-studio.catalogs",
+                "org.substore.rule-studio.download"
+              ],
+              "artifactSources": [
+                {
+                  "id": "org.substore.rule-studio.rule-sets",
+                  "type": "rule-set",
+                  "contract": "substore.rule-set@1",
+                  "labelKey": "ruleStudio.artifactSource",
+                  "platforms": [
+                    "Surge",
+                    "QX",
+                    "Clash",
+                    "Loon"
+                  ],
+                  "representations": [
+                    "normalized-json",
+                    "surge-rule-list",
+                    "qx-filter",
+                    "clash-classical-yaml",
+                    "clash-classical-text",
+                    "clash-domain-yaml",
+                    "clash-ipcidr-yaml",
+                    "loon-rule-list"
+                  ]
+                }
+              ],
+              "navigation": [
+                "org.substore.rule-studio.main"
+              ],
+              "pageActions": [
+                "org.substore.rule-studio.add",
+                "org.substore.rule-studio.catalogs"
+              ]
+            },
+            "storage": {
+              "schemaVersion": 3,
+              "namespace": "org.substore.rule-studio",
+              "legacyKeys": []
+            }
+          },
+          "distribution": "source-executable",
+          "selectedVariant": "node",
+          "packageUrl": "./packages/org.substore.rule-studio/0.1.6/node.json",
+          "packageUrls": {
+            "node": "./packages/org.substore.rule-studio/0.1.6/node.json"
+          },
+          "packageDigest": "de92862f7a07717682360e94d6fbdfb9307a9f85e41786e023df75b9302f91c4",
+          "packageDigests": {
+            "node": "de92862f7a07717682360e94d6fbdfb9307a9f85e41786e023df75b9302f91c4"
+          },
+          "installable": true,
+          "gitTag": "org.substore.rule-studio@0.1.6"
+        },
         {
           "version": "0.1.5",
           "releasedAt": "2026-08-17T03:10:54.000Z",

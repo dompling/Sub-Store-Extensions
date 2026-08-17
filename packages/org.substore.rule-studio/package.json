@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "source": "org.substore.extensions",
-  "packageDigest": "111dfc42337f5903b3dccb6c77d525935eb773112bd21c1a9cfacc8e076d764e",
-  "payloadDigest": "61c58b6dbd3e5397f6377000ee0b6ad4519776d1c68ede2aad6e7993977afa71",
+  "packageDigest": "de92862f7a07717682360e94d6fbdfb9307a9f85e41786e023df75b9302f91c4",
+  "payloadDigest": "e1f04c75872390970206e4fb4995465bd7a9db40bba30b16af3269c8d757be3c",
   "selectedVariant": "node",
   "variant": {
     "implementationId": "org.substore.rule-studio@1/node",
@@ -14,13 +14,13 @@
   "containsExecutableCode": true,
   "containsInstallHook": false,
   "fileDigests": {
-    "backend/index.cjs": "f39afd10055fd99aaa733f75bbf85a10f3ab95a294b4bd2d2fd28f5d1632c099",
-    "frontend/index.js": "1c40d1697e28b0b183f24a4feefb28a253f481f47d969f1f043109de7aa2cf20",
+    "backend/index.cjs": "58a4940b71c52e43527b6818ec56d05fd7d4c2e7b45a1af2c5459c16f8ef3108",
+    "frontend/index.js": "c50570c64de18eeddec682d6d3d9a534563936f15521df2002641676449176dc",
     "frontend/style.css": "a5b724b4654dcf62c1fa24cd052b9d931d9958b70d25ef67526600facea89b37"
   },
   "signature": {
     "algorithm": "sha256-digest",
-    "digest": "61c58b6dbd3e5397f6377000ee0b6ad4519776d1c68ede2aad6e7993977afa71",
-    "value": "61c58b6dbd3e5397f6377000ee0b6ad4519776d1c68ede2aad6e7993977afa71"
+    "digest": "e1f04c75872390970206e4fb4995465bd7a9db40bba30b16af3269c8d757be3c",
+    "value": "e1f04c75872390970206e4fb4995465bd7a9db40bba30b16af3269c8d757be3c"
   }
 }
