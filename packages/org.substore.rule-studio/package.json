@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "source": "org.substore.extensions",
   "packageDigest": "ef802aaf6bbecd7373c43b5105a4bb8af09f5d41cd46aa1aa0ab3896f07f1785",
-  "payloadDigest": "b7eb08a6ee20c7cc17bdfd3bedebe218263074f3dfaa0caef60d7c1b655718ba",
+  "payloadDigest": "732c42acd72e036f814b02ff9fd5cd11632becf96382051d2116d771c18e9360",
   "selectedVariant": "node",
   "variant": {
     "implementationId": "org.substore.rule-studio@1/node",
@@ -20,7 +20,7 @@
   },
   "signature": {
     "algorithm": "sha256-digest",
-    "digest": "b7eb08a6ee20c7cc17bdfd3bedebe218263074f3dfaa0caef60d7c1b655718ba",
-    "value": "b7eb08a6ee20c7cc17bdfd3bedebe218263074f3dfaa0caef60d7c1b655718ba"
+    "digest": "732c42acd72e036f814b02ff9fd5cd11632becf96382051d2116d771c18e9360",
+    "value": "732c42acd72e036f814b02ff9fd5cd11632becf96382051d2116d771c18e9360"
   }
 }
