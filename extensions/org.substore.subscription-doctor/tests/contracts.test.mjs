@@ -14,7 +14,7 @@ test('declares the lightweight Node-only Resource Broker permission contract', a
   const workspacePackage = await readJson(path.join(extension.workspaceDirectory, 'package.json'));
   assert.equal(manifest.version, workspacePackage.version);
   assert.equal(manifest.kind, 'executable');
-  assert.equal(manifest.host.backend, '>=2.36.38');
+  assert.equal(manifest.host.backend, '>=2.36.37');
   assert.deepEqual(manifest.host.runtimes, ['node']);
   assert.deepEqual(manifest.requires.hard, ['resource-broker@1', 'route-gateway@1']);
   const permissions = new Map(manifest.permissions.map(value => [value.name, value]));

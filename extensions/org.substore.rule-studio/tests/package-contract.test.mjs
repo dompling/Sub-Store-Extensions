@@ -13,7 +13,7 @@ test('declares an executable Rule Broker provider with stable identity', async (
   assert.equal(manifest.kind, 'executable');
   assert.equal(manifest.icon, 'fa-solid fa-list-check');
   assert.equal(manifest.host.implementationAbi, 'rule-studio@1');
-  assert.equal(manifest.host.backend, '>=2.36.38');
+  assert.equal(manifest.host.backend, '>=2.36.37');
   assert.deepEqual(manifest.host.runtimes, ['node']);
   assert.equal(manifest.contributes.artifactSources[0].id, 'org.substore.rule-studio.rule-sets');
   assert.equal(manifest.contributes.artifactSources[0].contract, 'substore.rule-set@1');

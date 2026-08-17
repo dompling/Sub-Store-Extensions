@@ -30,7 +30,7 @@
         "host": {
           "apiVersion": "1.0.0",
           "frontendApiVersion": "1.0.0",
-          "backend": ">=2.36.38",
+          "backend": ">=2.36.37",
           "implementationAbi": "config-generator@1",
           "runtimes": [
             "node"
@@ -230,7 +230,7 @@
             "host": {
               "apiVersion": "1.0.0",
               "frontendApiVersion": "1.0.0",
-              "backend": ">=2.36.38",
+              "backend": ">=2.36.37",
               "implementationAbi": "config-generator@1",
               "runtimes": [
                 "node"
@@ -427,7 +427,7 @@
             "host": {
               "apiVersion": "1.0.0",
               "frontendApiVersion": "1.0.0",
-              "backend": ">=2.36.38",
+              "backend": ">=2.36.37",
               "implementationAbi": "config-generator@1",
               "runtimes": [
                 "node"
@@ -624,7 +624,7 @@
             "host": {
               "apiVersion": "1.0.0",
               "frontendApiVersion": "1.0.0",
-              "backend": ">=2.36.38",
+              "backend": ">=2.36.37",
               "implementationAbi": "config-generator@1",
               "runtimes": [
                 "node"
@@ -1316,7 +1316,7 @@
         "host": {
           "apiVersion": "1.0.0",
           "frontendApiVersion": "1.0.0",
-          "backend": ">=2.36.38",
+          "backend": ">=2.36.37",
           "implementationAbi": "rule-studio@1",
           "runtimes": [
             "node"
@@ -1487,7 +1487,7 @@
             "host": {
               "apiVersion": "1.0.0",
               "frontendApiVersion": "1.0.0",
-              "backend": ">=2.36.38",
+              "backend": ">=2.36.37",
               "implementationAbi": "rule-studio@1",
               "runtimes": [
                 "node"
@@ -1655,7 +1655,7 @@
             "host": {
               "apiVersion": "1.0.0",
               "frontendApiVersion": "1.0.0",
-              "backend": ">=2.36.38",
+              "backend": ">=2.36.37",
               "implementationAbi": "rule-studio@1",
               "runtimes": [
                 "node"
@@ -1823,7 +1823,7 @@
             "host": {
               "apiVersion": "1.0.0",
               "frontendApiVersion": "1.0.0",
-              "backend": ">=2.36.38",
+              "backend": ">=2.36.37",
               "implementationAbi": "rule-studio@1",
               "runtimes": [
                 "node"
@@ -1993,7 +1993,7 @@
         "host": {
           "apiVersion": "1.0.0",
           "frontendApiVersion": "1.0.0",
-          "backend": ">=2.36.38",
+          "backend": ">=2.36.37",
           "implementationAbi": "subscription-doctor@1",
           "runtimes": [
             "node"
@@ -2130,7 +2130,7 @@
             "host": {
               "apiVersion": "1.0.0",
               "frontendApiVersion": "1.0.0",
-              "backend": ">=2.36.38",
+              "backend": ">=2.36.37",
               "implementationAbi": "subscription-doctor@1",
               "runtimes": [
                 "node"
