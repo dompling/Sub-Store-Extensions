@@ -137,15 +137,7 @@ export const selectAutomaticReleaseExtensions = async ({
       );
       releaseBaselines[extensionId] = releaseTag;
     } else {
-      baseline = (await git([
-        'log',
-        '-1',
-        '--format=%H',
-        head,
-        '--',
-        `repository/releases/${extensionId}.json`,
-      ])).trim();
-      releaseBaselines[extensionId] = baseline || 'initial';
+      releaseBaselines[extensionId] = 'initial';
     }
 
     if (!baseline) {

@@ -76,10 +76,12 @@ test('selects every extension changed since its own immutable release tag', asyn
   ]);
 });
 
-test('selects extensions without a published or placeholder baseline and rejects removed roots', async () => {
+test('bootstraps every unpublished extension until it appears in the catalog', async () => {
   const initial = await selectAutomaticReleaseExtensions({
     head: 'f'.repeat(40),
-    git: async () => '',
+    git: async args => {
+      throw new Error(`Unpublished extensions must not inspect Git history: ${args.join(' ')}`);
+    },
     listAllExtensions: async () => [
       'org.substore.subscription-doctor',
       'org.substore.config-generator',
@@ -91,6 +93,13 @@ test('selects extensions without a published or placeholder baseline and rejects
     'org.substore.config-generator',
     'org.substore.subscription-doctor',
   ]);
+  assert.deepEqual(initial.releaseBaselines, {
+    'org.substore.config-generator': 'initial',
+    'org.substore.subscription-doctor': 'initial',
+  });
+});
+
+test('rejects removed extension roots instead of treating them as releases', async () => {
 
   await assert.rejects(
     selectAutomaticReleaseExtensions({
@@ -118,36 +127,6 @@ test('selects extensions without a published or placeholder baseline and rejects
     }),
     /Automatic extension removal is unsupported: org\.substore\.removed/,
   );
-});
-
-test('uses an unpublished extension ledger commit as a retryable initial-release baseline', async () => {
-  const baseline = 'c'.repeat(40);
-  const changed = await selectAutomaticReleaseExtensions({
-    head: 'f'.repeat(40),
-    git: async args => {
-      if (args[0] === 'log') return `${baseline}\n`;
-      if (args[0] === 'diff') {
-        return 'extensions/org.substore.subscription-doctor/backend/index.js\0';
-      }
-      throw new Error(`Unexpected Git command: ${args.join(' ')}`);
-    },
-    listAllExtensions: async () => ['org.substore.subscription-doctor'],
-    readCatalog: async () => ({ entries: [] }),
-    extensionExists: async () => true,
-  });
-  assert.deepEqual(changed.extensionIds, ['org.substore.subscription-doctor']);
-  assert.deepEqual(changed.releaseBaselines, {
-    'org.substore.subscription-doctor': baseline,
-  });
-
-  const unchanged = await selectAutomaticReleaseExtensions({
-    head: 'f'.repeat(40),
-    git: async args => args[0] === 'log' ? `${baseline}\n` : '',
-    listAllExtensions: async () => ['org.substore.subscription-doctor'],
-    readCatalog: async () => ({ entries: [] }),
-    extensionExists: async () => true,
-  });
-  assert.deepEqual(unchanged.extensionIds, []);
 });
 
 test('fails closed when a published release tag is missing or outside the branch history', async () => {

@@ -79,7 +79,7 @@ jobs:
         if: steps.selection.outputs.release_count == '0'
         run: |
           echo "### No extension release required" >> "$GITHUB_STEP_SUMMARY"
-          echo "No extension has changed since its own release baseline." >> "$GITHUB_STEP_SUMMARY"
+          echo "Every extension is published and unchanged since its own release tag." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Enable pnpm
         if: steps.selection.outputs.release_count != '0'

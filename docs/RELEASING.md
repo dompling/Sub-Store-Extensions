@@ -2,10 +2,10 @@
 
 ## 1. 推荐：main push 自动发布
 
-`main` 每次 push 都会启动 `Publish extensions` 的轻量选择阶段。选择器按扩展独立判断：已发布扩展从 catalog 中的最新版本得到 `<extension-id>@<version>` tag，然后比较该 tag 与当前 `HEAD` 之间的 `extensions/<id>`；没有目录差异时不会升版或构建。
+`main` 每次 push 都会启动 `Publish extensions` 的轻量选择阶段。选择器按扩展独立判断：尚未进入 catalog 的扩展直接进入 initial release；已发布扩展从 catalog 中的最新版本得到 `<extension-id>@<version>` tag，然后比较该 tag 与当前 `HEAD` 之间的 `extensions/<id>`。所有扩展均已发布且没有目录差异时才会跳过构建。
 
 ```text
-扫描 0..N 个尚未发布的扩展目录变化
+选择全部未首次发布的扩展，以及存在未发布目录变化的已发布扩展
 → 自动为已发布扩展生成 patch 版本
 → 为全部目标扩展批量准备版本和同一个 sequence
 → typecheck

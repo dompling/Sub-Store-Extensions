@@ -121,10 +121,10 @@ corepack pnpm dev:install -- --extension org.substore.config-generator
 
 ## 发布
 
-GitHub Actions 中的 `Publish extensions` workflow 会在 `main` 每次 push 后先做一次轻量选择：逐个比较 `extensions/<id>` 与该扩展最新的不可变 release tag，只发布真正发生变化的扩展。普通根目录或文档提交没有扩展差异时会直接成功退出。
+GitHub Actions 中的 `Publish extensions` workflow 会在 `main` 每次 push 后先做一次轻量选择：尚未进入 catalog 的扩展会自动首次发布；已发布扩展逐个比较 `extensions/<id>` 与自己的最新不可变 release tag，只发布真正发生变化的扩展。所有扩展都已发布且目录没有差异时，普通根目录或文档提交会直接成功退出。
 
 ```text
-找出 0..N 个尚未发布目录变化的扩展
+找出全部未首次发布的扩展，以及存在未发布目录变化的已发布扩展
 → 自动为已发布扩展生成 patch 版本
 → 批量 release:prepare
 → 一次 release:build（typecheck / build / package / repository / test / verify）

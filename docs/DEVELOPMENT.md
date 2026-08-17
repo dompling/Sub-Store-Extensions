@@ -136,7 +136,7 @@ corepack pnpm release:build -- --extension org.substore.config-generator
 
 `repository -- --extension <id>` 只重建目标插件，同时保留 catalog 中其他插件的 entry、release ledger 和历史 envelope；`verify -- --extension <id>` 会验证全集合历史闭包，但只要求目标插件的本地源码、build、dist 和 package 一致。因此一个插件尚未发布的开发状态不会阻塞另一个插件。
 
-代码合入 `main` 后不需要手工升版。自动 workflow 会把每个 `extensions/<id>` 与该扩展最新 release tag 独立比较：只改一个目录只发布一个扩展，同时存在多个未发布目录变化时会批量发布。自动增量固定为 patch；minor 或 major 使用手动 workflow dispatch。根目录或文档提交会运行轻量选择器，但在没有扩展变化时直接退出，不生成版本。
+代码合入 `main` 后不需要手工升版。尚未进入 catalog 的扩展会在下一次 workflow 中自动使用源码版本完成首次发布；已发布扩展会把每个 `extensions/<id>` 与自己的最新 release tag 独立比较。只改一个已发布目录只升级一个扩展，同时存在多个候选时会批量发布。自动增量固定为 patch；minor 或 major 使用手动 workflow dispatch。所有扩展均已发布且目录没有变化时，根目录或文档提交只运行轻量选择器并直接退出。
 
 `package` 会：
 
