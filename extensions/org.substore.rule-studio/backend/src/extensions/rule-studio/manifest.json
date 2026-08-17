@@ -6,7 +6,7 @@
   "name": "规则集配置",
   "description": "导入、规范化、诊断并发布多客户端规则集",
   "icon": "fa-solid fa-list-check",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "publisher": {
     "id": "org.substore",
     "name": "Sub-Store"
@@ -33,7 +33,7 @@
     "assets": {
       "entrypoint": {
         "path": "frontend/index.js",
-        "digest": "6487cb512612fde39faaccf73accc51d374232d88293b5362e97c122ed6667e0"
+        "digest": "92c4e803449f71572fbf9ba7984c1ee558dc906e468e4b1845ec0d85df09637b"
       },
       "style": {
         "path": "frontend/style.css",

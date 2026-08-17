@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "extensionId": "org.substore.rule-studio",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "publisher": {
     "id": "org.substore",
     "name": "Sub-Store"
   },
   "selectedVariant": "node",
-  "manifestDigest": "18df695ac3d7a4975ba48605db5b9e8edd4f67f9aa6f4622c8424161ff92a321",
-  "packageDigest": "ef802aaf6bbecd7373c43b5105a4bb8af09f5d41cd46aa1aa0ab3896f07f1785",
+  "manifestDigest": "4e2728d9e6aa6b4a82f067d41cba13eaef1025619f5f3cbc5a90e102a522c220",
+  "packageDigest": "caeaedfaeb21a20ec8b75e32814412eb514968a9372ab1ba136e5de208b13797",
   "implementation": {
     "id": "org.substore.rule-studio@1/node",
     "abi": "rule-studio@1",
@@ -17,6 +17,6 @@
     "lanes": {},
     "containsExecutableCode": true
   },
-  "installedAt": 1786929629000,
-  "receiptDigest": "8c4adfe9087b0c06c89ac77c506e0f3548643ddd5ad946fcf5c192ae0655cb01"
+  "installedAt": 1786936254000,
+  "receiptDigest": "9fb368276a09138c85748824b49dfb249cc02f4c117e8dbd0a4a50ee75319ebd"
 }
