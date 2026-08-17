@@ -9,7 +9,7 @@
   "package": {
     "variant": "node",
     "source": "org.substore.extensions",
-    "createdAt": "2026-08-14T09:35:35.000Z"
+    "createdAt": "2026-08-17T02:30:50.000Z"
   },
   "backend": {
     "sourceRoot": "backend/src",
