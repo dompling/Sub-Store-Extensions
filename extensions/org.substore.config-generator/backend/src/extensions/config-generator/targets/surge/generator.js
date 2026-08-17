@@ -1,4 +1,5 @@
 import {
+    ensureProfileSections,
     parseProfileSections,
     replaceManagedSections,
     serializeProfileSections,
@@ -19,7 +20,15 @@ import { serializeSurgeCsv, serializeSurgeCsvValue } from './serializer';
 import { validateProject } from '@/extensions/config-generator/validation';
 
 const DEFAULT_SURGE_INDEPENDENT_CONFIG =
-    '[General]\n\n[Host]\n\n[Rule]\n\n[MITM]\n';
+    '[General]\n\n[Proxy]\n\n[Proxy Group]\n\n[Rule]\n\n[Host]\n\n[MITM]\n';
+const SURGE_REQUIRED_SECTIONS = [
+    'General',
+    'Proxy',
+    'Proxy Group',
+    'Rule',
+    'Host',
+    'MITM',
+].map((title) => ({ name: title.toLowerCase(), title: `[${title}]` }));
 
 function bool(value) {
     return value === undefined ? null : value ? '1' : '0';
@@ -318,10 +327,13 @@ export async function generateSurgeConfig({
             : DEFAULT_SURGE_INDEPENDENT_CONFIG;
     const independentAst = parseProfileSections(independentConfig);
     const generatedGroups = generateGroups(project, warnings);
-    const existingGroups =
+    const existingGroupBody =
         independentAst.sections.find(
             (section) => section.name === 'proxy group',
         )?.body || [];
+    const existingGroups = existingGroupBody.some((line) => line.trim())
+        ? existingGroupBody
+        : [];
     const replacements = {
         'proxy group': mergeNamedLines(
             existingGroups,
@@ -363,7 +375,9 @@ export async function generateSurgeConfig({
     ];
     const ast = replaceManagedSections(independentAst, replacements);
     return {
-        body: serializeProfileSections(ast),
+        body: serializeProfileSections(
+            ensureProfileSections(ast, SURGE_REQUIRED_SECTIONS),
+        ),
         sourceRevision: project.revision,
         stats: {
             nodeCount,

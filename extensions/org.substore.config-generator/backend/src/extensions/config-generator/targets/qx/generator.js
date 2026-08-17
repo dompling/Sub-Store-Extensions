@@ -30,14 +30,17 @@ import {
 } from '@/extensions/config-generator/core/remote-proxy-source';
 
 const DEFAULT_QX_INDEPENDENT_CONFIG =
-    '[general]\nresource_parser_url=https://raw.githubusercontent.com/KOP-XIAO/QuantumultX/master/Scripts/resource-parser.js\n\n[rewrite_local]\n\n[dns]\n\n[policy]\n\n[server_local]\n\n[filter_local]\n\n[mitm]\n';
+    '[general]\nresource_parser_url=https://raw.githubusercontent.com/KOP-XIAO/QuantumultX/master/Scripts/resource-parser.js\n\n[rewrite_local]\n\n[rewrite_remote]\n\n[dns]\n\n[policy]\n\n[server_local]\n\n[server_remote]\n\n[filter_local]\n\n[filter_remote]\n\n[mitm]\n';
 const QX_REQUIRED_SECTIONS = [
     'general',
     'rewrite_local',
+    'rewrite_remote',
     'dns',
     'policy',
     'server_local',
+    'server_remote',
     'filter_local',
+    'filter_remote',
     'mitm',
 ].map((name) => ({ name, title: `[${name}]` }));
 const QX_MANAGED_SECTIONS = new Set([

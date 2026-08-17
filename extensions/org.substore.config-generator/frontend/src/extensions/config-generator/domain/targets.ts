@@ -45,8 +45,8 @@ export const CONFIG_GENERATOR_TARGET_REGISTRY: Record<
     outputLabelKey: 'configGenerator.surgeOutput',
     editorLanguage: 'ini',
     independentConfig: {
-      defaultValue: '[General]\n\n[Host]\n\n[Rule]\n\n[MITM]\n',
-      placeholder: '[General]\n\n[Host]\n\n[MITM]',
+      defaultValue: '[General]\n\n[Proxy]\n\n[Proxy Group]\n\n[Rule]\n\n[Host]\n\n[MITM]\n',
+      placeholder: '[General]\n\n[Proxy]\n\n[Proxy Group]\n\n[Rule]\n\n[Host]\n\n[MITM]',
     },
     downloadSuffix: 'Surge',
     sourceHelp: {
@@ -66,8 +66,8 @@ export const CONFIG_GENERATOR_TARGET_REGISTRY: Record<
     outputLabelKey: 'configGenerator.qxOutput',
     editorLanguage: 'ini',
     independentConfig: {
-      defaultValue: '[general]\nresource_parser_url=https://raw.githubusercontent.com/KOP-XIAO/QuantumultX/master/Scripts/resource-parser.js\n\n[rewrite_local]\n\n[dns]\n\n[policy]\n\n[server_local]\n\n[filter_local]\n\n[mitm]\n',
-      placeholder: '[general]\n\n[rewrite_local]\n\n[dns]\n\n[policy]\n\n[server_local]\n\n[filter_local]\n\n[mitm]',
+      defaultValue: '[general]\nresource_parser_url=https://raw.githubusercontent.com/KOP-XIAO/QuantumultX/master/Scripts/resource-parser.js\n\n[rewrite_local]\n\n[rewrite_remote]\n\n[dns]\n\n[policy]\n\n[server_local]\n\n[server_remote]\n\n[filter_local]\n\n[filter_remote]\n\n[mitm]\n',
+      placeholder: '[general]\n\n[rewrite_local]\n\n[rewrite_remote]\n\n[dns]\n\n[policy]\n\n[server_local]\n\n[server_remote]\n\n[filter_local]\n\n[filter_remote]\n\n[mitm]',
     },
     downloadSuffix: 'QX',
     sourceHelp: {
@@ -87,8 +87,8 @@ export const CONFIG_GENERATOR_TARGET_REGISTRY: Record<
     outputLabelKey: 'configGenerator.clashOutput',
     editorLanguage: 'yaml',
     independentConfig: {
-      defaultValue: 'mode: rule\n\nproxies: []\nproxy-groups: []\nrules:\n  - MATCH,DIRECT\n',
-      placeholder: 'mode: rule\n\nproxies: []\nproxy-groups: []\nrules:\n  - MATCH,DIRECT',
+      defaultValue: 'mode: rule\n\nproxies: []\nproxy-providers: {}\nproxy-groups: []\nrule-providers: {}\nrules:\n  - MATCH,DIRECT\n',
+      placeholder: 'mode: rule\n\nproxies: []\nproxy-providers: {}\nproxy-groups: []\nrule-providers: {}\nrules:\n  - MATCH,DIRECT',
     },
     downloadSuffix: 'Clash',
     sourceHelp: {

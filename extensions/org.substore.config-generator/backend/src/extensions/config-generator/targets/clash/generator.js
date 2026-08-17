@@ -27,6 +27,7 @@ import { parseSurgeCsv } from '@/extensions/config-generator/targets/surge/seria
 const DEFAULT_PROVIDER_INTERVAL = 86400;
 const DEFAULT_HEALTH_CHECK_INTERVAL = 600;
 const DEFAULT_TEST_URL = 'http://www.gstatic.com/generate_204';
+const DEFAULT_CLASH_INDEPENDENT_CONFIG = { mode: 'rule' };
 const MANAGED_KEYS = new Set(['proxies', 'rule-providers', 'rules']);
 const CLASH_RULE_TYPES = new Set([
     'DOMAIN',
@@ -860,7 +861,10 @@ function mergeConfig(
     rules,
     warnings,
 ) {
-    const base = { ...independentConfig };
+    const base = {
+        ...DEFAULT_CLASH_INDEPENDENT_CONFIG,
+        ...independentConfig,
+    };
     const preservedProxyGroups = Array.isArray(base['proxy-groups'])
         ? base['proxy-groups']
         : [];

@@ -3,6 +3,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { build } from 'esbuild';
+import { parse as parseYaml } from 'yaml';
 import {
   listRegularFiles,
   loadExtension,
@@ -41,7 +42,7 @@ const resolveMessage = (messages, key) => key
   .split('.')
   .reduce((value, segment) => value?.[segment], messages);
 
-test('defaults QX and Loon independent editors to their complete profile skeletons', async () => {
+test('defaults independent editors to complete target skeletons', async () => {
   const targetsPath = path.join(
     sourceRoot,
     'extensions/config-generator/domain/targets.ts',
@@ -67,15 +68,31 @@ test('defaults QX and Loon independent editors to their complete profile skeleto
 
   assert.deepEqual(
     profileSectionNames(
+      CONFIG_GENERATOR_TARGET_REGISTRY.surge.independentConfig.defaultValue,
+    ),
+    [
+      'General',
+      'Proxy',
+      'Proxy Group',
+      'Rule',
+      'Host',
+      'MITM',
+    ],
+  );
+  assert.deepEqual(
+    profileSectionNames(
       CONFIG_GENERATOR_TARGET_REGISTRY.qx.independentConfig.defaultValue,
     ),
     [
       'general',
       'rewrite_local',
+      'rewrite_remote',
       'dns',
       'policy',
       'server_local',
+      'server_remote',
       'filter_local',
+      'filter_remote',
       'mitm',
     ],
   );
@@ -98,6 +115,21 @@ test('defaults QX and Loon independent editors to their complete profile skeleto
       'Remote Script',
       'Plugin',
       'MITM',
+    ],
+  );
+  assert.deepEqual(
+    Object.keys(
+      parseYaml(
+        CONFIG_GENERATOR_TARGET_REGISTRY.clash.independentConfig.defaultValue,
+      ),
+    ),
+    [
+      'mode',
+      'proxies',
+      'proxy-providers',
+      'proxy-groups',
+      'rule-providers',
+      'rules',
     ],
   );
 });

@@ -53,16 +53,31 @@ function profileSectionNames(content) {
 }
 
 const COMPLETE_EMPTY_PROFILES = {
+  surge: {
+    target: 'Surge',
+    legacyConfig: '[General]\n\n[Rule]\n\n[MITM]\n',
+    sections: [
+      '[General]',
+      '[Proxy]',
+      '[Proxy Group]',
+      '[Rule]',
+      '[Host]',
+      '[MITM]',
+    ],
+  },
   qx: {
     target: 'QX',
     legacyConfig: '[general]\n\n[dns]\n\n[mitm]\n',
     sections: [
       '[general]',
       '[rewrite_local]',
+      '[rewrite_remote]',
       '[dns]',
       '[policy]',
       '[server_local]',
+      '[server_remote]',
       '[filter_local]',
+      '[filter_remote]',
       '[mitm]',
     ],
   },
@@ -88,7 +103,7 @@ const COMPLETE_EMPTY_PROFILES = {
   },
 };
 
-test('keeps complete empty QX and Loon sections in defaults, previews, and downloads', async () => {
+test('completes independent INI sections in defaults, previews, and downloads', async () => {
   for (const [target, expected] of Object.entries(COMPLETE_EMPTY_PROFILES)) {
     const defaultPreview = await preview(
       target,
@@ -172,6 +187,70 @@ test('keeps complete empty QX and Loon sections in defaults, previews, and downl
       );
     });
   }
+});
+
+test('completes independent Clash keys in previews and downloads', async () => {
+  const project = projectFor('clash', {
+    name: 'clash-complete-independent-config',
+    outputs: {
+      clash: { independentConfig: 'port: 7890\n' },
+    },
+  });
+  const assertCompleteProfile = (content, label) => {
+    const document = parseYaml(content);
+    assert.equal(document.mode, 'rule', `${label} mode`);
+    assert.equal(document.port, 7890, `${label} preserved setting`);
+    assert.deepEqual(document.proxies, [], `${label} proxies`);
+    assert.deepEqual(document['proxy-providers'], {}, `${label} proxy-providers`);
+    assert.deepEqual(document['proxy-groups'], [], `${label} proxy-groups`);
+    assert.deepEqual(document['rule-providers'], {}, `${label} rule-providers`);
+    assert.deepEqual(document.rules, ['MATCH,DIRECT'], `${label} rules`);
+  };
+
+  const generatedPreview = await preview('clash', project);
+  assertCompleteProfile(generatedPreview.body, 'preview');
+
+  const overriddenMode = await preview('clash', projectFor('clash', {
+    name: 'clash-preserved-mode',
+    outputs: {
+      clash: { independentConfig: 'mode: global\n' },
+    },
+  }));
+  assert.equal(parseYaml(overriddenMode.body).mode, 'global');
+
+  await withRuntime({
+    initialStore: {
+      version: 1,
+      projects: [project],
+      ruleSets: [],
+    },
+  }, async ({ routes }) => {
+    const downloaded = await requestRoute(
+      routes,
+      'GET',
+      '/download/config-project/:name/:target',
+      {
+        params: {
+          name: project.name,
+          target: 'Clash',
+        },
+      },
+    );
+    assert.equal(downloaded.statusCode, 200);
+    assertCompleteProfile(downloaded.payload, 'download');
+
+    const downloadedByQuery = await requestRoute(
+      routes,
+      'GET',
+      '/download/config-project/:name',
+      {
+        params: { name: project.name },
+        query: { target: 'Clash' },
+      },
+    );
+    assert.equal(downloadedByQuery.statusCode, 200);
+    assertCompleteProfile(downloadedByQuery.payload, 'query download');
+  });
 });
 
 test('parses and replaces managed sections while preserving preamble and unmanaged sections', () => {
