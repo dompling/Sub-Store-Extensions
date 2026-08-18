@@ -6,7 +6,7 @@
   "name": "规则集配置",
   "description": "导入、规范化、诊断并发布多客户端规则集",
   "icon": "fa-solid fa-list-check",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "publisher": {
     "id": "org.substore",
     "name": "Sub-Store"
@@ -16,7 +16,7 @@
   "host": {
     "apiVersion": "1.0.0",
     "frontendApiVersion": "1.0.0",
-    "backend": ">=2.36.38",
+    "backend": ">=2.36.37",
     "implementationAbi": "rule-studio@1",
     "runtimes": [
       "node"
@@ -33,7 +33,7 @@
     "assets": {
       "entrypoint": {
         "path": "frontend/index.js",
-        "digest": "c50570c64de18eeddec682d6d3d9a534563936f15521df2002641676449176dc"
+        "digest": "48608fda305646a3811bc8050d999bc24e7e3191a1ad55a6ff00f4ca89a3e2b0"
       },
       "style": {
         "path": "frontend/style.css",
