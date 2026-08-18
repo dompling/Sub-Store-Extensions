@@ -5,6 +5,7 @@ import ListPage from './pages/ListPage.vue';
 import EditorPage from './pages/EditorPage.vue';
 import ImportPage from './pages/ImportPage.vue';
 import PreviewPage from './pages/PreviewPage.vue';
+import HealthPage from './pages/HealthPage.vue';
 import { disposeConfigGeneratorMessages } from './i18n';
 
 declare const __SUBSTORE_EXTENSION_VERSION__: string;
@@ -20,6 +21,7 @@ const definition: FrontendExtensionDefinition = {
     editor: async () => EditorPage,
     import: async () => ImportPage,
     preview: async () => PreviewPage,
+    health: async () => HealthPage,
   },
   dispose: disposeConfigGeneratorMessages,
 };

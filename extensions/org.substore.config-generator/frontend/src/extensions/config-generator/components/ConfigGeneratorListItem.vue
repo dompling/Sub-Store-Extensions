@@ -78,12 +78,36 @@
 
     <template v-if="appearanceSetting.isLeftRight" #left>
       <div class="sub-item-swipe-btn-wrapper">
+        <nut-button
+          shape="square"
+          type="primary"
+          class="sub-item-swipe-btn"
+          :title="$t('configGenerator.health.action')"
+          :aria-label="$t('configGenerator.health.action')"
+          @click="$emit('health')"
+        >
+          <font-awesome-icon icon="fa-solid fa-shield-halved" />
+        </nut-button>
+      </div>
+      <div class="sub-item-swipe-btn-wrapper">
         <nut-button shape="square" type="danger" class="sub-item-swipe-btn" @click="$emit('remove')">
           <font-awesome-icon icon="fa-solid fa-trash-can" />
         </nut-button>
       </div>
     </template>
     <template v-else #right>
+      <div class="sub-item-swipe-btn-wrapper">
+        <nut-button
+          shape="square"
+          type="primary"
+          class="sub-item-swipe-btn"
+          :title="$t('configGenerator.health.action')"
+          :aria-label="$t('configGenerator.health.action')"
+          @click="$emit('health')"
+        >
+          <font-awesome-icon icon="fa-solid fa-shield-halved" />
+        </nut-button>
+      </div>
       <div class="sub-item-swipe-btn-wrapper">
         <nut-button shape="square" type="danger" class="sub-item-swipe-btn" @click="$emit('remove')">
           <font-awesome-icon icon="fa-solid fa-trash-can" />
@@ -112,6 +136,7 @@ const emit = defineEmits<{
   publish: [];
   copy: [];
   edit: [];
+  health: [];
   remove: [];
 }>();
 

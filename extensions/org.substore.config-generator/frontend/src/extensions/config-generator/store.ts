@@ -62,6 +62,14 @@ const getErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
+const getErrorCode = (error: unknown) => {
+  if (error instanceof ConfigGeneratorRequestError) return error.code || '';
+  if (isRecord(error) && isRecord(error.response)) {
+    return apiErrorFromResponse(error.response)?.code || '';
+  }
+  return '';
+};
+
 const getStructuredErrorDetails = (error: unknown): unknown[] => {
   let details: unknown;
   if (error instanceof ConfigGeneratorRequestError) {
@@ -97,6 +105,7 @@ export const useConfigGeneratorStore = defineStore('configGenerator', {
     importedRuleSets: [] as RemoteRuleSet[],
     loading: false,
     error: '',
+    healthErrorCode: '',
     previewErrors: [] as unknown[],
   }),
   actions: {
@@ -136,6 +145,20 @@ export const useConfigGeneratorStore = defineStore('configGenerator', {
     },
     async getProject(name: string) {
       return unwrap(await api.getProject(name), null) as ConfigProject | null;
+    },
+    async getProjectHealth(name: string) {
+      this.error = '';
+      this.healthErrorCode = '';
+      try {
+        return unwrap(
+          await api.getProjectHealth(name),
+          null,
+        ) as ConfigGeneratorHealthReport | null;
+      } catch (error: unknown) {
+        this.healthErrorCode = getErrorCode(error);
+        this.error = getErrorMessage(error, 'CONFIG_GENERATOR_HEALTH_FAILED');
+        return null;
+      }
     },
     async saveRuleSet(ruleSet: RemoteRuleSet, editing = false) {
       try {

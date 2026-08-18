@@ -12,7 +12,7 @@
   "entries": [
     {
       "id": "org.substore.config-generator",
-      "version": "1.2.10",
+      "version": "1.2.11",
       "manifest": {
         "schemaVersion": 1,
         "id": "org.substore.config-generator",
@@ -20,7 +20,7 @@
         "distribution": "source-executable",
         "name": "配置生成器",
         "description": "生成 Surge、Quantumult X、Clash 和 Loon 配置",
-        "version": "1.2.10",
+        "version": "1.2.11",
         "publisher": {
           "id": "org.substore",
           "name": "Sub-Store"
@@ -47,11 +47,11 @@
           "assets": {
             "entrypoint": {
               "path": "frontend/index.js",
-              "digest": "b6ba4f4f09161c6914a7e237787d70f78b188190295acf72578cccf355b7abd8"
+              "digest": "6311e9467a1f452105718541e09b8f41fe15a5e2e5afe7c864e9cf7644d06328"
             },
             "style": {
               "path": "frontend/style.css",
-              "digest": "1dc05fcb9a2f305dae352ca01bd14d10e75a65990d76143578aa56f115ea7d66"
+              "digest": "4c81ca61b544b799f270bb58b93a8a249469e389e1407cc0ecdfb0dc13177108"
             }
           }
         },
@@ -149,6 +149,7 @@
             "org.substore.config-generator.edit",
             "org.substore.config-generator.import",
             "org.substore.config-generator.preview",
+            "org.substore.config-generator.health",
             "org.substore.config-generator.download"
           ],
           "artifactSources": [
@@ -195,13 +196,13 @@
         }
       },
       "distribution": "source-executable",
-      "packageUrl": "./packages/org.substore.config-generator/1.2.10/node.json",
+      "packageUrl": "./packages/org.substore.config-generator/1.2.11/node.json",
       "packageUrls": {
-        "node": "./packages/org.substore.config-generator/1.2.10/node.json"
+        "node": "./packages/org.substore.config-generator/1.2.11/node.json"
       },
-      "packageDigest": "b291f38f7498a204c25e9fa5a2d23b72e08ffb742ab25fefff128596492a2483",
+      "packageDigest": "bea4113e3c75abbb53b967a05f7ee86bb5ba59aac45024877b15f5be2e77ee65",
       "packageDigests": {
-        "node": "b291f38f7498a204c25e9fa5a2d23b72e08ffb742ab25fefff128596492a2483"
+        "node": "bea4113e3c75abbb53b967a05f7ee86bb5ba59aac45024877b15f5be2e77ee65"
       },
       "source": "org.substore.extensions",
       "sourceName": "Sub-Store Extensions",
@@ -210,6 +211,203 @@
         "name": "Sub-Store"
       },
       "releases": [
+        {
+          "version": "1.2.11",
+          "releasedAt": "2026-08-17T02:30:50.000Z",
+          "manifest": {
+            "schemaVersion": 1,
+            "id": "org.substore.config-generator",
+            "kind": "executable",
+            "distribution": "source-executable",
+            "name": "配置生成器",
+            "description": "生成 Surge、Quantumult X、Clash 和 Loon 配置",
+            "version": "1.2.11",
+            "publisher": {
+              "id": "org.substore",
+              "name": "Sub-Store"
+            },
+            "license": "GPL-3.0",
+            "homepage": "https://github.com/dompling/Sub-Store-Extensions",
+            "host": {
+              "apiVersion": "1.0.0",
+              "frontendApiVersion": "1.0.0",
+              "backend": ">=2.36.38",
+              "implementationAbi": "config-generator@1",
+              "runtimes": [
+                "node"
+              ]
+            },
+            "frontend": {
+              "entrypoint": "frontend/index.js",
+              "style": "frontend/style.css",
+              "sdkSpecifier": "@substore/frontend-sdk/v1",
+              "uiKitAbi": "substore-ui-kit@1",
+              "implementationAbi": "config-generator-ui@1",
+              "routeBase": "/extensions/config-generator",
+              "openPath": "/extensions/config-generator",
+              "assets": {
+                "entrypoint": {
+                  "path": "frontend/index.js",
+                  "digest": "6311e9467a1f452105718541e09b8f41fe15a5e2e5afe7c864e9cf7644d06328"
+                },
+                "style": {
+                  "path": "frontend/style.css",
+                  "digest": "4c81ca61b544b799f270bb58b93a8a249469e389e1407cc0ecdfb0dc13177108"
+                }
+              }
+            },
+            "entrypoints": {
+              "backend": {
+                "path": "backend/index.cjs"
+              }
+            },
+            "variants": {
+              "node": {
+                "implementationId": "org.substore.config-generator@1/node",
+                "implementationAbi": "config-generator@1",
+                "frontendAssetId": "org.substore.config-generator-ui@1",
+                "entrypoint": "backend/index.cjs",
+                "containsExecutableCode": true
+              }
+            },
+            "requires": {
+              "hard": [
+                "resource-broker@1",
+                "artifact-source-registry@1",
+                "route-gateway@1"
+              ]
+            },
+            "permissions": [
+              {
+                "name": "storage.own",
+                "reason": "保存配置项目与规则集"
+              },
+              {
+                "name": "resources.list",
+                "scope": [
+                  "rule-set"
+                ],
+                "reason": "发现实现 substore.rule-set@1 的插件资源"
+              },
+              {
+                "name": "resources.read",
+                "scope": [
+                  "rule-set",
+                  "artifacts"
+                ],
+                "reason": "读取规则资源描述，并保持旧配置托管引用检查"
+              },
+              {
+                "name": "resources.produce",
+                "scope": [
+                  "rule-set"
+                ],
+                "reason": "按生成目标生产规则集资源"
+              },
+              {
+                "name": "references.manage-own",
+                "scope": [
+                  "config-project"
+                ],
+                "reason": "维护配置项目到规则集资源的可修复引用索引"
+              },
+              {
+                "name": "network.fetch",
+                "scope": [
+                  "user-configured-https",
+                  "user-configured-http"
+                ],
+                "reason": "读取用户配置的远程订阅和规则集"
+              },
+              {
+                "name": "artifact.produce",
+                "scope": [
+                  "subscription",
+                  "collection",
+                  "file",
+                  "rule"
+                ]
+              },
+              {
+                "name": "artifact-source.register",
+                "scope": [
+                  "config-project"
+                ]
+              },
+              {
+                "name": "routes.namespaced"
+              },
+              {
+                "name": "navigation.register"
+              }
+            ],
+            "contributes": {
+              "features": [
+                "org.substore.config-generator.configGenerator"
+              ],
+              "routes": [
+                "org.substore.config-generator.list",
+                "org.substore.config-generator.edit",
+                "org.substore.config-generator.import",
+                "org.substore.config-generator.preview",
+                "org.substore.config-generator.health",
+                "org.substore.config-generator.download"
+              ],
+              "artifactSources": [
+                {
+                  "id": "org.substore.config-generator.config-project",
+                  "type": "config-project",
+                  "contract": "substore.config-project@1",
+                  "representations": [
+                    "surge-config",
+                    "qx-config",
+                    "clash-config",
+                    "loon-config"
+                  ],
+                  "labelKey": "artifactSource",
+                  "platforms": [
+                    "Surge",
+                    "QX",
+                    "Clash",
+                    "Loon"
+                  ]
+                }
+              ],
+              "navigation": [
+                "org.substore.config-generator.main"
+              ],
+              "pageActions": [
+                "org.substore.config-generator.add",
+                "org.substore.config-generator.import"
+              ]
+            },
+            "storage": {
+              "schemaVersion": 2,
+              "legacyKeys": [
+                "configGenerator"
+              ]
+            },
+            "legacy": {
+              "id": "config-generator",
+              "feature": "configGenerator",
+              "routes": [
+                "/api/extensions/config-generator/**",
+                "/download/config-project/**"
+              ]
+            }
+          },
+          "distribution": "source-executable",
+          "selectedVariant": "node",
+          "packageUrl": "./packages/org.substore.config-generator/1.2.11/node.json",
+          "packageUrls": {
+            "node": "./packages/org.substore.config-generator/1.2.11/node.json"
+          },
+          "packageDigest": "bea4113e3c75abbb53b967a05f7ee86bb5ba59aac45024877b15f5be2e77ee65",
+          "packageDigests": {
+            "node": "bea4113e3c75abbb53b967a05f7ee86bb5ba59aac45024877b15f5be2e77ee65"
+          },
+          "installable": true
+        },
         {
           "version": "1.2.10",
           "releasedAt": "2026-08-17T02:30:50.000Z",

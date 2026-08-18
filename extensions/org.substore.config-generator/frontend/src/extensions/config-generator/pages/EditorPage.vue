@@ -429,6 +429,7 @@ import {
   CONFIG_GENERATOR_TARGET_REGISTRY,
   CONFIG_GENERATOR_TARGETS,
   DEFAULT_CONFIG_GENERATOR_TARGET,
+  isConfigGeneratorTarget,
 } from '@/extensions/config-generator/domain/targets';
 import { useConfigGeneratorStore } from '@/extensions/config-generator/store';
 
@@ -654,6 +655,20 @@ const resetForm = (project?: ConfigProject) => {
   sourceModel.value = form.embeddedSource ? [form.embeddedSource.type, form.embeddedSource.name] : [];
   activeEditorTab.value = 'subscriptions';
   pendingRuleSetDeletionNames.value = new Set();
+};
+
+const applyEditorRouteLocation = () => {
+  const rawSection = Array.isArray(route.query.section)
+    ? route.query.section[0]
+    : route.query.section;
+  const section = rawSection === 'rules' ? 'ruleSets' : rawSection;
+  if (['subscriptions', 'groups', 'ruleSets', 'independent'].includes(String(section || ''))) {
+    activeEditorTab.value = String(section);
+  }
+  const rawTarget = Array.isArray(route.query.target)
+    ? route.query.target[0]
+    : route.query.target;
+  if (isConfigGeneratorTarget(rawTarget)) independentTarget.value = rawTarget;
 };
 
 const setIndependentConfig = (target: ConfigGeneratorTarget, content: string) => {
@@ -1547,6 +1562,7 @@ onMounted(async () => {
     }
     resetForm(project);
   }
+  applyEditorRouteLocation();
   captureInitialCollapsedActionIds(!isNewProject);
 
   await Promise.all([

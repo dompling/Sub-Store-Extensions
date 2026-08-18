@@ -11,6 +11,10 @@ export function useConfigGeneratorApi() {
       url: `/api/extensions/config-generator/project/${encodeURIComponent(name)}`,
       method: 'get',
     }),
+    getProjectHealth: (name: string): AxiosPromise<MyAxiosRes> => request({
+      url: `/api/extensions/config-generator/project/${encodeURIComponent(name)}/health`,
+      method: 'get',
+    }),
     createProject: (data: ConfigProject): AxiosPromise<MyAxiosRes> => request({
       url: '/api/extensions/config-generator/projects',
       method: 'post',

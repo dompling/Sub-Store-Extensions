@@ -310,11 +310,150 @@
     "chooseFileAction": "Choose a local configuration file",
     "importSafetyNote": "The file is read in this browser and sent only to your Sub-Store backend for parsing. Compatibility notices are shown before the import is saved.",
     "parseSelectedFile": "Parse as a {type} project",
-    "importFootnote": "Import never overwrites an existing project; duplicate project and rule-set names receive a unique suffix."
+    "importFootnote": "Import never overwrites an existing project; duplicate project and rule-set names receive a unique suffix.",
+    "health": {
+      "action": "Health check",
+      "title": "Configuration health check",
+      "description": "Check rule, policy-group, remote-source and rule-set references and compatibility across four clients.",
+      "running": "Checking configuration",
+      "runningDescription": "Running static checks for Surge, Quantumult X, Clash and Loon configuration rules.",
+      "rerun": "Run again",
+      "retry": "Retry",
+      "editProject": "Open project editor",
+      "checkedAt": "Checked at {time}",
+      "allTargets": "All clients",
+      "targetsEyebrow": "Four-client compatibility",
+      "targetsTitle": "Review results by client",
+      "targetFilter": "Filter health-check client",
+      "targetIssueCount": "{count} issues",
+      "targetHealthy": "No issues",
+      "findingsEyebrow": "Findings and fixes",
+      "findingCount": "{count} health-check findings",
+      "location": "Configuration path",
+      "suggestion": "How to fix it",
+      "edit": "Edit",
+      "preview": "Open preview",
+      "commonIssue": "Common configuration",
+      "genericSuggestion": "Open the matching editor section, correct the field, then run the health check and target preview again.",
+      "notFound": "Config project not found",
+      "notFoundDescription": "The project may have been deleted or renamed. Return to the list and choose it again.",
+      "failed": "Configuration health check failed",
+      "failedDescription": "The health check could not be completed. Check the backend state and try again.",
+      "allClearTitle": "No issues in the selected scope",
+      "allClearDescription": "Rule references and client compatibility passed the current static checks.",
+      "status": {
+        "healthy": "Healthy",
+        "warning": "Needs review",
+        "error": "Errors found"
+      },
+      "severity": {
+        "error": "Error",
+        "warning": "Warning",
+        "info": "Suggestion"
+      },
+      "summary": {
+        "title": "Health-check summary",
+        "errors": "Errors",
+        "warnings": "Warnings",
+        "infos": "Suggestions",
+        "healthyTargets": "Healthy clients"
+      },
+      "categories": {
+        "project": "Project",
+        "groups": "Policy groups",
+        "rules": "Rules and rule sets",
+        "sources": "Proxy sources",
+        "outputs": "Independent config"
+      },
+      "coverage": {
+        "eyebrow": "Check boundaries",
+        "title": "These items are not verified online by the static health check",
+        "description": "The health check does not download remote bodies, generate real nodes or execute response transformers, so it does not change the project or trigger upstream requests. Verify these items with generation previews and the actual clients.",
+        "items": {
+          "embeddedSourceOutput": "Real embedded-source output",
+          "remoteUrlReachability": "Remote URL reachability",
+          "remoteRuleContent": "Remote rule content",
+          "resourceOutputContent": "Plugin rule-set content",
+          "responseTransformers": "Response-transformer results",
+          "nodeConnectivity": "Node connectivity"
+        }
+      },
+      "issues": {
+        "PROJECT_INVALID": {
+          "title": "Project configuration is incomplete",
+          "suggestion": "Open the project editor, correct the required field, format or number at the reported path, then run the health check again."
+        },
+        "POLICY_REFERENCE_INVALID": {
+          "title": "Policy-group reference is invalid",
+          "suggestion": "Change the reference to DIRECT, REJECT, or an existing enabled group; otherwise create or re-enable the intended policy group."
+        },
+        "POLICY_GROUP_UNSUPPORTED": {
+          "title": "The target client does not support this group type",
+          "suggestion": "Use a group type supported by the target. Prefer select, url-test, or fallback when identical four-client behavior is required."
+        },
+        "POLICY_GROUP_FALLBACK": {
+          "title": "The policy group needs a compatibility fallback",
+          "suggestion": "Use a portable group type for identical behavior, or review and accept the documented fallback in the target preview."
+        },
+        "POLICY_GROUP_EMPTY": {
+          "title": "The policy group has no usable members",
+          "suggestion": "Add DIRECT, REJECT, another enabled group, explicit proxies, all proxies, or a compatible remote proxy source."
+        },
+        "POLICY_GROUP_CYCLE": {
+          "title": "Policy groups contain a reference cycle",
+          "suggestion": "Remove one group-to-group reference so the policy dependency graph cannot loop back to itself."
+        },
+        "POLICY_REGEX_INVALID": {
+          "title": "The node-filter regular expression is invalid",
+          "suggestion": "Correct the regular expression or remove the filter, and verify that the expression compiles before saving."
+        },
+        "REMOTE_SOURCE_INVALID": {
+          "title": "The remote proxy source is unavailable or incompatible",
+          "suggestion": "Choose an existing enabled source in the target format, or enable automatic Sub-Store conversion with a reachable public URL."
+        },
+        "REMOTE_SOURCE_FALLBACK": {
+          "title": "The remote proxy source needs a conversion fallback",
+          "suggestion": "Use a target-native or automatic source for exact behavior, or confirm the parser fallback in the target preview."
+        },
+        "RULE_SET_INVALID": {
+          "title": "The rule set cannot be used by the target client",
+          "suggestion": "Choose an existing enabled rule set that produces the target format. Plugin rule sets also require a valid public delivery URL."
+        },
+        "RULE_SET_FALLBACK": {
+          "title": "The rule set needs compatibility conversion",
+          "suggestion": "Use a target-native rule set for exact semantics, or inspect the converted preview before keeping this fallback."
+        },
+        "RULES_INCOMPLETE": {
+          "title": "Rule order or catch-all behavior is incomplete",
+          "suggestion": "Keep FINAL as the last active rule and add a final policy when consistent catch-all behavior is required."
+        },
+        "DUPLICATE_ENTRY": {
+          "title": "Duplicate configuration found",
+          "suggestion": "Remove or rename the duplicate so sources, policy members and rules do not become ambiguous or match twice."
+        },
+        "UNUSED_ENTRY": {
+          "title": "This configuration entry is currently unused",
+          "suggestion": "Delete it if obsolete, or reference it from an active rule or policy group when it is still intentional."
+        },
+        "INDEPENDENT_CONFIG_INVALID": {
+          "title": "Independent configuration syntax is invalid",
+          "suggestion": "Correct the target-specific syntax. Clash independent configuration must be a YAML object."
+        },
+        "TARGET_OPTION_OMITTED": {
+          "title": "The target client will ignore this option",
+          "suggestion": "Move the behavior into the target independent configuration, or remove the target-specific option when portability matters more."
+        },
+        "TARGET_DIAGNOSTIC": {
+          "title": "The target client has a compatibility notice",
+          "suggestion": "Open the target preview and adjust the related group, rule, source, or client-specific option."
+        }
+      }
+    }
   },
   "navBar": {
     "pagesTitle": {
-      "configGenerator": "Config Generator"
+      "configGenerator": "Config Generator",
+      "configGeneratorHealth": "Configuration Health"
     }
   },
   "tabBar": {

@@ -46,6 +46,7 @@ import {
     repairConfigGeneratorReferences,
     replaceProjectResourceReferences,
 } from './core/reference-index';
+import { diagnoseConfigProject } from './diagnostics';
 import manifest from './manifest.json';
 import { hex_md5 } from '@/vendor/md5';
 
@@ -274,6 +275,33 @@ async function listResourceRuleSets(req, res) {
 
 function parseName(req) {
     return decodeURIComponent(req.params.name);
+}
+
+async function projectHealth(req, res) {
+    try {
+        const store = readConfigGeneratorStore();
+        const name = parseName(req);
+        const project = findByName(store.projects, name);
+        if (!project)
+            throw new ResourceNotFoundError(
+                'CONFIG_GENERATOR_PROJECT_NOT_FOUND',
+                '找不到配置项目',
+            );
+        success(
+            res,
+            await diagnoseConfigProject({
+                project,
+                ruleSets: store.ruleSets,
+                getResourceDescriptor: (ref) => resources.get(ref),
+            }),
+        );
+    } catch (error) {
+        failed(
+            res,
+            errorFrom(error),
+            error instanceof ResourceNotFoundError ? 404 : 400,
+        );
+    }
 }
 
 function resolveTargetHandler(target) {
@@ -908,6 +936,10 @@ export function registerConfigGeneratorRoutes(
                   404,
               );
     });
+    $app.get(
+        '/api/extensions/config-generator/project/:name/health',
+        projectHealth,
+    );
     $app.patch('/api/extensions/config-generator/project/:name', updateProject);
     $app.delete(
         '/api/extensions/config-generator/project/:name',

@@ -18,6 +18,7 @@ const withoutConfigGeneratorMessages = (
   if (current.navBar?.pagesTitle) {
     const pagesTitle = { ...current.navBar.pagesTitle };
     delete pagesTitle.configGenerator;
+    delete pagesTitle.configGeneratorHealth;
     next.navBar = {
       ...current.navBar,
       pagesTitle,

@@ -70,4 +70,17 @@ export const configGeneratorRoutes: FrontendExtensionRouteContribution[] = [
       extensionSurfaceId: 'preview',
     },
   },
+  {
+    id: `${CONFIG_GENERATOR_EXTENSION_ID}.health`,
+    path: '/extensions/config-generator/health/:name',
+    extensionId: CONFIG_GENERATOR_EXTENSION_ID,
+    extensionSurfaceId: 'health',
+    meta: {
+      ...baseMeta,
+      title: 'configGeneratorHealth',
+      backPath: '/extensions/config-generator',
+      extensionId: CONFIG_GENERATOR_EXTENSION_ID,
+      extensionSurfaceId: 'health',
+    },
+  },
 ];

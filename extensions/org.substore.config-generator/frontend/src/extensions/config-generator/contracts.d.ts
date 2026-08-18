@@ -188,3 +188,43 @@ interface ConfigImportDraft {
   };
   warnings?: Array<{ path?: string; message: string; line?: number }>;
 }
+
+type ConfigGeneratorHealthStatus = 'healthy' | 'warning' | 'error';
+
+interface ConfigGeneratorHealthDiagnostic {
+  id: string;
+  code: string;
+  severity: 'error' | 'warning' | 'info';
+  target?: ConfigGeneratorTarget;
+  category: 'project' | 'groups' | 'rules' | 'sources' | 'outputs' | string;
+  path?: string;
+  message: string;
+  suggestion?: string;
+  details?: unknown;
+  fix?: {
+    section: 'subscriptions' | 'groups' | 'ruleSets' | 'independent' | string;
+    target?: ConfigGeneratorTarget;
+  };
+}
+
+interface ConfigGeneratorHealthTargetReport {
+  target: ConfigGeneratorTarget;
+  displayName: string;
+  status: ConfigGeneratorHealthStatus;
+  counts: { error: number; warning: number; info: number };
+}
+
+interface ConfigGeneratorHealthReport {
+  schema: 'substore.config-generator-health-report@1';
+  project: { name: string; displayName?: string; revision?: number };
+  checkedAt: number;
+  status: ConfigGeneratorHealthStatus;
+  counts: { error: number; warning: number; info: number };
+  targets: Record<ConfigGeneratorTarget, ConfigGeneratorHealthTargetReport>;
+  diagnostics: ConfigGeneratorHealthDiagnostic[];
+  coverage: {
+    mode: 'static' | string;
+    checked: string[];
+    notChecked: string[];
+  };
+}

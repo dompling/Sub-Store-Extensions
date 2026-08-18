@@ -60,6 +60,7 @@ function createHost({
   let storedValue = initialStore;
   let adapter;
   let contribution;
+  let resourceGetCalls = 0;
   const services = {
     apiVersion: '1.0.0',
     extensionId,
@@ -75,6 +76,7 @@ function createHost({
         (!types?.length || types.includes(item.ref.type))
           && (!contracts?.length || contracts.includes(item.ref.contract))),
       get: async ref => {
+        resourceGetCalls += 1;
         const descriptor = resourceDescriptors.find(item => JSON.stringify(item.ref) === JSON.stringify(ref));
         if (!descriptor) {
           const error = new Error('Resource not found');
@@ -135,6 +137,7 @@ function createHost({
     },
     contribution: () => contribution,
     storedValue: () => storedValue,
+    resourceGetCalls: () => resourceGetCalls,
     cache,
   };
 }

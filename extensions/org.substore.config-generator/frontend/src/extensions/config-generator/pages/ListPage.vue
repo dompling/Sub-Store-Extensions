@@ -38,6 +38,7 @@
                 @publish="openPublishDialog(project)"
                 @copy="copyProjectLink(project)"
                 @edit="editProject(project.name)"
+                @health="openHealth(project.name)"
                 @remove="removeProject(project)"
               />
             </div>
@@ -103,6 +104,7 @@ const { currentUrl } = useHostAPI();
 const createProject = () => router.push('/extensions/config-generator/edit/UNTITLED');
 const importProject = () => router.push('/extensions/config-generator/import');
 const editProject = (name: string) => router.push(`/extensions/config-generator/edit/${encodeURIComponent(name)}`);
+const openHealth = (name: string) => router.push(`/extensions/config-generator/health/${encodeURIComponent(name)}`);
 const refresh = () => configStore.fetchProjects();
 const actualRuleCount = (project: ConfigProject) => (project.rules || []).filter(item => !['comment', 'blank'].includes(item.kind)).length;
 const sourceModeLabel = (project: ConfigProject) => {

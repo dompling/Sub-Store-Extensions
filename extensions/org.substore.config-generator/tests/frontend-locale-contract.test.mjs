@@ -145,7 +145,10 @@ test('ships complete zh, en and ru messages inside the extension', async () => {
 
   assert.ok(baseline.size > 0);
   assert.equal(baseline.has('configGenerator.title'), true);
+  assert.equal(baseline.has('configGenerator.health.action'), true);
+  assert.equal(baseline.has('configGenerator.health.issues.POLICY_REFERENCE_INVALID.suggestion'), true);
   assert.equal(baseline.has('navBar.pagesTitle.configGenerator'), true);
+  assert.equal(baseline.has('navBar.pagesTitle.configGeneratorHealth'), true);
   assert.equal(baseline.has('tabBar.configGenerator'), true);
 
   for (const locale of localeNames.slice(1)) {
@@ -277,7 +280,9 @@ test('merges and disposes only the extension-owned locale namespaces', async () 
     assert.equal(mergeCount, localeNames.length);
     for (const locale of localeNames) {
       assert.equal(typeof state[locale].configGenerator.title, 'string');
+      assert.equal(typeof state[locale].configGenerator.health.action, 'string');
       assert.equal(typeof state[locale].navBar.pagesTitle.configGenerator, 'string');
+      assert.equal(typeof state[locale].navBar.pagesTitle.configGeneratorHealth, 'string');
       assert.equal(typeof state[locale].tabBar.configGenerator, 'string');
       assert.equal(state[locale].specificWord.save, locale);
     }
@@ -286,6 +291,7 @@ test('merges and disposes only the extension-owned locale namespaces', async () 
     for (const locale of localeNames) {
       assert.equal(state[locale].configGenerator, undefined);
       assert.equal(state[locale].navBar.pagesTitle.configGenerator, undefined);
+      assert.equal(state[locale].navBar.pagesTitle.configGeneratorHealth, undefined);
       assert.equal(state[locale].tabBar.configGenerator, undefined);
       assert.equal(state[locale].navBar.pagesTitle.extensions, locale);
       assert.equal(state[locale].tabBar.sub, locale);

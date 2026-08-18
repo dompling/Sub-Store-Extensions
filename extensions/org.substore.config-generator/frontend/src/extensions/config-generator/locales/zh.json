@@ -310,11 +310,150 @@
     "chooseFileAction": "选择本地配置文件",
     "importSafetyNote": "文件仅在当前浏览器中读取并发送给你的 Sub-Store 后端解析；导入前会展示所有兼容性提示。",
     "parseSelectedFile": "解析为 {type} 项目",
-    "importFootnote": "导入不会覆盖现有项目；同名项目和规则集会自动生成唯一名称。"
+    "importFootnote": "导入不会覆盖现有项目；同名项目和规则集会自动生成唯一名称。",
+    "health": {
+      "action": "配置体检",
+      "title": "配置体检",
+      "description": "检查规则、策略组、远程来源和规则集在四个客户端中的引用与兼容性。",
+      "running": "正在体检配置",
+      "runningDescription": "正在按 Surge、Quantumult X、Clash 和 Loon 的配置规则进行静态检查。",
+      "rerun": "重新体检",
+      "retry": "重试",
+      "editProject": "打开项目编辑器",
+      "checkedAt": "体检时间：{time}",
+      "allTargets": "全部客户端",
+      "targetsEyebrow": "四端兼容性",
+      "targetsTitle": "按客户端查看体检结果",
+      "targetFilter": "筛选体检客户端",
+      "targetIssueCount": "{count} 个问题",
+      "targetHealthy": "未发现问题",
+      "findingsEyebrow": "问题与建议",
+      "findingCount": "{count} 条体检结果",
+      "location": "配置位置",
+      "suggestion": "建议怎么修改",
+      "edit": "去修改",
+      "preview": "查看预览",
+      "commonIssue": "通用配置",
+      "genericSuggestion": "返回编辑器检查对应字段，修改后重新体检并查看目标客户端预览。",
+      "notFound": "找不到配置项目",
+      "notFoundDescription": "项目可能已被删除或重命名，请返回列表后重新选择。",
+      "failed": "配置体检失败",
+      "failedDescription": "无法完成本次体检，请检查后端状态后重试。",
+      "allClearTitle": "当前筛选范围未发现问题",
+      "allClearDescription": "规则引用和客户端兼容性均通过当前静态检查。",
+      "status": {
+        "healthy": "正常",
+        "warning": "有提醒",
+        "error": "有错误"
+      },
+      "severity": {
+        "error": "错误",
+        "warning": "提醒",
+        "info": "建议"
+      },
+      "summary": {
+        "title": "体检汇总",
+        "errors": "错误",
+        "warnings": "提醒",
+        "infos": "优化建议",
+        "healthyTargets": "正常客户端"
+      },
+      "categories": {
+        "project": "项目配置",
+        "groups": "策略组",
+        "rules": "规则与规则集",
+        "sources": "节点来源",
+        "outputs": "独立配置"
+      },
+      "coverage": {
+        "eyebrow": "检查边界",
+        "title": "以下内容不会在静态体检中联网验证",
+        "description": "体检不会下载远程正文、生成真实节点或执行响应转换器，因此不会改变项目或触发上游请求。请结合生成预览和实际客户端验证这些项目。",
+        "items": {
+          "embeddedSourceOutput": "内嵌订阅真实输出",
+          "remoteUrlReachability": "远程 URL 可访问性",
+          "remoteRuleContent": "远程规则正文",
+          "resourceOutputContent": "插件规则集正文",
+          "responseTransformers": "响应转换器执行结果",
+          "nodeConnectivity": "节点连通性"
+        }
+      },
+      "issues": {
+        "PROJECT_INVALID": {
+          "title": "项目基础配置不完整",
+          "suggestion": "打开项目编辑器，按配置位置修正必填项、格式或数值，然后重新体检。"
+        },
+        "POLICY_REFERENCE_INVALID": {
+          "title": "策略组引用无效",
+          "suggestion": "把引用改为 DIRECT、REJECT 或现有且已启用的策略组；如果该策略确实需要，请创建或重新启用对应策略组。"
+        },
+        "POLICY_GROUP_UNSUPPORTED": {
+          "title": "目标客户端不支持该策略组类型",
+          "suggestion": "改用该客户端支持的策略组类型；如需四端行为一致，优先使用 select、url-test 或 fallback。"
+        },
+        "POLICY_GROUP_FALLBACK": {
+          "title": "策略组会发生兼容降级",
+          "suggestion": "若必须四端行为一致，请换成通用策略组类型；若接受差异，请在对应客户端预览中确认降级后的行为。"
+        },
+        "POLICY_GROUP_EMPTY": {
+          "title": "策略组没有可用成员",
+          "suggestion": "添加 DIRECT、REJECT、其他已启用策略组、明确节点、全部节点，或绑定与该客户端兼容的远程节点来源。"
+        },
+        "POLICY_GROUP_CYCLE": {
+          "title": "策略组存在循环引用",
+          "suggestion": "删除其中一条组到组的引用，确保策略组依赖关系不会绕回自身。"
+        },
+        "POLICY_REGEX_INVALID": {
+          "title": "节点筛选正则无效",
+          "suggestion": "修正正则表达式或删除该筛选条件，并在保存前先验证表达式能正常编译。"
+        },
+        "REMOTE_SOURCE_INVALID": {
+          "title": "远程节点来源不可用或不兼容",
+          "suggestion": "选择存在且已启用、格式属于当前客户端的来源；跨端使用时可启用 Sub-Store 自动转换并配置可访问的公网地址。"
+        },
+        "REMOTE_SOURCE_FALLBACK": {
+          "title": "远程节点来源需要转换兜底",
+          "suggestion": "需要精确行为时改用目标客户端原生来源或自动转换来源；否则请在预览中确认解析器兜底结果。"
+        },
+        "RULE_SET_INVALID": {
+          "title": "规则集无法用于目标客户端",
+          "suggestion": "选择存在且已启用、能输出当前客户端格式的规则集；插件规则集还需要有效的公网交付地址。"
+        },
+        "RULE_SET_FALLBACK": {
+          "title": "规则集会经过兼容转换",
+          "suggestion": "需要精确规则语义时改用目标客户端原生规则集；保留兜底时请检查转换后的预览。"
+        },
+        "RULES_INCOMPLETE": {
+          "title": "规则顺序或兜底规则不完整",
+          "suggestion": "让 FINAL 成为最后一条有效规则，并在需要统一兜底行为时补充最终策略。"
+        },
+        "DUPLICATE_ENTRY": {
+          "title": "发现重复配置",
+          "suggestion": "删除重复项或改名，避免来源、策略成员和规则产生歧义或重复匹配。"
+        },
+        "UNUSED_ENTRY": {
+          "title": "配置项当前未被使用",
+          "suggestion": "如果已经废弃可以删除；如果仍有用途，请从有效规则或策略组中引用它。"
+        },
+        "INDEPENDENT_CONFIG_INVALID": {
+          "title": "独立配置语法无效",
+          "suggestion": "修正对应客户端的独立配置语法；Clash 独立配置必须是 YAML 对象。"
+        },
+        "TARGET_OPTION_OMITTED": {
+          "title": "该选项在目标客户端会被忽略",
+          "suggestion": "把此行为放进目标客户端独立配置，或在重视跨端兼容时删除该专属选项。"
+        },
+        "TARGET_DIAGNOSTIC": {
+          "title": "目标客户端存在兼容性提醒",
+          "suggestion": "查看对应客户端预览，并调整相关策略组、规则、来源或客户端专属选项。"
+        }
+      }
+    }
   },
   "navBar": {
     "pagesTitle": {
-      "configGenerator": "配置管理"
+      "configGenerator": "配置管理",
+      "configGeneratorHealth": "配置体检"
     }
   },
   "tabBar": {

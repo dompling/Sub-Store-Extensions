@@ -148,6 +148,11 @@ test('keeps every public config-generator route in the extension contribution', 
       surface: 'preview',
       backPath: '/extensions/config-generator',
     },
+    {
+      path: '/extensions/config-generator/health/:name',
+      surface: 'health',
+      backPath: '/extensions/config-generator',
+    },
   ]) {
     assert.match(routes, new RegExp(`path: '${route.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'`));
     assert.match(routes, new RegExp(`extensionSurfaceId: '${route.surface}'`));
@@ -157,6 +162,21 @@ test('keeps every public config-generator route in the extension contribution', 
   assert.match(routes, /extensionId:\s*CONFIG_GENERATOR_EXTENSION_ID/g);
   assert.match(routes, /needTabBar:\s*false/);
   assert.match(routes, /needNavBack:\s*true/);
+});
+
+test('registers the configuration health surface and manifest route', async () => {
+  const runtime = await fs.readFile(
+    path.join(
+      extension.workspaceDirectory,
+      'frontend/src/extensions/config-generator/runtime-entry.ts',
+    ),
+    'utf8',
+  );
+  const manifest = await readJson(extension.manifestPath);
+
+  assert.match(runtime, /import HealthPage from '.\/pages\/HealthPage\.vue'/);
+  assert.match(runtime, /health:\s*async \(\) => HealthPage/);
+  assert.ok(manifest.contributes.routes.includes('org.substore.config-generator.health'));
 });
 
 test('builds the Node entrypoint without unresolved Host-private imports', async () => {
