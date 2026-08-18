@@ -199,6 +199,204 @@ function createDiagnostic({
     };
 }
 
+function normalizedLabel(value) {
+    return typeof value === 'string' ? value.trim() : '';
+}
+
+function indexedPath(path, root) {
+    const match = new RegExp(`^${root}\\[(\\d+)\\](?:\\.(.*))?$`).exec(
+        path || '',
+    );
+    if (!match) return null;
+    return {
+        index: Number(match[1]),
+        field: match[2] || '',
+    };
+}
+
+function namedPath(path, root, entries, getName = (entry) => entry?.name) {
+    const prefix = `${root}.`;
+    if (!path?.startsWith(prefix)) return null;
+    const remainder = path.slice(prefix.length);
+    const candidates = (entries || [])
+        .map((entry, index) => ({
+            entry,
+            index,
+            name: normalizedLabel(getName(entry)),
+        }))
+        .filter((entry) => entry.name)
+        .sort((left, right) => right.name.length - left.name.length);
+    const match = candidates.find(
+        (entry) =>
+            remainder === entry.name || remainder.startsWith(`${entry.name}.`),
+    );
+    if (!match) return null;
+    return {
+        ...match,
+        field:
+            remainder === match.name
+                ? ''
+                : remainder.slice(match.name.length + 1),
+    };
+}
+
+function ruleLocation(rule, index, field) {
+    const explicitName = normalizedLabel(rule?.name);
+    let name = explicitName;
+    if (!name && rule?.kind === 'remote') name = normalizedLabel(rule.ruleSet);
+    if (!name && rule?.kind === 'inline') {
+        name = [normalizedLabel(rule.type), normalizedLabel(rule.value)]
+            .filter(Boolean)
+            .join(' · ');
+    }
+    if (!name && rule?.kind === 'final') name = 'FINAL';
+    if (!name && rule?.kind === 'comment') name = normalizedLabel(rule.text);
+    return {
+        kind: 'rule',
+        index,
+        name: name || `#${index + 1}`,
+        field,
+        ruleKind: rule?.kind,
+        explicitName: Boolean(explicitName),
+        ...(rule?.kind === 'remote' && normalizedLabel(rule.ruleSet)
+            ? { referenceName: normalizedLabel(rule.ruleSet) }
+            : {}),
+    };
+}
+
+function namedEntityLocation(kind, entry, index, field) {
+    const name =
+        normalizedLabel(entry?.remark) ||
+        normalizedLabel(entry?.displayName) ||
+        normalizedLabel(entry?.name) ||
+        `#${index + 1}`;
+    const referenceName = normalizedLabel(entry?.name);
+    return {
+        kind,
+        index,
+        name,
+        field,
+        ...(referenceName && referenceName !== name ? { referenceName } : {}),
+    };
+}
+
+function diagnosticLocation(path, project, ruleSets) {
+    const projectName =
+        normalizedLabel(project?.displayName) || normalizedLabel(project?.name);
+    const rules = project?.rules || [];
+    const groups = project?.groups || [];
+    const sources = project?.remoteProxySources || [];
+
+    const indexedRule = indexedPath(path, 'rules');
+    if (indexedRule) {
+        return ruleLocation(
+            rules[indexedRule.index],
+            indexedRule.index,
+            indexedRule.field,
+        );
+    }
+    const namedRule = namedPath(
+        path,
+        'rules',
+        rules.filter((rule) => rule?.kind === 'remote'),
+        (rule) => rule?.ruleSet,
+    );
+    if (namedRule) {
+        const index = rules.indexOf(namedRule.entry);
+        return ruleLocation(namedRule.entry, index, namedRule.field);
+    }
+
+    const indexedGroup = indexedPath(path, 'groups');
+    if (indexedGroup) {
+        return namedEntityLocation(
+            'group',
+            groups[indexedGroup.index],
+            indexedGroup.index,
+            indexedGroup.field,
+        );
+    }
+    const namedGroup = namedPath(path, 'groups', groups);
+    if (namedGroup) {
+        return namedEntityLocation(
+            'group',
+            namedGroup.entry,
+            namedGroup.index,
+            namedGroup.field,
+        );
+    }
+
+    const indexedRuleSet = indexedPath(path, 'ruleSets');
+    if (indexedRuleSet) {
+        return namedEntityLocation(
+            'ruleSet',
+            ruleSets[indexedRuleSet.index],
+            indexedRuleSet.index,
+            indexedRuleSet.field,
+        );
+    }
+    const namedRuleSet = namedPath(path, 'ruleSets', ruleSets);
+    if (namedRuleSet) {
+        return namedEntityLocation(
+            'ruleSet',
+            namedRuleSet.entry,
+            namedRuleSet.index,
+            namedRuleSet.field,
+        );
+    }
+
+    const indexedSource = indexedPath(path, 'remoteProxySources');
+    if (indexedSource) {
+        return namedEntityLocation(
+            'source',
+            sources[indexedSource.index],
+            indexedSource.index,
+            indexedSource.field,
+        );
+    }
+    const namedSource = namedPath(path, 'remoteProxySources', sources);
+    if (namedSource) {
+        return namedEntityLocation(
+            'source',
+            namedSource.entry,
+            namedSource.index,
+            namedSource.field,
+        );
+    }
+
+    const processPath = indexedPath(path, 'process');
+    if (processPath) {
+        return {
+            kind: 'process',
+            index: processPath.index,
+            name: normalizedLabel(project?.process?.[processPath.index]?.id),
+            field: processPath.field,
+        };
+    }
+
+    const outputMatch = /^outputs(?:\.([^.]+))?(?:\.(.*))?$/.exec(path || '');
+    if (outputMatch) {
+        const target = getTargetIds().includes(outputMatch[1])
+            ? outputMatch[1]
+            : undefined;
+        return {
+            kind: target ? 'output' : 'outputs',
+            ...(target ? { target } : {}),
+            field: outputMatch[2] || '',
+        };
+    }
+
+    if (path === 'rules') return { kind: 'rules', field: '' };
+    if (path === 'groups') return { kind: 'groups', field: '' };
+    if (path === 'ruleSets') return { kind: 'ruleSets', field: '' };
+    if (path === 'remoteProxySources') return { kind: 'sources', field: '' };
+
+    return {
+        kind: 'project',
+        ...(projectName ? { name: projectName } : {}),
+        field: path || '',
+    };
+}
+
 function validationCode(path, message) {
     const normalized = `${message || ''}`.toLowerCase();
     if (normalized.includes('acyclic')) return 'POLICY_GROUP_CYCLE';
@@ -940,8 +1138,8 @@ function targetDiagnostics(
         diagnostics.push(...targetOptionDiagnostics(group, capability, target));
     });
 
-    activeRules(project).forEach((rule) => {
-        if (rule.kind !== 'remote') return;
+    (project?.rules || []).forEach((rule, index) => {
+        if (rule.disabled || rule.kind !== 'remote') return;
         const ruleSet = ruleSetByName.get(rule.ruleSet);
         if (!ruleSet || ruleSet.enabled === false) return;
         if (isResourceRuleSet(ruleSet)) {
@@ -962,7 +1160,7 @@ function targetDiagnostics(
                     code: 'RULE_SET_INVALID',
                     severity: 'error',
                     target,
-                    path: `rules.${rule.ruleSet}`,
+                    path: `rules[${index}].ruleSet`,
                     message:
                         resolution.warning?.message ||
                         `${getTargetDisplayName(
@@ -976,10 +1174,7 @@ function targetDiagnostics(
                     code: 'RULE_SET_FALLBACK',
                     severity: 'warning',
                     target,
-                    path:
-                        resolution.kind === 'remote-url'
-                            ? `rules.${rule.ruleSet}.source.url`
-                            : `rules.${rule.ruleSet}`,
+                    path: `rules[${index}].ruleSet`,
                     message: resolution.warning.message,
                     details: resolution.fallback,
                 }),
@@ -1050,7 +1245,10 @@ export async function diagnoseConfigProject({
         );
     });
 
-    const diagnostics = dedupeDiagnostics(items);
+    const diagnostics = dedupeDiagnostics(items).map((item) => ({
+        ...item,
+        location: diagnosticLocation(item.path, project, ruleSets),
+    }));
     const counts = countDiagnostics(diagnostics);
     const targetReports = Object.fromEntries(
         targets.map((target) => {

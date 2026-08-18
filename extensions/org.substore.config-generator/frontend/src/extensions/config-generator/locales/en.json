@@ -334,7 +334,81 @@
       "edit": "Edit",
       "preview": "Open preview",
       "commonIssue": "Common configuration",
+      "genericIssueTitle": "Configuration compatibility issue",
+      "genericDiagnosticMessage": "This configuration may not be generated as expected. Review the location and fix guidance below.",
       "genericSuggestion": "Open the matching editor section, correct the field, then run the health check and target preview again.",
+      "technicalDetails": "Technical details",
+      "technicalPath": "Internal path",
+      "technicalMessage": "Raw backend message",
+      "locations": {
+        "configuration": "Current configuration",
+        "project": "Project settings",
+        "projectNamed": "Project “{name}”",
+        "ruleNamed": "Rule “{name}”",
+        "ruleIndexed": "Rule {number} ({name})",
+        "groupNamed": "Policy group “{name}”",
+        "groupIndexed": "Policy group {number}",
+        "ruleSetNamed": "Rule set “{name}”",
+        "ruleSetIndexed": "Rule set {number}",
+        "sourceNamed": "Proxy source “{name}”",
+        "sourceIndexed": "Proxy source {number}",
+        "output": "{target} independent configuration",
+        "processNamed": "Response transformer “{name}”",
+        "processIndexed": "Response transformer {number}",
+        "rules": "Rule list",
+        "groups": "Policy-group list",
+        "ruleSets": "Rule-set list",
+        "sources": "Proxy-source list",
+        "outputs": "Client independent configurations",
+        "withField": "{location} · {field}"
+      },
+      "fields": {
+        "configuration": "Configuration item",
+        "name": "Name",
+        "displayName": "Display name",
+        "remark": "Remark",
+        "kind": "Kind",
+        "type": "Type",
+        "value": "Value",
+        "comment": "Comment",
+        "policy": "Referenced policy",
+        "ruleSet": "Referenced rule set",
+        "ruleSetNamed": "Referenced rule set “{name}”",
+        "members": "Policy members",
+        "member": "Policy member {number}",
+        "includeOtherGroups": "Included policy groups",
+        "includedGroup": "Included policy group {number}",
+        "nodeNameRegex": "Node filter regular expression",
+        "remoteProxySource": "Remote proxy source",
+        "testUrl": "Test URL",
+        "interval": "Check interval",
+        "tolerance": "Latency tolerance",
+        "timeout": "Check timeout",
+        "policyUpdateInterval": "Source update interval",
+        "iconUrl": "Icon URL",
+        "hidden": "Hidden group",
+        "noAlert": "Suppress switch alert",
+        "evaluateBeforeUse": "Evaluate before use",
+        "persistent": "Persistent selection",
+        "aliveChecking": "Continuous checking",
+        "resourceTagRegex": "Resource-tag regular expression",
+        "noResolve": "no-resolve option",
+        "dnsFailed": "dns-failed option",
+        "independentConfig": "Independent configuration content",
+        "publicBaseUrl": "Public backend URL",
+        "source": "Source",
+        "sourceType": "Source type",
+        "sourceUrl": "Source URL",
+        "sourceTarget": "Source target client",
+        "resourceReference": "Plugin resource reference",
+        "enabled": "Enabled state",
+        "updateInterval": "Update interval",
+        "targetOptions": "Client-specific options",
+        "outputs": "Client outputs",
+        "subnetRule": "Subnet rule {number}",
+        "transformerArgs": "Transformer arguments",
+        "transformerId": "Transformer identifier"
+      },
       "notFound": "Config project not found",
       "notFoundDescription": "The project may have been deleted or renamed. Return to the list and choose it again.",
       "failed": "Configuration health check failed",
@@ -381,70 +455,87 @@
       "issues": {
         "PROJECT_INVALID": {
           "title": "Project configuration is incomplete",
+          "message": "The format or value at {location} is invalid and must be corrected before running the health check again.",
           "suggestion": "Open the project editor, correct the required field, format or number at the reported path, then run the health check again."
         },
         "POLICY_REFERENCE_INVALID": {
           "title": "Policy-group reference is invalid",
+          "message": "The policy group referenced by {location} is missing, disabled, or unavailable to the current configuration.",
           "suggestion": "Change the reference to DIRECT, REJECT, or an existing enabled group; otherwise create or re-enable the intended policy group."
         },
         "POLICY_GROUP_UNSUPPORTED": {
           "title": "The target client does not support this group type",
+          "message": "{target} does not support the policy-group type used by {location}, so generation may be incomplete.",
           "suggestion": "Use a group type supported by the target. Prefer select, url-test, or fallback when identical four-client behavior is required."
         },
         "POLICY_GROUP_FALLBACK": {
           "title": "The policy group needs a compatibility fallback",
+          "message": "{target} cannot preserve the behavior of {location} exactly and will apply a compatibility fallback.",
           "suggestion": "Use a portable group type for identical behavior, or review and accept the documented fallback in the target preview."
         },
         "POLICY_GROUP_EMPTY": {
           "title": "The policy group has no usable members",
+          "message": "{location} has no usable members or proxy sources after projection to {target}.",
           "suggestion": "Add DIRECT, REJECT, another enabled group, explicit proxies, all proxies, or a compatible remote proxy source."
         },
         "POLICY_GROUP_CYCLE": {
           "title": "Policy groups contain a reference cycle",
+          "message": "{location} forms a reference cycle with other policy groups.",
           "suggestion": "Remove one group-to-group reference so the policy dependency graph cannot loop back to itself."
         },
         "POLICY_REGEX_INVALID": {
           "title": "The node-filter regular expression is invalid",
+          "message": "The regular expression at {location} cannot be parsed.",
           "suggestion": "Correct the regular expression or remove the filter, and verify that the expression compiles before saving."
         },
         "REMOTE_SOURCE_INVALID": {
           "title": "The remote proxy source is unavailable or incompatible",
+          "message": "The remote proxy source associated with {location} is missing, disabled, or incompatible with {target}.",
           "suggestion": "Choose an existing enabled source in the target format, or enable automatic Sub-Store conversion with a reachable public URL."
         },
         "REMOTE_SOURCE_FALLBACK": {
           "title": "The remote proxy source needs a conversion fallback",
+          "message": "The proxy source at {location} requires compatibility conversion for {target}.",
           "suggestion": "Use a target-native or automatic source for exact behavior, or confirm the parser fallback in the target preview."
         },
         "RULE_SET_INVALID": {
           "title": "The rule set cannot be used by the target client",
+          "message": "{target} cannot use the current rule-set source or output format at {location}.",
           "suggestion": "Choose an existing enabled rule set that produces the target format. Plugin rule sets also require a valid public delivery URL."
         },
         "RULE_SET_FALLBACK": {
           "title": "The rule set needs compatibility conversion",
+          "message": "{location} requires rule-set compatibility conversion for {target}.",
           "suggestion": "Use a target-native rule set for exact semantics, or inspect the converted preview before keeping this fallback."
         },
         "RULES_INCOMPLETE": {
           "title": "Rule order or catch-all behavior is incomplete",
+          "message": "The rule order or final catch-all behavior at {location} is incomplete.",
           "suggestion": "Keep FINAL as the last active rule and add a final policy when consistent catch-all behavior is required."
         },
         "DUPLICATE_ENTRY": {
           "title": "Duplicate configuration found",
+          "message": "{location} duplicates existing configuration and may cause repeated matching or ambiguous references.",
           "suggestion": "Remove or rename the duplicate so sources, policy members and rules do not become ambiguous or match twice."
         },
         "UNUSED_ENTRY": {
           "title": "This configuration entry is currently unused",
+          "message": "{location} is not currently used by an active rule or policy group.",
           "suggestion": "Delete it if obsolete, or reference it from an active rule or policy group when it is still intentional."
         },
         "INDEPENDENT_CONFIG_INVALID": {
           "title": "Independent configuration syntax is invalid",
+          "message": "{location} cannot be parsed using the {target} configuration syntax.",
           "suggestion": "Correct the target-specific syntax. Clash independent configuration must be a YAML object."
         },
         "TARGET_OPTION_OMITTED": {
           "title": "The target client will ignore this option",
+          "message": "{target} cannot fully preserve {location}; generation will omit or degrade this configuration.",
           "suggestion": "Move the behavior into the target independent configuration, or remove the target-specific option when portability matters more."
         },
         "TARGET_DIAGNOSTIC": {
           "title": "The target client has a compatibility notice",
+          "message": "{location} has a compatibility difference in {target}; review the generated preview.",
           "suggestion": "Open the target preview and adjust the related group, rule, source, or client-specific option."
         }
       }

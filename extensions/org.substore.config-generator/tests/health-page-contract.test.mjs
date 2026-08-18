@@ -21,6 +21,14 @@ test('renders a single aggregated four-client health report with actionable find
   assert.doesNotMatch(page, /configStore\.preview\(/);
   assert.match(page, /report\.coverage\.notChecked/);
   assert.match(page, /item\.path/);
+  assert.doesNotMatch(page, /<p class="finding-message">\{\{\s*item\.message\s*\}\}<\/p>/);
+  assert.doesNotMatch(
+    page,
+    /class="finding-location"[\s\S]{0,240}<dd>\{\{\s*item\.path\s*\}\}<\/dd>/,
+  );
+  assert.match(page, /diagnosticLocationLabel\(item\)/);
+  assert.match(page, /issueMessage\(item\)/);
+  assert.match(page, /configGenerator\.health\.technicalDetails/);
   assert.match(page, /issueSuggestion\(item\)/);
   assert.match(page, /configGenerator\.health\.suggestion/);
   assert.match(page, /configGenerator\.health\.allClearTitle/);

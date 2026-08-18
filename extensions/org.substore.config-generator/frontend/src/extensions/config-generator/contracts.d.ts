@@ -201,6 +201,17 @@ interface ConfigGeneratorHealthDiagnostic {
   message: string;
   suggestion?: string;
   details?: unknown;
+  location?: {
+    kind: 'project' | 'rule' | 'rules' | 'group' | 'groups' | 'ruleSet' | 'ruleSets'
+      | 'source' | 'sources' | 'output' | 'outputs' | 'process' | string;
+    index?: number;
+    name?: string;
+    referenceName?: string;
+    field?: string;
+    target?: ConfigGeneratorTarget;
+    ruleKind?: RuleBinding['kind'];
+    explicitName?: boolean;
+  };
   fix?: {
     section: 'subscriptions' | 'groups' | 'ruleSets' | 'independent' | string;
     target?: ConfigGeneratorTarget;

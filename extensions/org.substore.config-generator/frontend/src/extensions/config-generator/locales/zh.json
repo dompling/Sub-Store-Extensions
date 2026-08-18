@@ -334,7 +334,81 @@
       "edit": "去修改",
       "preview": "查看预览",
       "commonIssue": "通用配置",
+      "genericIssueTitle": "配置兼容性问题",
+      "genericDiagnosticMessage": "该配置可能无法按预期生成，请检查下方位置和修改建议。",
       "genericSuggestion": "返回编辑器检查对应字段，修改后重新体检并查看目标客户端预览。",
+      "technicalDetails": "技术详情",
+      "technicalPath": "内部路径",
+      "technicalMessage": "后端原始信息",
+      "locations": {
+        "configuration": "当前配置",
+        "project": "项目设置",
+        "projectNamed": "项目「{name}」",
+        "ruleNamed": "规则「{name}」",
+        "ruleIndexed": "第 {number} 条规则（{name}）",
+        "groupNamed": "策略组「{name}」",
+        "groupIndexed": "第 {number} 个策略组",
+        "ruleSetNamed": "规则集「{name}」",
+        "ruleSetIndexed": "第 {number} 个规则集",
+        "sourceNamed": "节点来源「{name}」",
+        "sourceIndexed": "第 {number} 个节点来源",
+        "output": "{target} 独立配置",
+        "processNamed": "响应转换器「{name}」",
+        "processIndexed": "第 {number} 个响应转换器",
+        "rules": "规则列表",
+        "groups": "策略组列表",
+        "ruleSets": "规则集列表",
+        "sources": "节点来源列表",
+        "outputs": "客户端独立配置",
+        "withField": "{location} · {field}"
+      },
+      "fields": {
+        "configuration": "配置项",
+        "name": "名称",
+        "displayName": "显示名称",
+        "remark": "备注",
+        "kind": "类型",
+        "type": "类型",
+        "value": "内容",
+        "comment": "注释",
+        "policy": "引用策略",
+        "ruleSet": "引用规则集",
+        "ruleSetNamed": "引用规则集「{name}」",
+        "members": "策略成员",
+        "member": "第 {number} 个策略成员",
+        "includeOtherGroups": "引用其他策略组",
+        "includedGroup": "第 {number} 个引用策略组",
+        "nodeNameRegex": "节点筛选正则",
+        "remoteProxySource": "远程节点来源",
+        "testUrl": "测试地址",
+        "interval": "检查间隔",
+        "tolerance": "延迟容差",
+        "timeout": "检查超时",
+        "policyUpdateInterval": "来源更新间隔",
+        "iconUrl": "图标地址",
+        "hidden": "隐藏策略组",
+        "noAlert": "禁止切换提醒",
+        "evaluateBeforeUse": "使用前检查",
+        "persistent": "持久化选择",
+        "aliveChecking": "持续测速",
+        "resourceTagRegex": "资源标签正则",
+        "noResolve": "no-resolve 选项",
+        "dnsFailed": "dns-failed 选项",
+        "independentConfig": "独立配置内容",
+        "publicBaseUrl": "公开后端地址",
+        "source": "来源",
+        "sourceType": "来源类型",
+        "sourceUrl": "来源 URL",
+        "sourceTarget": "来源所属客户端",
+        "resourceReference": "插件资源引用",
+        "enabled": "启用状态",
+        "updateInterval": "更新间隔",
+        "targetOptions": "客户端专属选项",
+        "outputs": "客户端输出",
+        "subnetRule": "第 {number} 条子网规则",
+        "transformerArgs": "转换器参数",
+        "transformerId": "转换器标识"
+      },
       "notFound": "找不到配置项目",
       "notFoundDescription": "项目可能已被删除或重命名，请返回列表后重新选择。",
       "failed": "配置体检失败",
@@ -381,70 +455,87 @@
       "issues": {
         "PROJECT_INVALID": {
           "title": "项目基础配置不完整",
+          "message": "{location} 的配置格式或取值不符合要求，需要修正后重新体检。",
           "suggestion": "打开项目编辑器，按配置位置修正必填项、格式或数值，然后重新体检。"
         },
         "POLICY_REFERENCE_INVALID": {
           "title": "策略组引用无效",
+          "message": "{location} 引用的策略组不存在、已停用，或不能用于当前配置。",
           "suggestion": "把引用改为 DIRECT、REJECT 或现有且已启用的策略组；如果该策略确实需要，请创建或重新启用对应策略组。"
         },
         "POLICY_GROUP_UNSUPPORTED": {
           "title": "目标客户端不支持该策略组类型",
+          "message": "{target} 不支持 {location} 使用的策略组类型，生成结果可能不完整。",
           "suggestion": "改用该客户端支持的策略组类型；如需四端行为一致，优先使用 select、url-test 或 fallback。"
         },
         "POLICY_GROUP_FALLBACK": {
           "title": "策略组会发生兼容降级",
+          "message": "{target} 无法原样保留 {location} 的行为，生成时会采用兼容降级。",
           "suggestion": "若必须四端行为一致，请换成通用策略组类型；若接受差异，请在对应客户端预览中确认降级后的行为。"
         },
         "POLICY_GROUP_EMPTY": {
           "title": "策略组没有可用成员",
+          "message": "{location} 投影到 {target} 后没有可用成员或节点来源。",
           "suggestion": "添加 DIRECT、REJECT、其他已启用策略组、明确节点、全部节点，或绑定与该客户端兼容的远程节点来源。"
         },
         "POLICY_GROUP_CYCLE": {
           "title": "策略组存在循环引用",
+          "message": "{location} 与其他策略组形成了循环引用。",
           "suggestion": "删除其中一条组到组的引用，确保策略组依赖关系不会绕回自身。"
         },
         "POLICY_REGEX_INVALID": {
           "title": "节点筛选正则无效",
+          "message": "{location} 中的正则表达式无法解析。",
           "suggestion": "修正正则表达式或删除该筛选条件，并在保存前先验证表达式能正常编译。"
         },
         "REMOTE_SOURCE_INVALID": {
           "title": "远程节点来源不可用或不兼容",
+          "message": "{location} 关联的远程节点来源不存在、已停用或与 {target} 不兼容。",
           "suggestion": "选择存在且已启用、格式属于当前客户端的来源；跨端使用时可启用 Sub-Store 自动转换并配置可访问的公网地址。"
         },
         "REMOTE_SOURCE_FALLBACK": {
           "title": "远程节点来源需要转换兜底",
+          "message": "{location} 的节点来源在 {target} 中需要经过兼容转换。",
           "suggestion": "需要精确行为时改用目标客户端原生来源或自动转换来源；否则请在预览中确认解析器兜底结果。"
         },
         "RULE_SET_INVALID": {
           "title": "规则集无法用于目标客户端",
+          "message": "{target} 无法使用 {location} 的当前规则集来源或输出格式。",
           "suggestion": "选择存在且已启用、能输出当前客户端格式的规则集；插件规则集还需要有效的公网交付地址。"
         },
         "RULE_SET_FALLBACK": {
           "title": "规则集会经过兼容转换",
+          "message": "{location} 在 {target} 中需要经过规则集兼容转换。",
           "suggestion": "需要精确规则语义时改用目标客户端原生规则集；保留兜底时请检查转换后的预览。"
         },
         "RULES_INCOMPLETE": {
           "title": "规则顺序或兜底规则不完整",
+          "message": "{location} 的规则顺序或最终兜底行为不完整。",
           "suggestion": "让 FINAL 成为最后一条有效规则，并在需要统一兜底行为时补充最终策略。"
         },
         "DUPLICATE_ENTRY": {
           "title": "发现重复配置",
+          "message": "{location} 与已有配置重复，可能造成重复匹配或引用歧义。",
           "suggestion": "删除重复项或改名，避免来源、策略成员和规则产生歧义或重复匹配。"
         },
         "UNUSED_ENTRY": {
           "title": "配置项当前未被使用",
+          "message": "{location} 当前没有被有效规则或策略组使用。",
           "suggestion": "如果已经废弃可以删除；如果仍有用途，请从有效规则或策略组中引用它。"
         },
         "INDEPENDENT_CONFIG_INVALID": {
           "title": "独立配置语法无效",
+          "message": "{location} 无法按 {target} 的配置语法解析。",
           "suggestion": "修正对应客户端的独立配置语法；Clash 独立配置必须是 YAML 对象。"
         },
         "TARGET_OPTION_OMITTED": {
           "title": "该选项在目标客户端会被忽略",
+          "message": "{target} 无法完整保留 {location}，生成时会忽略或降级该配置。",
           "suggestion": "把此行为放进目标客户端独立配置，或在重视跨端兼容时删除该专属选项。"
         },
         "TARGET_DIAGNOSTIC": {
           "title": "目标客户端存在兼容性提醒",
+          "message": "{location} 在 {target} 中存在兼容性差异，需要检查生成预览。",
           "suggestion": "查看对应客户端预览，并调整相关策略组、规则、来源或客户端专属选项。"
         }
       }

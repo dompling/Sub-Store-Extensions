@@ -132,11 +132,11 @@
                 </span>
               </div>
 
-              <p class="finding-message">{{ item.message }}</p>
+              <p class="finding-message">{{ issueMessage(item) }}</p>
 
-              <dl v-if="item.path" class="finding-location">
+              <dl v-if="item.location || item.path" class="finding-location">
                 <dt>{{ t('configGenerator.health.location') }}</dt>
-                <dd>{{ item.path }}</dd>
+                <dd :title="item.path">{{ diagnosticLocationLabel(item) }}</dd>
               </dl>
 
               <div class="suggestion-box">
@@ -146,6 +146,20 @@
                   <p>{{ issueSuggestion(item) }}</p>
                 </div>
               </div>
+
+              <details v-if="item.path || item.message" class="technical-details">
+                <summary>{{ t('configGenerator.health.technicalDetails') }}</summary>
+                <dl>
+                  <template v-if="item.path">
+                    <dt>{{ t('configGenerator.health.technicalPath') }}</dt>
+                    <dd>{{ item.path }}</dd>
+                  </template>
+                  <template v-if="item.message">
+                    <dt>{{ t('configGenerator.health.technicalMessage') }}</dt>
+                    <dd>{{ item.message }}</dd>
+                  </template>
+                </dl>
+              </details>
 
               <div class="finding-actions">
                 <button type="button" @click="editProject(item)">
@@ -234,6 +248,49 @@ const coverageKeys: Record<string, string> = {
   'resource-output-content': 'resourceOutputContent',
   'response-transformers': 'responseTransformers',
   'node-connectivity': 'nodeConnectivity',
+};
+const healthFieldKeys: Record<string, string> = {
+  name: 'name',
+  displayName: 'displayName',
+  remark: 'remark',
+  kind: 'kind',
+  type: 'type',
+  value: 'value',
+  text: 'comment',
+  policy: 'policy',
+  ruleSet: 'ruleSet',
+  members: 'members',
+  includeOtherGroups: 'includeOtherGroups',
+  nodeNameRegex: 'nodeNameRegex',
+  remoteProxySource: 'remoteProxySource',
+  testUrl: 'testUrl',
+  interval: 'interval',
+  tolerance: 'tolerance',
+  timeout: 'timeout',
+  policyUpdateInterval: 'policyUpdateInterval',
+  iconUrl: 'iconUrl',
+  hidden: 'hidden',
+  noAlert: 'noAlert',
+  evaluateBeforeUse: 'evaluateBeforeUse',
+  persistent: 'persistent',
+  aliveChecking: 'aliveChecking',
+  resourceTagRegex: 'resourceTagRegex',
+  noResolve: 'noResolve',
+  dnsFailed: 'dnsFailed',
+  independentConfig: 'independentConfig',
+  publicBaseUrl: 'publicBaseUrl',
+  'delivery.publicBaseUrl': 'publicBaseUrl',
+  source: 'source',
+  'source.kind': 'sourceType',
+  'source.url': 'sourceUrl',
+  'source.target': 'sourceTarget',
+  'source.ref': 'resourceReference',
+  enabled: 'enabled',
+  updateInterval: 'updateInterval',
+  targetOptions: 'targetOptions',
+  outputs: 'outputs',
+  args: 'transformerArgs',
+  id: 'transformerId',
 };
 const severityRank = { error: 0, warning: 1, info: 2 } as const;
 
@@ -324,12 +381,142 @@ const targetCountLabel = (targetReport: ConfigGeneratorHealthTargetReport) => {
     ? t('configGenerator.health.targetIssueCount', { count: actionable })
     : t('configGenerator.health.targetHealthy');
 };
+const targetLabel = (target?: ConfigGeneratorTarget) => target
+  ? t(CONFIG_GENERATOR_TARGET_REGISTRY[target].outputLabelKey)
+  : t('configGenerator.health.commonIssue');
+const simpleFieldLabel = (field: string): string => {
+  if (!field) return '';
+  const targetOption = /^targetOptions\.(surge|qx|clash|loon)(?:\.(.*))?$/.exec(field);
+  if (targetOption) {
+    const target = targetOption[1] as ConfigGeneratorTarget;
+    const nested = targetOption[2]
+      ? simpleFieldLabel(targetOption[2])
+      : t('configGenerator.health.fields.targetOptions');
+    return t('configGenerator.health.locations.withField', {
+      location: targetLabel(target),
+      field: nested,
+    });
+  }
+  const member = /^members\[(\d+)](?:\.(.*))?$/.exec(field);
+  if (member) {
+    const location = t('configGenerator.health.fields.member', {
+      number: Number(member[1]) + 1,
+    });
+    return member[2]
+      ? t('configGenerator.health.locations.withField', {
+        location,
+        field: simpleFieldLabel(member[2]),
+      })
+      : location;
+  }
+  const includedGroup = /^includeOtherGroups\[(\d+)](?:\.(.*))?$/.exec(field);
+  if (includedGroup) {
+    const location = t('configGenerator.health.fields.includedGroup', {
+      number: Number(includedGroup[1]) + 1,
+    });
+    return includedGroup[2]
+      ? t('configGenerator.health.locations.withField', {
+        location,
+        field: simpleFieldLabel(includedGroup[2]),
+      })
+      : location;
+  }
+  const subnetRule = /^subnetRules\[(\d+)](?:\.(.*))?$/.exec(field);
+  if (subnetRule) {
+    const location = t('configGenerator.health.fields.subnetRule', {
+      number: Number(subnetRule[1]) + 1,
+    });
+    return subnetRule[2]
+      ? t('configGenerator.health.locations.withField', {
+        location,
+        field: simpleFieldLabel(subnetRule[2]),
+      })
+      : location;
+  }
+  const directKey = healthFieldKeys[field];
+  if (directKey) return t(`configGenerator.health.fields.${directKey}`);
+  const finalSegment = field.split('.').pop() || '';
+  const fallbackKey = healthFieldKeys[finalSegment];
+  return fallbackKey
+    ? t(`configGenerator.health.fields.${fallbackKey}`)
+    : t('configGenerator.health.fields.configuration');
+};
+const diagnosticEntityLabel = (item: ConfigGeneratorHealthDiagnostic) => {
+  const location = item.location;
+  if (!location) return t('configGenerator.health.locations.configuration');
+  const number = (location.index ?? 0) + 1;
+  switch (location.kind) {
+    case 'rule':
+      return location.explicitName && location.name
+        ? t('configGenerator.health.locations.ruleNamed', { name: location.name })
+        : t('configGenerator.health.locations.ruleIndexed', {
+          number,
+          name: location.name || t('configGenerator.health.fields.configuration'),
+        });
+    case 'group':
+      return location.name
+        ? t('configGenerator.health.locations.groupNamed', { name: location.name })
+        : t('configGenerator.health.locations.groupIndexed', { number });
+    case 'ruleSet':
+      return location.name
+        ? t('configGenerator.health.locations.ruleSetNamed', { name: location.name })
+        : t('configGenerator.health.locations.ruleSetIndexed', { number });
+    case 'source':
+      return location.name
+        ? t('configGenerator.health.locations.sourceNamed', { name: location.name })
+        : t('configGenerator.health.locations.sourceIndexed', { number });
+    case 'output':
+      return t('configGenerator.health.locations.output', {
+        target: targetLabel(location.target),
+      });
+    case 'process':
+      return location.name
+        ? t('configGenerator.health.locations.processNamed', { name: location.name })
+        : t('configGenerator.health.locations.processIndexed', { number });
+    case 'rules':
+      return t('configGenerator.health.locations.rules');
+    case 'groups':
+      return t('configGenerator.health.locations.groups');
+    case 'ruleSets':
+      return t('configGenerator.health.locations.ruleSets');
+    case 'sources':
+      return t('configGenerator.health.locations.sources');
+    case 'outputs':
+      return t('configGenerator.health.locations.outputs');
+    default:
+      return location.name
+        ? t('configGenerator.health.locations.projectNamed', { name: location.name })
+        : t('configGenerator.health.locations.project');
+  }
+};
+const diagnosticFieldLabel = (item: ConfigGeneratorHealthDiagnostic) => {
+  const location = item.location;
+  if (location?.field === 'ruleSet' && location.referenceName) {
+    return t('configGenerator.health.fields.ruleSetNamed', {
+      name: location.referenceName,
+    });
+  }
+  return simpleFieldLabel(location?.field || '');
+};
+const diagnosticLocationLabel = (item: ConfigGeneratorHealthDiagnostic) => {
+  const location = diagnosticEntityLabel(item);
+  const field = diagnosticFieldLabel(item);
+  return field
+    ? t('configGenerator.health.locations.withField', { location, field })
+    : location;
+};
 const issueTitle = (item: ConfigGeneratorHealthDiagnostic) => knownIssueCodes.has(item.code)
   ? t(`configGenerator.health.issues.${item.code}.title`)
-  : item.message || item.code;
+  : t('configGenerator.health.genericIssueTitle');
+const issueMessage = (item: ConfigGeneratorHealthDiagnostic) => knownIssueCodes.has(item.code)
+  ? t(`configGenerator.health.issues.${item.code}.message`, {
+    target: targetLabel(item.target),
+    location: diagnosticLocationLabel(item),
+  })
+  : t('configGenerator.health.genericDiagnosticMessage');
 const issueSuggestion = (item: ConfigGeneratorHealthDiagnostic) => knownIssueCodes.has(item.code)
   ? t(`configGenerator.health.issues.${item.code}.suggestion`)
-  : item.suggestion || t('configGenerator.health.genericSuggestion');
+  : t('configGenerator.health.genericSuggestion');
 const findingMeta = (item: ConfigGeneratorHealthDiagnostic) => [
   item.target
     ? t(CONFIG_GENERATOR_TARGET_REGISTRY[item.target].outputLabelKey)
@@ -750,6 +937,41 @@ onMounted(load);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.technical-details {
+  margin-top: 9px;
+  color: var(--comment-text-color);
+  font-size: 9px;
+}
+
+.technical-details summary {
+  width: fit-content;
+  cursor: pointer;
+  user-select: none;
+}
+
+.technical-details dl {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 5px 8px;
+  margin: 8px 0 0;
+  border-radius: 10px;
+  padding: 8px 9px;
+  background: color-mix(in srgb, var(--comment-text-color) 5%, transparent);
+}
+
+.technical-details dt {
+  color: var(--comment-text-color);
+}
+
+.technical-details dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--primary-text-color);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .suggestion-box {

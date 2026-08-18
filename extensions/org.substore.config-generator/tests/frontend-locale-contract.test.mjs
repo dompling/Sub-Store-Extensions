@@ -146,6 +146,10 @@ test('ships complete zh, en and ru messages inside the extension', async () => {
   assert.ok(baseline.size > 0);
   assert.equal(baseline.has('configGenerator.title'), true);
   assert.equal(baseline.has('configGenerator.health.action'), true);
+  assert.equal(baseline.has('configGenerator.health.locations.ruleNamed'), true);
+  assert.equal(baseline.has('configGenerator.health.fields.ruleSetNamed'), true);
+  assert.equal(baseline.has('configGenerator.health.technicalDetails'), true);
+  assert.equal(baseline.has('configGenerator.health.issues.TARGET_OPTION_OMITTED.message'), true);
   assert.equal(baseline.has('configGenerator.health.issues.POLICY_REFERENCE_INVALID.suggestion'), true);
   assert.equal(baseline.has('navBar.pagesTitle.configGenerator'), true);
   assert.equal(baseline.has('navBar.pagesTitle.configGeneratorHealth'), true);

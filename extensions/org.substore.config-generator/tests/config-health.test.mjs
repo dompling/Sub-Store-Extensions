@@ -76,6 +76,64 @@ test('turns missing policy references into actionable errors without mutating th
   assert.deepEqual(fixture.storedValue().projects, [project]);
 });
 
+test('describes titled rules, policy groups, and rule sets without exposing raw paths as labels', async () => {
+  const project = baseProject({
+    groups: [
+      { name: 'Main', type: 'select', members: [{ kind: 'builtin', value: 'DIRECT' }] },
+      { name: '香港自动', type: 'url-test', members: [{ kind: 'builtin', value: 'DIRECT' }], nodeNameRegex: '[' },
+    ],
+    rules: [
+      ...Array.from({ length: 23 }, (_, index) => ({ kind: 'comment', text: `comment-${index}` })),
+      {
+        kind: 'remote',
+        name: '广告拦截',
+        ruleSet: 'missing-rules',
+        policy: 'Main',
+        noResolve: true,
+      },
+      { kind: 'final', policy: 'Main' },
+    ],
+  });
+  const ruleSets = [{
+    name: 'unused-rules',
+    remark: '备用广告规则集',
+    source: { kind: 'builtin', value: 'SYSTEM' },
+  }];
+  const { result } = await health(project, ruleSets);
+  const report = result.payload.data;
+
+  const missingRuleSet = report.diagnostics.find(item =>
+    item.code === 'RULE_SET_INVALID' && item.path === 'rules[23].ruleSet');
+  assert.ok(missingRuleSet);
+  assert.deepEqual(missingRuleSet.location, {
+    kind: 'rule',
+    index: 23,
+    name: '广告拦截',
+    field: 'ruleSet',
+    ruleKind: 'remote',
+    explicitName: true,
+    referenceName: 'missing-rules',
+  });
+
+  const targetOption = report.diagnostics.find(item =>
+    item.code === 'TARGET_OPTION_OMITTED'
+      && item.target === 'qx'
+      && item.path === 'rules[23].noResolve');
+  assert.equal(targetOption?.location?.name, '广告拦截');
+  assert.equal(targetOption?.location?.field, 'noResolve');
+
+  const invalidRegex = report.diagnostics.find(item =>
+    item.code === 'POLICY_REGEX_INVALID' && item.path === 'groups[1].nodeNameRegex');
+  assert.equal(invalidRegex?.location?.kind, 'group');
+  assert.equal(invalidRegex?.location?.name, '香港自动');
+
+  const unusedRuleSet = report.diagnostics.find(item =>
+    item.code === 'UNUSED_ENTRY' && item.path === 'ruleSets[0]');
+  assert.equal(unusedRuleSet?.location?.kind, 'ruleSet');
+  assert.equal(unusedRuleSet?.location?.name, '备用广告规则集');
+  assert.equal(unusedRuleSet?.location?.referenceName, 'unused-rules');
+});
+
 test('shows target-specific group fallbacks and empty-group behavior', async () => {
   const project = baseProject({
     groups: [{ name: 'Smart', type: 'smart', members: [] }],
