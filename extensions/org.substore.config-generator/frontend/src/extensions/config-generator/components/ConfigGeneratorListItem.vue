@@ -80,7 +80,7 @@
       <div class="sub-item-swipe-btn-wrapper">
         <nut-button
           shape="square"
-          type="primary"
+          type="success"
           class="sub-item-swipe-btn"
           :title="$t('configGenerator.health.action')"
           :aria-label="$t('configGenerator.health.action')"
@@ -92,12 +92,13 @@
       <div class="sub-item-swipe-btn-wrapper">
         <nut-button
           shape="square"
+          type="primary"
           class="sub-item-swipe-btn"
           :title="$t('configGenerator.duplicateProject')"
           :aria-label="$t('configGenerator.duplicateProject')"
           @click="$emit('duplicate')"
         >
-          <font-awesome-icon icon="fa-solid fa-clone" />
+          <font-awesome-icon icon="fa-solid fa-copy" />
         </nut-button>
       </div>
       <div class="sub-item-swipe-btn-wrapper">
@@ -110,7 +111,7 @@
       <div class="sub-item-swipe-btn-wrapper">
         <nut-button
           shape="square"
-          type="primary"
+          type="success"
           class="sub-item-swipe-btn"
           :title="$t('configGenerator.health.action')"
           :aria-label="$t('configGenerator.health.action')"
@@ -122,12 +123,13 @@
       <div class="sub-item-swipe-btn-wrapper">
         <nut-button
           shape="square"
+          type="primary"
           class="sub-item-swipe-btn"
           :title="$t('configGenerator.duplicateProject')"
           :aria-label="$t('configGenerator.duplicateProject')"
           @click="$emit('duplicate')"
         >
-          <font-awesome-icon icon="fa-solid fa-clone" />
+          <font-awesome-icon icon="fa-solid fa-copy" />
         </nut-button>
       </div>
       <div class="sub-item-swipe-btn-wrapper">

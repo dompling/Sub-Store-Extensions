@@ -30,8 +30,11 @@ test('exposes the existing swipe actions through an expand button', async () => 
   assert.match(source, /@click\.stop="\$emit\('copy'\)"/);
   assert.match(source, /fa-solid fa-clone/);
   assert.equal([...source.matchAll(/@click="\$emit\('duplicate'\)"/g)].length, 2);
+  assert.equal([...source.matchAll(/type="primary"[\s\S]{0,260}@click="\$emit\('duplicate'\)"/g)].length, 2);
+  assert.equal([...source.matchAll(/fa-solid fa-copy/g)].length, 2);
   assert.equal([...source.matchAll(/configGenerator\.duplicateProject/g)].length, 4);
   assert.equal([...source.matchAll(/@click="\$emit\('health'\)"/g)].length, 2);
+  assert.equal([...source.matchAll(/type="success"[\s\S]{0,260}@click="\$emit\('health'\)"/g)].length, 2);
   assert.equal([...source.matchAll(/configGenerator\.health\.action/g)].length >= 4, true);
   assert.match(source, /fa-solid fa-shield-halved/);
   assert.match(source, /handlePrimaryClick/);
