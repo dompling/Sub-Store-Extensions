@@ -90,6 +90,17 @@
         </nut-button>
       </div>
       <div class="sub-item-swipe-btn-wrapper">
+        <nut-button
+          shape="square"
+          class="sub-item-swipe-btn"
+          :title="$t('configGenerator.duplicateProject')"
+          :aria-label="$t('configGenerator.duplicateProject')"
+          @click="$emit('duplicate')"
+        >
+          <font-awesome-icon icon="fa-solid fa-clone" />
+        </nut-button>
+      </div>
+      <div class="sub-item-swipe-btn-wrapper">
         <nut-button shape="square" type="danger" class="sub-item-swipe-btn" @click="$emit('remove')">
           <font-awesome-icon icon="fa-solid fa-trash-can" />
         </nut-button>
@@ -106,6 +117,17 @@
           @click="$emit('health')"
         >
           <font-awesome-icon icon="fa-solid fa-shield-halved" />
+        </nut-button>
+      </div>
+      <div class="sub-item-swipe-btn-wrapper">
+        <nut-button
+          shape="square"
+          class="sub-item-swipe-btn"
+          :title="$t('configGenerator.duplicateProject')"
+          :aria-label="$t('configGenerator.duplicateProject')"
+          @click="$emit('duplicate')"
+        >
+          <font-awesome-icon icon="fa-solid fa-clone" />
         </nut-button>
       </div>
       <div class="sub-item-swipe-btn-wrapper">
@@ -135,6 +157,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   publish: [];
   copy: [];
+  duplicate: [];
   edit: [];
   health: [];
   remove: [];

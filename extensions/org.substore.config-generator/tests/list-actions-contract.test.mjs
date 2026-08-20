@@ -29,6 +29,8 @@ test('exposes the existing swipe actions through an expand button', async () => 
   assert.match(source, /swipe\.value\?\.open\(position\)/);
   assert.match(source, /@click\.stop="\$emit\('copy'\)"/);
   assert.match(source, /fa-solid fa-clone/);
+  assert.equal([...source.matchAll(/@click="\$emit\('duplicate'\)"/g)].length, 2);
+  assert.equal([...source.matchAll(/configGenerator\.duplicateProject/g)].length, 4);
   assert.equal([...source.matchAll(/@click="\$emit\('health'\)"/g)].length, 2);
   assert.equal([...source.matchAll(/configGenerator\.health\.action/g)].length >= 4, true);
   assert.match(source, /fa-solid fa-shield-halved/);
@@ -42,6 +44,7 @@ test('keeps the config-project list action contract unchanged', async () => {
 
   assert.match(source, /publish:\s*\[\]/);
   assert.match(source, /copy:\s*\[\]/);
+  assert.match(source, /duplicate:\s*\[\]/);
   assert.match(source, /edit:\s*\[\]/);
   assert.match(source, /health:\s*\[\]/);
   assert.match(source, /remove:\s*\[\]/);
@@ -56,4 +59,20 @@ test('routes the expanded health action to the project health page', async () =>
     source,
     /router\.push\(`\/extensions\/config-generator\/health\/\$\{encodeURIComponent\(name\)\}`\)/,
   );
+});
+
+test('duplicates an expanded project through the unique-copy workflow', async () => {
+  const source = await readFile(listPagePath, 'utf8');
+
+  assert.match(source, /@duplicate="duplicateProject\(project\)"/);
+  assert.match(source, /createConfigProjectDuplicate\([\s\S]*?configStore\.projects[\s\S]*?copyNameSuffix/);
+  assert.match(source, /duplicate-project-name-input/);
+  assert.match(source, /duplicate-project-display-name-input/);
+  assert.match(source, /beforeClose:\s*async\s*\(action:\s*string\)/);
+  assert.match(source, /action !== 'ok'/);
+  assert.match(source, /item\.name === name/);
+  assert.match(source, /duplicateProjectNameExists/);
+  assert.match(source, /duplicateProjectDisplayNameExists/);
+  assert.match(source, /configStore\.saveProject\(duplicate\)/);
+  assert.match(source, /configGenerator\.projectDuplicated/);
 });

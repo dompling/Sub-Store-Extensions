@@ -37,6 +37,7 @@
                 :is-dual-column="isDualColumnMode"
                 @publish="openPublishDialog(project)"
                 @copy="copyProjectLink(project)"
+                @duplicate="duplicateProject(project)"
                 @edit="editProject(project.name)"
                 @health="openHealth(project.name)"
                 @remove="removeProject(project)"
@@ -81,6 +82,7 @@ import {
 import { useConfigGeneratorI18n } from '@/extensions/config-generator/i18n';
 import { useConfigGeneratorStore } from '@/extensions/config-generator/store';
 import ConfigGeneratorListItem from '@/extensions/config-generator/components/ConfigGeneratorListItem.vue';
+import { createConfigProjectDuplicate } from '@/extensions/config-generator/domain/projectDuplicate';
 import {
   CONFIG_GENERATOR_TARGET_DEFINITIONS,
   CONFIG_GENERATOR_TARGET_REGISTRY,
@@ -100,6 +102,7 @@ const { appearanceSetting } = storeToRefs(settingsStore);
 const { effectiveListViewMode } = useListViewMode();
 const isDualColumnMode = computed(() => effectiveListViewMode.value === 'dual-column');
 const { currentUrl } = useHostAPI();
+const duplicatingProjects = new Set<string>();
 
 const createProject = () => router.push('/extensions/config-generator/edit/UNTITLED');
 const importProject = () => router.push('/extensions/config-generator/import');
@@ -140,6 +143,104 @@ const copyProjectLink = async (project: ConfigProject) => {
     Toast.success(t('configGenerator.linkCopied'));
   } catch {
     Toast.fail(t('configGenerator.copyFailed'));
+  }
+};
+
+const duplicateProject = async (project: ConfigProject) => {
+  if (duplicatingProjects.has(project.name)) return;
+  duplicatingProjects.add(project.name);
+  if (!(await configStore.fetchProjects())) {
+    duplicatingProjects.delete(project.name);
+    Toast.warn(configStore.error || t('configGenerator.operationFailed'));
+    return;
+  }
+  const duplicate = createConfigProjectDuplicate(
+    project,
+    configStore.projects,
+    t('configGenerator.copyNameSuffix'),
+  );
+  const draft = {
+    name: duplicate.name,
+    displayName: duplicate.displayName || duplicate.name,
+  };
+  let saving = false;
+  const input = (
+    field: keyof typeof draft,
+    placeholder: string,
+    className: string,
+  ) => createVNode('input', {
+    value: draft[field],
+    class: `duplicate-project-dialog-input ${className}`,
+    type: 'text',
+    autocomplete: 'off',
+    spellcheck: false,
+    placeholder,
+    onInput: (event: Event) => {
+      draft[field] = (event.target as HTMLInputElement).value;
+    },
+  });
+
+  try {
+    Dialog({
+      title: t('configGenerator.duplicateProject'),
+      content: createVNode('div', { class: 'duplicate-project-dialog-form' }, [
+        createVNode('p', { class: 'duplicate-project-dialog-description' },
+          t('configGenerator.duplicateProjectDescription')),
+        createVNode('label', { class: 'duplicate-project-dialog-field' }, [
+          createVNode('span', {}, t('configGenerator.fields.name')),
+          input('name', t('configGenerator.placeholders.name'), 'duplicate-project-name-input'),
+          createVNode('small', {}, t('configGenerator.duplicateProjectNameHelp')),
+        ]),
+        createVNode('label', { class: 'duplicate-project-dialog-field' }, [
+          createVNode('span', {}, t('configGenerator.fields.displayName')),
+          input('displayName', t('configGenerator.placeholders.displayName'), 'duplicate-project-display-name-input'),
+        ]),
+      ]),
+      popClass: 'auto-dialog duplicate-project-dialog-pop',
+      okText: t('specificWord.confirm'),
+      cancelText: t('specificWord.cancel'),
+      closeOnClickOverlay: false,
+      beforeClose: async (action: string) => {
+        if (action !== 'ok') return true;
+        if (saving) return false;
+        saving = true;
+        try {
+          const name = draft.name.trim();
+          const displayName = draft.displayName.trim();
+          if (!name || !/^[a-zA-Z\d._-]+$/.test(name)) {
+            Toast.warn(t('configGenerator.invalidName'));
+            return false;
+          }
+          if (!(await configStore.fetchProjects())) {
+            Toast.warn(configStore.error || t('configGenerator.operationFailed'));
+            return false;
+          }
+          if (configStore.projects.some(item => item.name === name)) {
+            Toast.warn(t('configGenerator.duplicateProjectNameExists'));
+            return false;
+          }
+          const visibleName = displayName || name;
+          if (configStore.projects.some(item => (item.displayName?.trim() || item.name) === visibleName)) {
+            Toast.warn(t('configGenerator.duplicateProjectDisplayNameExists'));
+            return false;
+          }
+          duplicate.name = name;
+          duplicate.displayName = displayName;
+          if (!(await configStore.saveProject(duplicate))) {
+            Toast.warn(configStore.error || t('configGenerator.operationFailed'));
+            return false;
+          }
+          Toast.success(t('configGenerator.projectDuplicated', { name: visibleName }));
+          return true;
+        } finally {
+          saving = false;
+        }
+      },
+      onClosed: () => duplicatingProjects.delete(project.name),
+    });
+  } catch {
+    duplicatingProjects.delete(project.name);
+    Toast.warn(t('configGenerator.operationFailed'));
   }
 };
 
@@ -207,6 +308,52 @@ onUnmounted(() => {
 .empty-actions {
   display: flex;
   gap: 8px;
+}
+
+:global(.duplicate-project-dialog-form) {
+  display: grid;
+  gap: 14px;
+  text-align: left;
+}
+
+:global(.duplicate-project-dialog-description) {
+  margin: 0;
+  color: var(--comment-text-color);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+:global(.duplicate-project-dialog-field) {
+  display: grid;
+  gap: 6px;
+  color: var(--primary-text-color);
+  font-size: 13px;
+}
+
+:global(.duplicate-project-dialog-field > span) {
+  font-weight: 600;
+}
+
+:global(.duplicate-project-dialog-field > small) {
+  color: var(--comment-text-color);
+  line-height: 1.45;
+}
+
+:global(.duplicate-project-dialog-input) {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--divider-color);
+  border-radius: 9px;
+  padding: 10px 12px;
+  outline: none;
+  background: var(--background-color);
+  color: var(--primary-text-color);
+  font: inherit;
+}
+
+:global(.duplicate-project-dialog-input:focus) {
+  border-color: var(--primary-color);
 }
 
 .subs-list-wrapper {
