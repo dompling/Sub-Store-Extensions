@@ -98,7 +98,7 @@
           :aria-label="$t('configGenerator.duplicateProject')"
           @click="$emit('duplicate')"
         >
-          <font-awesome-icon icon="fa-solid fa-copy" />
+          <font-awesome-icon icon="fa-solid fa-clone" />
         </nut-button>
       </div>
       <div class="sub-item-swipe-btn-wrapper">
@@ -129,7 +129,7 @@
           :aria-label="$t('configGenerator.duplicateProject')"
           @click="$emit('duplicate')"
         >
-          <font-awesome-icon icon="fa-solid fa-copy" />
+          <font-awesome-icon icon="fa-solid fa-clone" />
         </nut-button>
       </div>
       <div class="sub-item-swipe-btn-wrapper">
