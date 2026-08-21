@@ -32,7 +32,7 @@ test('declares the lightweight Node-only Resource Broker permission contract', a
   assert.equal(permissions.has('network.fetch'), false);
   assert.deepEqual(workspacePackage, {
     name: '@sub-store/extension-subscription-doctor',
-    version: '0.1.2',
+    version: manifest.version,
     private: true,
     type: 'module',
   });
