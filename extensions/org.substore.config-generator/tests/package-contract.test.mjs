@@ -118,6 +118,12 @@ test('declares a Node-only remote execution contract', async () => {
   );
 });
 
+test('supports the current 2.36.37 backend baseline', async () => {
+  const manifest = await readJson(extension.manifestPath);
+
+  assert.equal(manifest.host.backend, '>=2.36.37');
+});
+
 test('keeps every public config-generator route in the extension contribution', async () => {
   const routes = await fs.readFile(
     path.join(
