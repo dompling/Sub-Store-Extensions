@@ -6,7 +6,7 @@
   "name": "订阅体检",
   "description": "只读检查最终节点的结构、重复、四端兼容性、安全设置与节点画像",
   "icon": "fa-solid fa-shield-halved",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "publisher": {
     "id": "org.substore",
     "name": "Sub-Store"
@@ -16,7 +16,7 @@
   "host": {
     "apiVersion": "1.0.0",
     "frontendApiVersion": "1.0.0",
-    "backend": ">=2.36.38",
+    "backend": ">=2.36.37",
     "implementationAbi": "subscription-doctor@1",
     "runtimes": [
       "node"
@@ -33,7 +33,7 @@
     "assets": {
       "entrypoint": {
         "path": "frontend/index.js",
-        "digest": "e4f6990d870dddc6b7f8a2abdd5ab14b5cf50e2d1b8460ec559e5db97439072c"
+        "digest": "8925f229a50625935fc118cec5a5eed62ed2e3a46c6f86c7e79749eb697b6fe2"
       },
       "style": {
         "path": "frontend/style.css",
