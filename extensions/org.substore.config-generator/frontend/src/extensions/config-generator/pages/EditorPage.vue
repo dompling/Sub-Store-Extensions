@@ -31,6 +31,49 @@
       <EditorGroupingTips />
     </div>
 
+    <aside v-if="validationDiagnostics.length" class="editor-validation-panel" role="alert">
+      <header>
+        <span class="validation-panel-icon">
+          <font-awesome-icon icon="fa-solid fa-triangle-exclamation" />
+        </span>
+        <span class="validation-panel-heading">
+          <strong>{{ $t('configGenerator.validation.title') }}</strong>
+          <small>{{ $t('configGenerator.validation.description') }}</small>
+        </span>
+        <span class="validation-panel-count">
+          {{ $t('configGenerator.validation.issueCount', { count: validationDiagnostics.length }) }}
+        </span>
+        <button
+          type="button"
+          class="validation-panel-close"
+          :title="$t('configGenerator.validation.dismiss')"
+          :aria-label="$t('configGenerator.validation.dismiss')"
+          @click="configStore.clearValidationErrors()"
+        >
+          <font-awesome-icon icon="fa-solid fa-xmark" />
+        </button>
+      </header>
+      <ol>
+        <li v-for="(diagnostic, index) in validationDiagnostics" :key="`${diagnostic.technicalPath}-${index}`">
+          <span class="validation-item-index">{{ index + 1 }}</span>
+          <span class="validation-item-copy">
+            <strong v-if="diagnostic.location">{{ diagnostic.location }}</strong>
+            <span>{{ diagnostic.message }}</span>
+            <small>{{ diagnostic.suggestion }}</small>
+            <details v-if="diagnostic.technicalPath || diagnostic.technicalMessage !== diagnostic.message">
+              <summary>{{ $t('configGenerator.health.technicalDetails') }}</summary>
+              <span v-if="diagnostic.technicalPath">
+                {{ $t('configGenerator.health.technicalPath') }}：{{ diagnostic.technicalPath }}
+              </span>
+              <span v-if="diagnostic.technicalMessage !== diagnostic.message">
+                {{ $t('configGenerator.health.technicalMessage') }}：{{ diagnostic.technicalMessage }}
+              </span>
+            </details>
+          </span>
+        </li>
+      </ol>
+    </aside>
+
     <div v-show="!editorTabsEnabled || activeEditorTab === 'subscriptions'" class="form-block-wrapper">
       <nut-form class="form" :model-value="form">
         <div v-show="!editorTabsEnabled || activeEditorTab === 'subscriptions'" class="editor-tab-content">
@@ -422,6 +465,7 @@ import InlineRuleActionForm from '@/extensions/config-generator/components/edito
 import RuleSetActionForm from '@/extensions/config-generator/components/editor/RuleSetActionForm.vue';
 import { getRemoteRuleActionTitle } from '@/extensions/config-generator/domain/ruleBindingPresentation';
 import { renamePolicyGroupReferences } from '@/extensions/config-generator/domain/policyGroupRename';
+import { presentConfigGeneratorIssue } from '@/extensions/config-generator/domain/diagnosticPresentation';
 import ConfigGeneratorIndependentEditor from '@/extensions/config-generator/components/editor/ConfigGeneratorIndependentEditor.vue';
 import { POLICY_GROUP_TYPE_DEFINITIONS } from '@/extensions/config-generator/domain/policyGroupCapabilities';
 import {
@@ -445,7 +489,7 @@ const { currentUrl, currentShareBaseUrl } = useHostAPI();
 const { appearanceSetting } = storeToRefs(settingsStore);
 const { bottomSafeArea } = storeToRefs(globalStore);
 const { navBarHeight } = storeToRefs(systemStore);
-const { ruleSets, resourceRuleSets } = storeToRefs(configStore);
+const { ruleSets, resourceRuleSets, validationErrors } = storeToRefs(configStore);
 const padding = computed(() => `${bottomSafeArea.value}px`);
 
 const createTargetOutputs = () => Object.fromEntries(
@@ -470,6 +514,13 @@ const createEmptyProject = (): ConfigProject => {
 };
 
 const form = reactive<ConfigProject>(createEmptyProject());
+const validationDiagnostics = computed(() => validationErrors.value
+  .map(issue => presentConfigGeneratorIssue(issue, {
+    t,
+    project: form,
+    ruleSets: ruleSets.value,
+  }))
+  .filter((item): item is NonNullable<typeof item> => Boolean(item)));
 const editing = computed(() => Boolean(route.params.name && route.params.name !== 'UNTITLED'));
 const submitting = ref(false);
 const previewing = ref(false);
@@ -1217,6 +1268,17 @@ const validate = () => {
   return true;
 };
 
+const operationErrorMessage = () => {
+  const diagnostic = validationDiagnostics.value[0];
+  if (diagnostic) {
+    return t('configGenerator.validation.toast', {
+      location: diagnostic.location || t('configGenerator.health.locations.configuration'),
+      message: diagnostic.message,
+    });
+  }
+  return configStore.error || t('configGenerator.operationFailed');
+};
+
 const saveRuleSets = async () => {
   for (const ruleSet of ruleSets.value) {
     if (
@@ -1225,7 +1287,7 @@ const saveRuleSets = async () => {
     ) continue;
     const success = await configStore.saveRuleSet(ruleSet, isPersistedRuleSet(ruleSet.name));
     if (!success) {
-      Toast.warn(configStore.error || t('configGenerator.operationFailed'));
+      Toast.warn(operationErrorMessage());
       return false;
     }
   }
@@ -1288,7 +1350,7 @@ const save = async () => {
       }
       router.replace('/extensions/config-generator');
     } else {
-      Toast.warn(configStore.error || t('configGenerator.operationFailed'));
+      Toast.warn(operationErrorMessage());
     }
   } finally {
     submitting.value = false;
@@ -1546,6 +1608,7 @@ const upgradeRecognizedSubStoreRemoteSources = () => {
 };
 
 onMounted(async () => {
+  configStore.clearValidationErrors();
   const projectName = route.params.name as string | undefined;
   const isNewProject = !projectName || projectName === 'UNTITLED';
   let importedRuleSets: RemoteRuleSet[] = [];
@@ -1589,6 +1652,140 @@ onMounted(async () => {
 
   :deep(.nut-cell-group__warp) {
     border-radius: var(--item-card-radios);
+  }
+}
+
+.editor-validation-panel {
+  margin: 12px 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--danger-color) 32%, transparent);
+  border-radius: var(--item-card-radios, 12px);
+  background: color-mix(in srgb, var(--danger-color) 7%, var(--card-color));
+  color: var(--primary-text-color);
+}
+
+.editor-validation-panel > header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--danger-color) 18%, transparent);
+}
+
+.validation-panel-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--danger-color) 14%, transparent);
+  color: var(--danger-color);
+}
+
+.validation-panel-heading {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 3px;
+  min-width: 0;
+
+  strong {
+    font-size: 14px;
+  }
+
+  small {
+    color: var(--second-text-color);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+}
+
+.validation-panel-count {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--danger-color) 12%, transparent);
+  color: var(--danger-color);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.validation-panel-close {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--second-text-color);
+  place-items: center;
+}
+
+.editor-validation-panel ol {
+  display: grid;
+  gap: 0;
+  max-height: min(42vh, 360px);
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.editor-validation-panel li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--divider-color);
+
+  &:last-child {
+    border-bottom: 0;
+  }
+}
+
+.validation-item-index {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--danger-color) 12%, transparent);
+  color: var(--danger-color);
+  font-size: 11px;
+  font-weight: 700;
+  place-items: center;
+}
+
+.validation-item-copy {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.45;
+
+  strong {
+    overflow-wrap: anywhere;
+  }
+
+  > small {
+    color: var(--second-text-color);
+  }
+
+  details {
+    color: var(--comment-text-color);
+    font-size: 11px;
+
+    summary {
+      cursor: pointer;
+    }
+
+    span {
+      display: block;
+      margin-top: 4px;
+      overflow-wrap: anywhere;
+    }
   }
 }
 

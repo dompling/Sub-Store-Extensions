@@ -1,26 +1,20 @@
 import { defineStore } from '@/extensions/frontend-sdk-v1';
 import { useConfigGeneratorApi } from '@/extensions/config-generator/api';
+import {
+  apiErrorFromResponse,
+  extractConfigGeneratorApiError,
+  getConfigGeneratorErrorDetails,
+  type ConfigGeneratorApiError,
+} from '@/extensions/config-generator/domain/requestError';
 
 const api = useConfigGeneratorApi();
-
-type ConfigGeneratorApiError = {
-  code?: string;
-  message?: string;
-  details?: unknown;
-  issues?: unknown;
-};
 
 const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value)
   && typeof value === 'object';
 
-const apiErrorFromResponse = (response: unknown): ConfigGeneratorApiError | undefined => {
-  if (!isRecord(response) || !isRecord(response.data)) return undefined;
-  if (response.data.status !== 'failed' || !isRecord(response.data.error)) return undefined;
-  return response.data.error as ConfigGeneratorApiError;
-};
-
 class ConfigGeneratorRequestError extends Error {
   readonly code?: string;
+  readonly type?: string;
   readonly details?: unknown;
   readonly issues?: unknown;
 
@@ -28,6 +22,7 @@ class ConfigGeneratorRequestError extends Error {
     super(error.message || 'CONFIG_GENERATOR_REQUEST_FAILED');
     this.name = 'ConfigGeneratorRequestError';
     this.code = error.code;
+    this.type = error.type;
     this.details = error.details;
     this.issues = error.issues;
   }
@@ -50,38 +45,32 @@ const unwrapList = <T>(response: any, key: string): T[] => {
   return [];
 };
 
-const succeeded = (response: any) => response?.data?.status === 'success'
-  || response?.data?.data?.status === 'success';
-
 const getErrorMessage = (error: unknown, fallback: string) => {
+  const structuredError = extractConfigGeneratorApiError(error);
+  if (structuredError?.message) return structuredError.message;
   if (error instanceof Error && error.message) return error.message;
-  if (isRecord(error) && isRecord(error.response)) {
-    const responseError = apiErrorFromResponse(error.response);
-    if (responseError?.message) return responseError.message;
-  }
   return fallback;
 };
 
 const getErrorCode = (error: unknown) => {
-  if (error instanceof ConfigGeneratorRequestError) return error.code || '';
-  if (isRecord(error) && isRecord(error.response)) {
-    return apiErrorFromResponse(error.response)?.code || '';
-  }
-  return '';
+  return extractConfigGeneratorApiError(error)?.code || '';
 };
 
-const getStructuredErrorDetails = (error: unknown): unknown[] => {
-  let details: unknown;
-  if (error instanceof ConfigGeneratorRequestError) {
-    details = error.details ?? error.issues;
-  } else if (isRecord(error) && isRecord(error.response)) {
-    const responseError = apiErrorFromResponse(error.response);
-    details = responseError?.details ?? responseError?.issues;
+const getStructuredErrorDetails = (error: unknown): unknown[] =>
+  getConfigGeneratorErrorDetails(error);
+
+const scopedRuleSetDetails = (details: unknown[], name: string) => details.map((detail) => {
+  if (isRecord(detail)) {
+    return {
+      ...detail,
+      scope: { kind: 'ruleSet', name },
+    };
   }
-  if (Array.isArray(details)) return details;
-  if (isRecord(details) && Array.isArray(details.issues)) return details.issues;
-  return details === undefined || details === null ? [] : [details];
-};
+  return {
+    message: String(detail),
+    scope: { kind: 'ruleSet', name },
+  };
+});
 
 type ConfigGeneratorPreviewDraft = {
   name: string;
@@ -107,6 +96,7 @@ export const useConfigGeneratorStore = defineStore('configGenerator', {
     error: '',
     healthErrorCode: '',
     previewErrors: [] as unknown[],
+    validationErrors: [] as unknown[],
   }),
   actions: {
     async fetchProjects() {
@@ -161,27 +151,27 @@ export const useConfigGeneratorStore = defineStore('configGenerator', {
       }
     },
     async saveRuleSet(ruleSet: RemoteRuleSet, editing = false) {
+      this.error = '';
+      this.validationErrors = [];
       try {
         const response = editing
           ? await api.updateRuleSet(ruleSet.name, ruleSet)
           : await api.createRuleSet(ruleSet);
-        if (!succeeded(response)) {
-          this.error = (response?.data as any)?.error?.message || 'CONFIG_GENERATOR_RULE_SET_SAVE_FAILED';
-          return false;
-        }
+        unwrap(response, null);
         return true;
-      } catch (error: any) {
+      } catch (error: unknown) {
         this.error = getErrorMessage(error, 'CONFIG_GENERATOR_RULE_SET_SAVE_FAILED');
+        this.validationErrors = scopedRuleSetDetails(
+          getStructuredErrorDetails(error),
+          ruleSet.name,
+        );
         return false;
       }
     },
     async removeRuleSet(name: string) {
       try {
         const response = await api.deleteRuleSet(name);
-        if (!succeeded(response)) {
-          this.error = (response?.data as any)?.error?.message || 'CONFIG_GENERATOR_RULE_SET_DELETE_FAILED';
-          return false;
-        }
+        unwrap(response, null);
         await this.fetchRuleSets();
         return true;
       } catch (error: any) {
@@ -190,28 +180,25 @@ export const useConfigGeneratorStore = defineStore('configGenerator', {
       }
     },
     async saveProject(project: ConfigProject, editing = false) {
+      this.error = '';
+      this.validationErrors = [];
       try {
         const response = editing
           ? await api.updateProject(project.name, project)
           : await api.createProject(project);
-        if (!succeeded(response)) {
-          this.error = (response?.data as any)?.error?.message || 'CONFIG_GENERATOR_SAVE_FAILED';
-          return false;
-        }
+        unwrap(response, null);
         await this.fetchProjects();
         return true;
-      } catch (error: any) {
+      } catch (error: unknown) {
         this.error = getErrorMessage(error, 'CONFIG_GENERATOR_SAVE_FAILED');
+        this.validationErrors = getStructuredErrorDetails(error);
         return false;
       }
     },
     async removeProject(name: string) {
       try {
         const response = await api.deleteProject(name);
-        if (!succeeded(response)) {
-          this.error = (response?.data as any)?.error?.message || 'CONFIG_GENERATOR_DELETE_FAILED';
-          return false;
-        }
+        unwrap(response, null);
         await this.fetchProjects();
         return true;
       } catch (error: any) {
@@ -236,6 +223,9 @@ export const useConfigGeneratorStore = defineStore('configGenerator', {
     },
     setPreviewDraft(draft: ConfigGeneratorPreviewDraft) {
       this.previewDraft = draft;
+    },
+    clearValidationErrors() {
+      this.validationErrors = [];
     },
     takePreviewDraft() {
       const draft = this.previewDraft;

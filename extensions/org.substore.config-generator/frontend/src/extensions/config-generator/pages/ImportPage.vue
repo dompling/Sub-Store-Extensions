@@ -141,6 +141,7 @@ import {
 } from '@/extensions/frontend-sdk-v1';
 import { useConfigGeneratorI18n } from '@/extensions/config-generator/i18n';
 import { useConfigGeneratorStore } from '@/extensions/config-generator/store';
+import { presentConfigGeneratorIssue } from '@/extensions/config-generator/domain/diagnosticPresentation';
 import {
   CONFIG_GENERATOR_IMPORT_TARGET_DEFINITIONS,
   CONFIG_GENERATOR_TARGET_DEFINITIONS,
@@ -285,15 +286,26 @@ const clearPendingImport = () => {
 };
 
 const savePreparedImport = async ({ project, ruleSets }: PreparedImport) => {
+  const operationErrorMessage = () => {
+    const first = configStore.validationErrors
+      .map(issue => presentConfigGeneratorIssue(issue, { t, project, ruleSets }))
+      .find(Boolean);
+    return first
+      ? t('configGenerator.validation.toast', {
+        location: first.location || t('configGenerator.health.locations.configuration'),
+        message: first.message,
+      })
+      : configStore.error || t('configGenerator.operationFailed');
+  };
   for (const ruleSet of ruleSets) {
     if (!(await configStore.saveRuleSet(ruleSet))) {
-      Toast.warn(configStore.error || t('configGenerator.operationFailed'));
+      Toast.warn(operationErrorMessage());
       return false;
     }
   }
 
   if (!(await configStore.saveProject(project))) {
-    Toast.warn(configStore.error || t('configGenerator.operationFailed'));
+    Toast.warn(operationErrorMessage());
     return false;
   }
 

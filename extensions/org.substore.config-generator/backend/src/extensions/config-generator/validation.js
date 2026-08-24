@@ -35,7 +35,16 @@ const RULE_TYPES = [
 
 export class ConfigGeneratorValidationError extends Error {
     constructor(issues) {
-        super('Config generator validation failed');
+        const count = Array.isArray(issues) ? issues.length : 0;
+        const firstPath = issues?.[0]?.path;
+        const firstMessage = issues?.[0]?.message;
+        super(
+            firstPath
+                ? `配置校验未通过：${firstPath}${firstMessage ? `：${firstMessage}` : ''}${
+                      count > 1 ? `（共 ${count} 项）` : ''
+                  }`
+                : '配置校验未通过',
+        );
         this.code = 'CONFIG_GENERATOR_VALIDATION_FAILED';
         this.type = 'RequestInvalidError';
         this.details = issues;

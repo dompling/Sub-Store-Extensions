@@ -81,6 +81,7 @@ import {
 } from '@/extensions/frontend-sdk-v1';
 import { useConfigGeneratorI18n } from '@/extensions/config-generator/i18n';
 import { useConfigGeneratorStore } from '@/extensions/config-generator/store';
+import { presentConfigGeneratorIssue } from '@/extensions/config-generator/domain/diagnosticPresentation';
 import ConfigGeneratorListItem from '@/extensions/config-generator/components/ConfigGeneratorListItem.vue';
 import { createConfigProjectDuplicate } from '@/extensions/config-generator/domain/projectDuplicate';
 import {
@@ -163,6 +164,21 @@ const duplicateProject = async (project: ConfigProject) => {
     name: duplicate.name,
     displayName: duplicate.displayName || duplicate.name,
   };
+  const operationErrorMessage = () => {
+    const first = configStore.validationErrors
+      .map(issue => presentConfigGeneratorIssue(issue, {
+        t,
+        project: duplicate,
+        ruleSets: configStore.ruleSets,
+      }))
+      .find(Boolean);
+    return first
+      ? t('configGenerator.validation.toast', {
+        location: first.location || t('configGenerator.health.locations.configuration'),
+        message: first.message,
+      })
+      : configStore.error || t('configGenerator.operationFailed');
+  };
   let saving = false;
   const input = (
     field: keyof typeof draft,
@@ -227,7 +243,7 @@ const duplicateProject = async (project: ConfigProject) => {
           duplicate.name = name;
           duplicate.displayName = displayName;
           if (!(await configStore.saveProject(duplicate))) {
-            Toast.warn(configStore.error || t('configGenerator.operationFailed'));
+            Toast.warn(operationErrorMessage());
             return false;
           }
           Toast.success(t('configGenerator.projectDuplicated', { name: visibleName }));

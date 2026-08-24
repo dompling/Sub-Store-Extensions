@@ -1090,6 +1090,7 @@ test('still rejects real policy cycles instead of applying compatibility fallbac
     assert.equal(result.statusCode, 400);
     assert.equal(result.payload.status, 'failed');
     assert.equal(result.payload.error.code, 'CONFIG_GENERATOR_VALIDATION_FAILED');
+    assert.match(result.payload.error.message, /配置校验未通过：groups/);
     assert.ok(
       result.payload.error.details.some(issue =>
         issue.message.includes('group references must be acyclic'),

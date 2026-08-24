@@ -214,6 +214,7 @@ import {
 } from '@/extensions/frontend-sdk-v1';
 import { useConfigGeneratorI18n } from '@/extensions/config-generator/i18n';
 import { useConfigGeneratorStore } from '@/extensions/config-generator/store';
+import { formatConfigGeneratorFieldLabel } from '@/extensions/config-generator/domain/diagnosticPresentation';
 import {
   CONFIG_GENERATOR_TARGET_DEFINITIONS,
   CONFIG_GENERATOR_TARGET_REGISTRY,
@@ -248,49 +249,6 @@ const coverageKeys: Record<string, string> = {
   'resource-output-content': 'resourceOutputContent',
   'response-transformers': 'responseTransformers',
   'node-connectivity': 'nodeConnectivity',
-};
-const healthFieldKeys: Record<string, string> = {
-  name: 'name',
-  displayName: 'displayName',
-  remark: 'remark',
-  kind: 'kind',
-  type: 'type',
-  value: 'value',
-  text: 'comment',
-  policy: 'policy',
-  ruleSet: 'ruleSet',
-  members: 'members',
-  includeOtherGroups: 'includeOtherGroups',
-  nodeNameRegex: 'nodeNameRegex',
-  remoteProxySource: 'remoteProxySource',
-  testUrl: 'testUrl',
-  interval: 'interval',
-  tolerance: 'tolerance',
-  timeout: 'timeout',
-  policyUpdateInterval: 'policyUpdateInterval',
-  iconUrl: 'iconUrl',
-  hidden: 'hidden',
-  noAlert: 'noAlert',
-  evaluateBeforeUse: 'evaluateBeforeUse',
-  persistent: 'persistent',
-  aliveChecking: 'aliveChecking',
-  resourceTagRegex: 'resourceTagRegex',
-  noResolve: 'noResolve',
-  dnsFailed: 'dnsFailed',
-  independentConfig: 'independentConfig',
-  publicBaseUrl: 'publicBaseUrl',
-  'delivery.publicBaseUrl': 'publicBaseUrl',
-  source: 'source',
-  'source.kind': 'sourceType',
-  'source.url': 'sourceUrl',
-  'source.target': 'sourceTarget',
-  'source.ref': 'resourceReference',
-  enabled: 'enabled',
-  updateInterval: 'updateInterval',
-  targetOptions: 'targetOptions',
-  outputs: 'outputs',
-  args: 'transformerArgs',
-  id: 'transformerId',
 };
 const severityRank = { error: 0, warning: 1, info: 2 } as const;
 
@@ -384,63 +342,6 @@ const targetCountLabel = (targetReport: ConfigGeneratorHealthTargetReport) => {
 const targetLabel = (target?: ConfigGeneratorTarget) => target
   ? t(CONFIG_GENERATOR_TARGET_REGISTRY[target].outputLabelKey)
   : t('configGenerator.health.commonIssue');
-const simpleFieldLabel = (field: string): string => {
-  if (!field) return '';
-  const targetOption = /^targetOptions\.(surge|qx|clash|loon)(?:\.(.*))?$/.exec(field);
-  if (targetOption) {
-    const target = targetOption[1] as ConfigGeneratorTarget;
-    const nested = targetOption[2]
-      ? simpleFieldLabel(targetOption[2])
-      : t('configGenerator.health.fields.targetOptions');
-    return t('configGenerator.health.locations.withField', {
-      location: targetLabel(target),
-      field: nested,
-    });
-  }
-  const member = /^members\[(\d+)](?:\.(.*))?$/.exec(field);
-  if (member) {
-    const location = t('configGenerator.health.fields.member', {
-      number: Number(member[1]) + 1,
-    });
-    return member[2]
-      ? t('configGenerator.health.locations.withField', {
-        location,
-        field: simpleFieldLabel(member[2]),
-      })
-      : location;
-  }
-  const includedGroup = /^includeOtherGroups\[(\d+)](?:\.(.*))?$/.exec(field);
-  if (includedGroup) {
-    const location = t('configGenerator.health.fields.includedGroup', {
-      number: Number(includedGroup[1]) + 1,
-    });
-    return includedGroup[2]
-      ? t('configGenerator.health.locations.withField', {
-        location,
-        field: simpleFieldLabel(includedGroup[2]),
-      })
-      : location;
-  }
-  const subnetRule = /^subnetRules\[(\d+)](?:\.(.*))?$/.exec(field);
-  if (subnetRule) {
-    const location = t('configGenerator.health.fields.subnetRule', {
-      number: Number(subnetRule[1]) + 1,
-    });
-    return subnetRule[2]
-      ? t('configGenerator.health.locations.withField', {
-        location,
-        field: simpleFieldLabel(subnetRule[2]),
-      })
-      : location;
-  }
-  const directKey = healthFieldKeys[field];
-  if (directKey) return t(`configGenerator.health.fields.${directKey}`);
-  const finalSegment = field.split('.').pop() || '';
-  const fallbackKey = healthFieldKeys[finalSegment];
-  return fallbackKey
-    ? t(`configGenerator.health.fields.${fallbackKey}`)
-    : t('configGenerator.health.fields.configuration');
-};
 const diagnosticEntityLabel = (item: ConfigGeneratorHealthDiagnostic) => {
   const location = item.location;
   if (!location) return t('configGenerator.health.locations.configuration');
@@ -496,7 +397,7 @@ const diagnosticFieldLabel = (item: ConfigGeneratorHealthDiagnostic) => {
       name: location.referenceName,
     });
   }
-  return simpleFieldLabel(location?.field || '');
+  return formatConfigGeneratorFieldLabel(location?.field || '', t, targetLabel);
 };
 const diagnosticLocationLabel = (item: ConfigGeneratorHealthDiagnostic) => {
   const location = diagnosticEntityLabel(item);

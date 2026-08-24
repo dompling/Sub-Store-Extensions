@@ -53,7 +53,20 @@
             <span class="diagnostic-level" :class="`is-${diagnostic.level}`">
               {{ $t(`configGenerator.previewDiagnosticLevels.${diagnostic.level}`) }}
             </span>
-            <span class="diagnostic-message">{{ diagnostic.message }}</span>
+            <span class="diagnostic-copy">
+              <strong v-if="diagnostic.location">{{ diagnostic.location }}</strong>
+              <span class="diagnostic-message">{{ diagnostic.message }}</span>
+              <small v-if="diagnostic.suggestion">{{ diagnostic.suggestion }}</small>
+              <details v-if="diagnostic.technicalPath || diagnostic.technicalMessage !== diagnostic.message">
+                <summary>{{ $t('configGenerator.health.technicalDetails') }}</summary>
+                <span v-if="diagnostic.technicalPath">
+                  {{ $t('configGenerator.health.technicalPath') }}：{{ diagnostic.technicalPath }}
+                </span>
+                <span v-if="diagnostic.technicalMessage !== diagnostic.message">
+                  {{ $t('configGenerator.health.technicalMessage') }}：{{ diagnostic.technicalMessage }}
+                </span>
+              </details>
+            </span>
           </li>
         </ul>
       </aside>
@@ -118,6 +131,7 @@ import {
 } from '@/extensions/frontend-sdk-v1';
 import { useConfigGeneratorI18n } from '@/extensions/config-generator/i18n';
 import { useConfigGeneratorStore } from '@/extensions/config-generator/store';
+import { presentConfigGeneratorIssue } from '@/extensions/config-generator/domain/diagnosticPresentation';
 import {
   CONFIG_GENERATOR_TARGET_DEFINITIONS,
   CONFIG_GENERATOR_TARGET_REGISTRY,
@@ -129,7 +143,11 @@ type PreviewTarget = ConfigGeneratorTarget;
 type PreviewState = 'loading' | 'ready' | 'error' | 'empty';
 type PreviewDiagnostic = {
   level: 'warning' | 'error';
+  location: string;
   message: string;
+  suggestion: string;
+  technicalPath: string;
+  technicalMessage: string;
 };
 
 const { t } = useConfigGeneratorI18n();
@@ -152,6 +170,8 @@ const error = ref('');
 const empty = ref(false);
 const stats = ref<Record<string, number> | undefined>();
 const diagnostics = ref<PreviewDiagnostic[]>([]);
+const previewProject = ref<ConfigProject | null>(draft.value?.project || null);
+const previewRuleSets = ref<RemoteRuleSet[]>(draft.value?.ruleSets || []);
 const bottomPadding = computed(() => `${bottomSafeArea.value}px`);
 let previewRequestId = 0;
 let draftPayloadAvailable = true;
@@ -197,14 +217,15 @@ const normalizeDiagnostics = (result: any): PreviewDiagnostic[] => {
   const normalize = (items: unknown, level: PreviewDiagnostic['level']) =>
     (Array.isArray(items) ? items : [])
       .map((item: any) => {
-        const message = typeof item === 'string'
-          ? item
-          : item?.message || item?.reason || item?.code;
-        if (!message) return null;
-        const location = [item?.path, item?.line ? `:${item.line}` : ''].filter(Boolean).join('');
+        const presented = presentConfigGeneratorIssue(item, {
+          t,
+          project: previewProject.value,
+          ruleSets: previewRuleSets.value,
+        });
+        if (!presented) return null;
         return {
           level,
-          message: location ? `${location} · ${message}` : String(message),
+          ...presented,
         } as PreviewDiagnostic;
       })
       .filter((item): item is PreviewDiagnostic => Boolean(item));
@@ -251,6 +272,8 @@ const loadPreview = async (nextTarget: PreviewTarget) => {
         configStore.fetchRuleSets(),
       ]);
       if (!project) throw new Error('CONFIG_GENERATOR_PROJECT_NOT_FOUND');
+      previewProject.value = project;
+      previewRuleSets.value = configStore.ruleSets;
       result = await configStore.preview(project, configStore.ruleSets, nextTarget);
     }
 
@@ -505,6 +528,38 @@ onMounted(() => loadPreview(target.value));
   align-items: baseline;
   gap: 8px;
   min-width: 0;
+}
+
+.diagnostic-copy {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 2px;
+  min-width: 0;
+
+  strong {
+    color: var(--primary-text-color);
+    overflow-wrap: anywhere;
+  }
+
+  small {
+    color: var(--comment-text-color);
+    line-height: 1.4;
+  }
+
+  details {
+    color: var(--comment-text-color);
+    font-size: 11px;
+
+    summary {
+      cursor: pointer;
+    }
+
+    span {
+      display: block;
+      margin-top: 3px;
+      overflow-wrap: anywhere;
+    }
+  }
 }
 
 .diagnostic-level {

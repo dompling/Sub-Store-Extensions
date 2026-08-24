@@ -151,6 +151,9 @@ test('ships complete zh, en and ru messages inside the extension', async () => {
   assert.equal(baseline.has('configGenerator.health.technicalDetails'), true);
   assert.equal(baseline.has('configGenerator.health.issues.TARGET_OPTION_OMITTED.message'), true);
   assert.equal(baseline.has('configGenerator.health.issues.POLICY_REFERENCE_INVALID.suggestion'), true);
+  assert.equal(baseline.has('configGenerator.validation.messages.missingRuleSet'), true);
+  assert.equal(baseline.has('configGenerator.validation.messages.policyGroupUnsupported'), true);
+  assert.equal(baseline.has('configGenerator.validation.suggestions.compatibility'), true);
   assert.equal(baseline.has('navBar.pagesTitle.configGenerator'), true);
   assert.equal(baseline.has('navBar.pagesTitle.configGeneratorHealth'), true);
   assert.equal(baseline.has('tabBar.configGenerator'), true);
