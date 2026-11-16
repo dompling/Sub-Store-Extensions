@@ -159,6 +159,7 @@ function importRemoteSources(section, warnings, sourceContext) {
                       target: 'qx',
                   },
               };
+        if (options['img-url']) source.iconUrl = options['img-url'];
         source.enabled = bool(options.enabled, true);
         source.targetOptions = {
             ...(source.targetOptions || {}),

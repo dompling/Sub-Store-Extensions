@@ -416,6 +416,7 @@ function remoteSources(project, sourceContext, warnings) {
             const qx = source.targetOptions?.qx || {};
             const tag = qx.tag || source.name;
             values.push(`tag=${tag}`);
+            if (source.iconUrl) values.push(`img-url=${source.iconUrl}`);
             const sourceUsage = groupsBySource.get(source.name);
             const groupIntervals = [
                 ...new Set(

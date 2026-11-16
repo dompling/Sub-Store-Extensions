@@ -522,6 +522,9 @@ export function validateProject(project, ruleSets = [], target) {
             );
         }
         remoteNames.add(source.name);
+        if (source.iconUrl !== undefined) {
+            requiredString(source.iconUrl, `remoteProxySources[${index}].iconUrl`, issues);
+        }
         if (source.source?.kind === 'url') {
             if (
                 source.source.mode !== undefined &&

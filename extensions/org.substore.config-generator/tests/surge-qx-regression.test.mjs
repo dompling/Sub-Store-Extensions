@@ -1996,3 +1996,31 @@ test('keeps legacy Loon ssid groups importable while warning about the current m
       && warning.message.includes('legacy official example')
       && warning.message.includes('current Loon policy-group manual')));
 });
+
+
+test('keeps strategy group icons through Surge, Clash and QX with linked subscriptions', async () => {
+  for (const target of ['surge', 'clash', 'qx']) {
+    const generated = await preview(target, projectFor(target, {
+      remoteProxySources: [{ name: 'Airport', source: { kind: 'sub-store', type: 'subscription', name: 'airport', publicBaseUrl: 'https://example.com' } }],
+      groups: [{ name: 'Proxy', type: 'select', members: [{ kind: 'builtin', value: 'DIRECT' }], remoteProxySource: 'Airport', iconUrl: 'https://example.com/group.png' }],
+      rules: [{ kind: 'final', policy: 'Proxy' }],
+    }));
+    if (target === 'clash') assert.equal(parseYaml(generated.body)['proxy-groups'][0].icon, 'https://example.com/group.png');
+    else assert.ok(generated.body.includes(`${target === 'surge' ? 'icon-url' : 'img-url'}=https://example.com/group.png`), generated.body);
+    const imported = await importConfig(target, generated.body);
+    assert.equal(imported.project.groups[0].iconUrl, 'https://example.com/group.png');
+  }
+});
+
+test('round-trips subscription icons separately from policy group icons in Loon and QX', async () => {
+  for (const target of ['loon', 'qx']) {
+    const generated = await preview(target, projectFor(target, {
+      remoteProxySources: [{ name: 'Airport', iconUrl: 'https://example.com/airport.png?theme=dark', source: { kind: 'sub-store', type: 'subscription', name: 'airport', publicBaseUrl: 'https://example.com' } }],
+      groups: [{ name: 'Proxy', type: 'select', members: [{ kind: 'builtin', value: 'DIRECT' }], remoteProxySource: 'Airport', iconUrl: 'https://example.com/group.png' }],
+      rules: [{ kind: 'final', policy: 'Proxy' }],
+    }));
+    const imported = await importConfig(target, generated.body);
+    assert.equal(imported.project.remoteProxySources[0].iconUrl, 'https://example.com/airport.png?theme=dark', generated.body);
+    assert.equal(imported.project.groups[0].iconUrl, 'https://example.com/group.png');
+  }
+});

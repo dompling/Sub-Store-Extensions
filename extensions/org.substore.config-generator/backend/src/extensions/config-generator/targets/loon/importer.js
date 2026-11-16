@@ -118,6 +118,7 @@ function importRemoteProxySources(section, warnings, sourceContext) {
         const options = Object.fromEntries(
             values.map(assignment).filter(Boolean),
         );
+        if (options['img-url']) source.iconUrl = options['img-url'];
         source.enabled = booleanValue(options.enabled, true);
         if (!native) {
             warnings.push({

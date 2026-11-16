@@ -29,6 +29,7 @@ interface ResourceDescriptorV1 {
 
 interface RemoteProxySource {
   name: string;
+  iconUrl?: string;
   source:
     | { kind: 'sub-store'; type: 'subscription' | 'collection'; name: string; publicBaseUrl: string }
     | {

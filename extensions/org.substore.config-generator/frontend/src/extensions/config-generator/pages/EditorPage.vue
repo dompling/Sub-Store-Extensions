@@ -147,7 +147,7 @@
               <template #item="{ element: source, index }">
                 <li class="source-summary-card" :class="{ 'is-disabled': source.enabled === false }" @click="openRemoteSourceEditor(index)">
                   <span class="source-summary-icon" :class="source.source.kind">
-                    <font-awesome-icon :icon="source.source.kind === 'sub-store' ? 'fa-solid fa-layer-group' : 'fa-solid fa-link'" />
+                    <SubscriptionIcon :url="remoteSourceIcon(source)" :fallback="source.source.kind === 'sub-store' ? 'fa-solid fa-layer-group' : 'fa-solid fa-link'" />
                   </span>
                   <span class="source-summary-content">
                     <span class="source-summary-heading">
@@ -383,6 +383,17 @@
           </div>
         </nut-form-item>
 
+        <nut-form-item :label="$t('configGenerator.iconUrl')">
+          <nut-input
+            :model-value="remoteSourceIcon(remoteSourceDraft)"
+            :border="false"
+            input-align="right"
+            class="nut-input-text"
+            :placeholder="$t('configGenerator.iconUrlPlaceholder')"
+            @update:model-value="setRemoteSourceIcon"
+          />
+        </nut-form-item>
+
         <template v-if="remoteSourceDraft.source.kind === 'sub-store'">
           <nut-form-item required :label="$t('configGenerator.fields.source')">
             <nut-input
@@ -432,7 +443,7 @@
     </div>
   </nut-popup>
 
-  <nut-picker v-model:visible="sourcePickerVisible" v-model="sourceModel" :columns="sourceOptions" @confirm="confirmSource" />
+  <SubscriptionPicker v-model:visible="sourcePickerVisible" v-model="sourceModel" :columns="sourceOptions" @confirm="confirmSource" />
 </template>
 
 <script setup lang="ts">
@@ -459,6 +470,9 @@ import {
   watch,
 } from '@/extensions/frontend-sdk-v1';
 import { useConfigGeneratorI18n } from '@/extensions/config-generator/i18n';
+import SubscriptionIcon from '@/extensions/config-generator/components/SubscriptionIcon.vue';
+import SubscriptionPicker from '@/extensions/config-generator/components/SubscriptionPicker.vue';
+import { selectSubscriptionSource, subscriptionPresentation } from '@/extensions/config-generator/domain/subscriptionPresentation';
 import ConfigGeneratorActionBlock from '@/extensions/config-generator/components/editor/ConfigGeneratorActionBlock.vue';
 import PolicyGroupActionForm from '@/extensions/config-generator/components/editor/PolicyGroupActionForm.vue';
 import InlineRuleActionForm from '@/extensions/config-generator/components/editor/InlineRuleActionForm.vue';
@@ -618,17 +632,19 @@ const sourceOptions = computed(() => [
   {
     value: 'subscription',
     text: t('specificWord.singleSub'),
-    children: subsStore.subs.map(item => ({ value: item.name, text: item.displayName || item['display-name'] || item.name })),
+    children: subsStore.subs.map(item => ({ value: item.name, text: item.displayName || item['display-name'] || item.name, icon: item.icon })),
   },
   {
     value: 'collection',
     text: t('specificWord.collectionSub'),
-    children: subsStore.collections.map(item => ({ value: item.name, text: item.displayName || item['display-name'] || item.name })),
+    children: subsStore.collections.map(item => ({ value: item.name, text: item.displayName || item['display-name'] || item.name, icon: item.icon })),
   },
 ].filter(item => item.children.length));
 
+const sourcePresentation = (source?: { type?: string; name?: string }) => subscriptionPresentation(source, subsStore.subs, subsStore.collections);
+const remoteSourceIcon = (item: RemoteProxySource) => item.iconUrl || (item.source.kind === 'sub-store' ? sourcePresentation(item.source).icon : '');
 const embeddedSourceInput = computed(() => form.embeddedSource
-  ? `${form.embeddedSource.type} - ${form.embeddedSource.name}`
+  ? sourcePresentation(form.embeddedSource).label
   : '');
 
 const migrateLegacyProjectBindings = () => {
@@ -1240,6 +1256,7 @@ provide('configGeneratorActionContext', {
   setQxBoolean,
   loonAlgorithm,
   setLoonAlgorithm,
+  remoteSourceIcon,
   groupIconUrl,
   setGroupIconUrl,
   subnetDefault,
@@ -1342,7 +1359,9 @@ const save = async () => {
   submitting.value = true;
   try {
     if (!(await saveRuleSets())) return;
-    const success = await configStore.saveProject(JSON.parse(JSON.stringify(toRaw(form))), editing.value);
+    const project = JSON.parse(JSON.stringify(toRaw(form))) as ConfigProject;
+    snapshotSubscriptionIcons(project);
+    const success = await configStore.saveProject(project, editing.value);
     if (success) {
       Toast.success(t('configGenerator.saved'));
       if (!(await cleanupDetachedRuleSets())) {
@@ -1362,6 +1381,7 @@ const preview = async () => {
   previewing.value = true;
   try {
     const project = JSON.parse(JSON.stringify(toRaw(form))) as ConfigProject;
+    snapshotSubscriptionIcons(project);
     const availableRuleSets = JSON.parse(JSON.stringify(toRaw(ruleSets.value))) as RemoteRuleSet[];
     const result = await configStore.preview(project, availableRuleSets, independentTarget.value);
     if (!result) {
@@ -1422,6 +1442,19 @@ const openRemoteSourceEditor = (index: number) => {
   remoteSourceEditingIndex.value = index;
   remoteSourceDraft.value = JSON.parse(JSON.stringify(source));
   remoteSourceEditorVisible.value = true;
+};
+const setRemoteSourceIcon = (value: string) => {
+  if (!remoteSourceDraft.value) return;
+  const url = value.trim();
+  if (url) remoteSourceDraft.value.iconUrl = url;
+  else delete remoteSourceDraft.value.iconUrl;
+};
+const snapshotSubscriptionIcons = (project: ConfigProject) => {
+  project.remoteProxySources.forEach(source => {
+    if (source.source.kind !== 'sub-store' || source.iconUrl) return;
+    const icon = sourcePresentation(source.source).icon;
+    if (icon) source.iconUrl = icon;
+  });
 };
 const clearRemoteSourceDraft = () => {
   remoteSourceEditingIndex.value = null;
@@ -1496,19 +1529,19 @@ const confirmSource = ({ selectedValue }: any) => {
   const value = selectedValue || sourceModel.value;
   if (!value?.[0] || !value?.[1]) return;
   if (sourcePickerPurpose.value === 'remote-draft' && remoteSourceDraft.value) {
-    remoteSourceDraft.value.source = {
+    selectSubscriptionSource(remoteSourceDraft.value, {
       kind: 'sub-store',
       type: value[0],
       name: value[1],
       publicBaseUrl: currentUrl.value || window.location.origin,
-    };
+    });
     if (!remoteSourceDraft.value.name.trim()) remoteSourceDraft.value.name = value[1];
   } else {
     form.embeddedSource = { type: value[0], name: value[1] };
   }
 };
 const remoteSourceLabel = (item: RemoteProxySource) => item.source.kind === 'sub-store'
-  ? `${item.source.type} - ${item.source.name}`
+  ? sourcePresentation(item.source).label
   : '';
 const remoteSourceKindLabel = (item: RemoteProxySource) => item.source.kind === 'sub-store'
   ? 'Sub-Store'

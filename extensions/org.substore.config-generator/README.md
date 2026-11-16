@@ -58,4 +58,15 @@ frontend asset digest 会在 package 生成时从实际 build artifacts 更新�
 
 Clash/Loon 对目标不支持的策略组会选择近似类型并给出 warning；无可用成员时回退 `DIRECT`；不能映射的远程 RULE-SET 会 warning 后过滤；真实策略组循环仍会阻断预览。
 
+图标分为策略组图标和订阅图标：
+
+| 客户端 | 策略组图标 | 独立订阅图标 |
+| --- | --- | --- |
+| Surge | `icon-url` | `policy-path` 未定义独立图标字段 |
+| Clash/Mihomo | `icon`，由客户端/面板显示 | `proxy-providers` 未定义独立图标字段 |
+| Quantumult X | `img-url` | `[server_remote]` 的 `img-url` |
+| Loon | `img-url` | `[Remote Proxy]` 的 `img-url` |
+
+编辑器的订阅列表与选择弹窗读取 Sub-Store 中单条/组合订阅的图标。保存或预览时，把关联订阅的图标写入项目的 `remoteProxySources[].iconUrl`，供后续配置下载使用；已有项目需重新保存一次。订阅编辑弹窗也支持填写独立图标链接，优先于关联订阅图标。没有图标或图片加载失败时显示占位图标。
+
 完整流程见仓库根 [README](../../README.md) 和 [发布指南](../../docs/RELEASING.md)。

@@ -296,7 +296,7 @@
       </nut-form-item>
     </nut-form>
 
-    <nut-picker
+    <SubscriptionPicker
       v-model:visible="remoteSourcePickerVisible"
       v-model="remoteSourcePickerModel"
       :columns="remoteSourceColumns"
@@ -422,6 +422,7 @@
 </template>
 
 <script setup lang="ts">
+import SubscriptionPicker from '@/extensions/config-generator/components/SubscriptionPicker.vue';
 import {
   computed,
   Dialog,
@@ -511,7 +512,7 @@ const remoteSourceColumns = computed(() => [
     const target = source.source?.kind === 'url'
       ? targetDisplayName(source.source.target)
       : 'Sub-Store';
-    return { text: `${source.name} · ${target}`, value: source.name };
+    return { text: `${source.name} · ${target}`, value: source.name, icon: context?.remoteSourceIcon?.(source) || '' };
   }),
 ]);
 const remoteSourceDisplay = computed(() => context?.groupRemoteSource?.(group.value) || '');

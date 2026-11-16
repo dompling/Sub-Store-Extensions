@@ -260,7 +260,10 @@ function generateRemoteSources(project, sourceContext, warnings) {
             return null;
         }
         sourceAliases.set(projection.source.name, sourceAlias);
-        remoteProxyLines.push(`${sourceAlias} = ${url}`);
+        const values = [serializeSurgeCsvValue(url)];
+        if (projection.source.iconUrl)
+            values.push(`img-url = ${serializeSurgeCsvValue(projection.source.iconUrl)}`);
+        remoteProxyLines.push(`${sourceAlias} = ${values.join(', ')}`);
         return sourceAlias;
     };
 
