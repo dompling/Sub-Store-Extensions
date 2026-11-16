@@ -1,6 +1,6 @@
 {
   "name": "@sub-store/extension-config-generator",
-  "version": "1.2.19",
+  "version": "1.2.20",
   "private": true,
   "type": "module",
   "dependencies": {
