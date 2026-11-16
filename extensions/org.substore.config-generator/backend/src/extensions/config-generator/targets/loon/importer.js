@@ -300,6 +300,8 @@ function importGroups(section, remoteSources, remoteFilters, warnings) {
                         });
                     }
                 }
+            } else if (key === 'img-url') {
+                group.iconUrl = optionValue;
             } else if (key === 'algorithm') {
                 group.targetOptions = group.targetOptions || {};
                 group.targetOptions.loon = group.targetOptions.loon || {};

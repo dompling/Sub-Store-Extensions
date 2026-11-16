@@ -522,6 +522,50 @@ test('round-trips shared policy group icons through Mihomo-compatible Clash YAML
   assert.equal(imported.project.groups[0].iconUrl, 'https://example.com/proxy.png');
 });
 
+test('round-trips Loon policy group icons without dropping members or SSID conditions', async () => {
+  for (const type of ['select', 'url-test', 'fallback', 'load-balance', 'ssid']) {
+    const generated = await preview('loon', projectFor('loon', {
+      name: `loon-${type}-icon`,
+      groups: [{
+        name: 'Proxy',
+        type,
+        members: [
+          { kind: 'builtin', value: 'DIRECT' },
+          ...(type === 'ssid' ? [{ kind: 'conditional', value: 'Home:REJECT', policy: 'REJECT' }] : []),
+        ],
+        iconUrl: 'https://example.com/proxy.png?theme=dark',
+      }],
+      rules: [{ kind: 'final', policy: 'Proxy' }],
+    }));
+    assert.match(generated.body, /img-url = https:\/\/example\.com\/proxy\.png\?theme=dark/);
+    assert.equal(generated.warnings.some(item => item.path === 'groups.Proxy.iconUrl'), false);
+
+    const imported = await importConfig('loon', generated.body);
+    const group = imported.project.groups[0];
+    assert.equal(group.iconUrl, 'https://example.com/proxy.png?theme=dark');
+    assert.deepEqual(group.members, [
+      { kind: 'builtin', value: 'DIRECT' },
+      ...(type === 'ssid' ? [{ kind: 'conditional', value: 'Home:REJECT', policy: 'REJECT' }] : []),
+    ]);
+  }
+});
+
+test('preserves legacy Surge and QX icons when generating Loon and prefers the shared icon', async () => {
+  for (const [iconFields, expected] of [
+    [{ targetOptions: { surge: { iconUrl: 'https://example.com/surge.png' } } }, 'https://example.com/surge.png'],
+    [{ targetOptions: { qx: { iconUrl: 'https://example.com/qx.png' } } }, 'https://example.com/qx.png'],
+    [{ iconUrl: 'https://example.com/shared.png', targetOptions: { surge: { iconUrl: 'https://example.com/surge.png' } } }, 'https://example.com/shared.png'],
+    [{}, undefined],
+  ]) {
+    const generated = await preview('loon', projectFor('loon', {
+      groups: [{ name: 'Proxy', type: 'select', members: [{ kind: 'builtin', value: 'DIRECT' }], ...iconFields }],
+      rules: [{ kind: 'final', policy: 'Proxy' }],
+    }));
+    const groupLine = generated.body.split('\n').find(line => line.startsWith('Proxy ='));
+    assert.equal(groupLine, `Proxy = select, DIRECT${expected ? `, img-url = ${expected}` : ''}`);
+  }
+});
+
 test('warns only for enabled Surge-only boolean options in Clash and Loon projections', async () => {
   for (const target of ['clash', 'loon']) {
     const baseGroup = {

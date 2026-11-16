@@ -178,17 +178,6 @@ function warnUnsupportedGroupFields(group, capability, warnings) {
                 'The official Loon profile syntax does not define a per-group remote-proxy update interval; it was omitted.',
         });
     }
-    if (
-        group.iconUrl ||
-        group.targetOptions?.surge?.iconUrl ||
-        group.targetOptions?.qx?.iconUrl
-    ) {
-        warnings.push({
-            path: `groups.${group.name}.iconUrl`,
-            message:
-                'A portable Loon policy-group icon option is not documented by the official profile manual; the icon was omitted.',
-        });
-    }
     if (group.targetOptions?.qx?.aliveChecking !== undefined) {
         warnings.push({
             path: `groups.${group.name}.targetOptions.qx.aliveChecking`,
@@ -525,6 +514,13 @@ function generateGroups(
                     values.push(`algorithm = ${algorithm}`);
                 }
             }
+
+            const iconUrl =
+                group.iconUrl ||
+                group.targetOptions?.surge?.iconUrl ||
+                group.targetOptions?.qx?.iconUrl;
+            if (iconUrl)
+                values.push(`img-url = ${serializeSurgeCsvValue(iconUrl)}`);
 
             warnUnsupportedGroupFields(group, capability, warnings);
 
